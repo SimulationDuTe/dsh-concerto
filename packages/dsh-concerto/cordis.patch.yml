@@ -1,0 +1,8 @@
+- insert:
+    - id: concerto
+      name: 'dsh-concerto'
+      config:
+        apiBase: '/concerto'
+        maxTeams: 64
+        # teamsBundleDir 不写死：留空 = 用户主目录下的 .concerto/teams
+        # 需要放到别处时，用户在自己的 profile patch 或设置页里覆盖
