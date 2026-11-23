@@ -23,6 +23,42 @@ export function resolveModelsUrl(baseUrl) {
   return `${trimmed}/models`
 }
 
+export async function listApiModels({ baseUrl, apiKey = '', timeoutMs = 6000 } = {}) {
+  const url = resolveModelsUrl(baseUrl)
+  if (!url || !/^https?:\/\/\S+/.test(url)) {
+    return { ok: false, code: 'invalid', detail: '请填写有效的 http(s) Base URL' }
+  }
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+      },
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      return { ok: false, code: `http_${res.status}`, detail: `拉取模型列表失败（HTTP ${res.status}）` }
+    }
+    const json = await res.json()
+    const rawList = Array.isArray(json?.data) ? json.data : (Array.isArray(json?.models) ? json.models : [])
+    const models = rawList
+      .map((m) => (typeof m === 'string' ? m : (typeof m?.id === 'string' ? m.id : (typeof m?.name === 'string' ? m.name : ''))))
+      .filter(Boolean)
+      .slice(0, 200)
+    return { ok: true, models }
+  } catch (error) {
+    return {
+      ok: false,
+      code: error?.name === 'AbortError' ? 'timeout' : 'network_error',
+      detail: error?.name === 'AbortError' ? '拉取模型列表超时' : String(error?.message || error),
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function checkApiEndpoint({ baseUrl, apiKey = '', model = '', timeoutMs = 6000 } = {}) {
   const url = resolveModelsUrl(baseUrl)
   if (!url || !/^https?:\/\/\S+/.test(url)) {

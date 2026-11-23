@@ -8,12 +8,12 @@ import os from 'node:os'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { createTeamStore } from './team_store.mjs'
 import { createTeamRuntime } from './team_runtime.mjs'
 import { registerConcertoTools, COMMANDER_TOOL_SCHEMAS, executeMemberToolCall } from './tools.mjs'
 import { buildMemberSystemPrompt } from './domain/runtime_skills.mjs'
-import { checkApiEndpoint, runApiCommanderTurn, runExternalCommanderTurn } from './connector/commander-runner.mjs'
+import { checkApiEndpoint, listApiModels, runApiCommanderTurn, runExternalCommanderTurn } from './connector/commander-runner.mjs'
 import { DEFAULT_RUNTIME_PATH } from './runtime_storage.mjs'
 import { buildTeamBundleFiles, hashFiles, readTeamBundleFiles, writeTeamBundle } from './team_bundle.mjs'
 import { registerConcertoRoutes } from './routes.mjs'
@@ -575,6 +575,7 @@ export function apply(ctx, config) {
 
   const inspectMemberCapabilitySync = (teamId, member, snapshot = null, roleKindOverride = null) => {
     const m = { ...member, roleKind: roleKindOverride ?? member?.roleKind ?? 'worker' }
+    const persona = typeof m.persona === 'string' && m.persona.trim() ? m.persona.trim() : null
     const expected = expectedCapabilitiesForMember(m)
     if (m.source === 'api') {
       const configured = Boolean(typeof m.baseUrl === 'string' && m.baseUrl.trim() && typeof m.model === 'string' && m.model.trim())
@@ -582,6 +583,7 @@ export function apply(ctx, config) {
         memberId: m.id,
         roleKind: m.roleKind,
         source: 'api',
+        ...(persona ? { persona } : {}),
         connector: `api:${m.model || 'custom'}`,
         ...expected,
         actualTools: [],
@@ -592,16 +594,21 @@ export function apply(ctx, config) {
     }
     if (m.source !== 'hosted') {
       const adapter = connectorRegistry.get(m.connector)
+      const cachedProbe = m.connector ? connectorProbeCache.get(m.connector)?.probe ?? null : null
       return {
         memberId: m.id,
         roleKind: m.roleKind,
         source: m.source,
+        ...(persona ? { persona } : {}),
         connector: m.connector ?? null,
         ...expected,
         verificationStatus: adapter ? 'connector_registered' : 'connector_missing',
-        liveVerified: false,
+        ...(cachedProbe ? { probeReady: Boolean(cachedProbe.ok), probeDetail: cachedProbe.userAgent || cachedProbe.detail || null } : {}),
+        liveVerified: Boolean(cachedProbe?.ok),
         actualTools: [],
-        detail: adapter ? null : `外部连接器 "${m.connector ?? ''}" 未在 Host 注册`,
+        detail: adapter
+          ? (cachedProbe && !cachedProbe.ok ? `连接器 "${m.connector}" 本机探活未就绪：${cachedProbe.detail || cachedProbe.code}` : null)
+          : `外部连接器 "${m.connector ?? ''}" 未在 Host 注册`,
       }
     }
 
@@ -741,6 +748,7 @@ export function apply(ctx, config) {
       memberId: m.id,
       roleKind: m.roleKind,
       source: 'hosted',
+      ...(persona ? { persona } : {}),
       presetId,
       ...expected,
       verificationStatus: expected.coordinatorOnly ? 'coordinator_only' : 'verified',
@@ -2387,7 +2395,7 @@ export function apply(ctx, config) {
   }
 
   const commanderPromptRequest = async (input) => {
-    const owned = ownedRun(input)
+    const owned = ownedRun({ ...input, commandId: input?.commandId || `cmd-prompt-${randomUUID()}` })
     if (!owned.ok) return owned
     return await promptNonHostedCommander(owned.scope, input?.prompt)
   }
@@ -2438,9 +2446,66 @@ export function apply(ctx, config) {
     return { ...saved, delivery }
   }
 
+  const previewWorkspaceFile = (input) => {
+    const owned = ownedRun({ ...input, commandId: input?.commandId || 'preview-read' })
+    if (!owned.ok) return owned
+    const rawPath = typeof input?.path === 'string' ? input.path.trim() : ''
+    if (!rawPath) return { ok: false, code: 'invalid', detail: 'path required' }
+    const snapshot = runtime.getStatus(owned.scope.teamSessionId)
+    const task = typeof input?.taskId === 'string' && input.taskId.trim()
+      ? (snapshot?.tasks ?? []).find((t) => t.taskId === input.taskId.trim())
+      : null
+    const roots = [
+      task?.worktree?.path,
+      task?.writeScope,
+      snapshot?.metadata?.cwd,
+      resolveSessionCwd(ctx.sessions?.get?.(owned.scope.sessionId)),
+      defaultCwd,
+    ].filter((r) => typeof r === 'string' && r.trim() && existsSync(r.trim()))
+    if (roots.length === 0) return { ok: false, code: 'not_found', detail: '当前运行未绑定可读工作目录' }
+
+    let resolvedTarget = null
+    let matchedRoot = null
+    for (const root of roots) {
+      const realRoot = realpathSync(root.trim())
+      const candidate = resolve(realRoot, rawPath)
+      if (!existsSync(candidate)) continue
+      const realTarget = realpathSync(candidate)
+      if (scopesOverlap(realRoot, realTarget) && realTarget.toLowerCase().startsWith(realRoot.toLowerCase())) {
+        resolvedTarget = realTarget
+        matchedRoot = realRoot
+        break
+      }
+    }
+    if (!resolvedTarget) {
+      return { ok: false, code: 'not_found', detail: `未在工作区内找到可预览文件：${rawPath}` }
+    }
+    try {
+      const st = statSync(resolvedTarget)
+      if (!st.isFile()) return { ok: false, code: 'invalid', detail: '目标路径不是普通文件' }
+      const MAX_BYTES = 48 * 1024
+      const buf = readFileSync(resolvedTarget)
+      const slice = buf.length > MAX_BYTES ? buf.subarray(0, MAX_BYTES) : buf
+      if (slice.subarray(0, 1024).includes(0)) {
+        return { ok: false, code: 'invalid', detail: '二进制文件暂不支持文本预览' }
+      }
+      return {
+        ok: true,
+        path: resolvedTarget,
+        relativePath: rawPath,
+        root: matchedRoot,
+        sizeBytes: buf.length,
+        truncated: buf.length > MAX_BYTES,
+        content: slice.toString('utf8'),
+      }
+    } catch (error) {
+      return { ok: false, code: 'invalid', detail: `读取文件失败：${error?.message || error}` }
+    }
+  }
+
   const worktreeActions = {
     resolveWorktree(input) {
-      const owned = ownedRun(input)
+      const owned = ownedRun({ ...input, commandId: input?.commandId || 'wt-action' })
       if (!owned.ok) return owned
       const taskId = typeof input?.taskId === 'string' ? input.taskId.trim() : ''
       if (!taskId) return { ok: false, code: 'invalid', detail: 'taskId required' }
@@ -2487,6 +2552,7 @@ export function apply(ctx, config) {
       store,
       checkHostedConnection,
       checkApiConnection,
+      listApiModels,
       listLlmCatalog,
       commanderPrompt: commanderPromptRequest,
       getSnapshot: getRunSnapshot,
@@ -2509,6 +2575,7 @@ export function apply(ctx, config) {
       sessionInfo,
       subscribeSessionEvents,
       worktree: worktreeActions,
+      previewFile: previewWorkspaceFile,
       memberActivity,
       readViewObject,
       getSkillsInfo,

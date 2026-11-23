@@ -350,6 +350,7 @@ export function ConcertoTeamView({ sessionId, openView }) {
   const [highlightTaskId, setHighlightTaskId] = React.useState('')
   const [highlightObjectId, setHighlightObjectId] = React.useState('')
   const [pinnedPreview, setPinnedPreview] = React.useState(null)
+  const [filePreview, setFilePreview] = React.useState(null)
   const [busy, setBusy] = React.useState(false)
   const [actionError, setActionError] = React.useState('')
   const [runLimitsOpen, setRunLimitsOpen] = React.useState(false)
@@ -688,6 +689,36 @@ export function ConcertoTeamView({ sessionId, openView }) {
       setHighlightObjectId((cur) => (cur === targetId ? '' : cur))
     }, 2400)
   }, [sessionId, changeTab])
+
+  async function openFilePreview(filePath, taskId = '') {
+    if (!filePath) return
+    setFilePreview({ loading: true, error: '', relativePath: filePath, path: filePath, content: '', sizeBytes: 0, truncated: false })
+    try {
+      const res = await request('/files/preview', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, path: filePath, ...(taskId ? { taskId } : {}) }),
+      })
+      setFilePreview({
+        loading: false,
+        error: '',
+        relativePath: res.relativePath || filePath,
+        path: res.path || filePath,
+        content: res.content ?? '',
+        sizeBytes: res.sizeBytes ?? 0,
+        truncated: Boolean(res.truncated),
+      })
+    } catch (err) {
+      setFilePreview({
+        loading: false,
+        error: err?.message || '读取文件失败',
+        relativePath: filePath,
+        path: filePath,
+        content: '',
+        sizeBytes: 0,
+        truncated: false,
+      })
+    }
+  }
 
   async function openArtifactVersion(id, version, refTitle = '', label = '固定证据') {
     const requestedRef = refTitle || `${id}@v${version}`
@@ -1096,7 +1127,20 @@ export function ConcertoTeamView({ sessionId, openView }) {
             onJumpObject: jumpToStageObject,
             onViewAllArtifacts: () => changeTab('artifacts'),
             isLight,
-          }))),
+          })),
+        Array.isArray(task.result.artifactRefs) && (() => {
+          const fileRefs = task.result.artifactRefs.filter((r) => typeof r === 'string' && r.trim() && !/^(table|checklist|mindmap|diagram|board|html):|^event-|^view-/i.test(r.trim()))
+          if (fileRefs.length === 0) return null
+          return h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' } },
+            h('span', { className: 'concerto-group-label' }, '交付文件预览：'),
+            fileRefs.map((ref) => h('button', {
+              key: ref,
+              type: 'button',
+              className: 'concerto-chip',
+              'data-concerto-file-preview': ref,
+              onClick: () => openFilePreview(ref, task.taskId),
+            }, `📄 ${ref}`)))
+        })()),
       task.review && h('div', { style: { marginTop: 6, fontSize: 'var(--cc-fs-meta)' } },
         h('p', { style: { margin: 0 } },
           h('strong', null, '审查结论：'),
@@ -1353,14 +1397,14 @@ export function ConcertoTeamView({ sessionId, openView }) {
         'data-status': status,
       }, text, ' ', h('b', null, String(count)))))),
 
-    // 常驻成员小精灵条（单行横向滚动，不折行）
-    h('div', { className: 'concerto-roster-strip', 'data-concerto-section': 'roster', 'aria-label': '乐团成员' },
-      members.map((member) => {
+    // 实时演奏乐团舞台（指挥者居中 + 发光协作连线 + 左执行者 / 右审查者）
+    (() => {
+      const renderSprite = (member) => {
         const st = memberState(snapshot, member)
         const count = pending.filter((r) => r.memberId === member.id).length
         const capInfo = capByMemberId.get(member.id)
         const capBadge = capInfo ? formatCapabilitySummary(capInfo).badge : ''
-        const actLine = deriveMemberActivity(member, snapshot) || capBadge
+        const actLine = deriveMemberActivity(member, snapshot) || capInfo?.persona || capBadge
         return h(MemberSprite, {
           key: member.id,
           member,
@@ -1370,7 +1414,34 @@ export function ConcertoTeamView({ sessionId, openView }) {
           selected: drawerState.memberId === member.id,
           onClick: () => openMemberDrawer(member.id, 'messages'),
         })
-      })),
+      }
+      const cmdMember = members.find((m) => m.roleKind === 'commander') || null
+      const workerMembers = members.filter((m) => m.roleKind === 'worker')
+      const reviewerMembers = members.filter((m) => m.roleKind === 'reviewer')
+      if (!cmdMember || (workerMembers.length === 0 && reviewerMembers.length === 0)) {
+        return h('div', { className: 'concerto-roster-strip', 'data-concerto-section': 'roster', 'aria-label': '乐团成员' },
+          members.map(renderSprite))
+      }
+      const workerActive = workerMembers.some((m) => ['running', 'waiting_input', 'waiting_approval'].includes(memberState(snapshot, m)))
+      const reviewerActive = reviewerMembers.some((m) => ['running', 'review', 'waiting_input', 'waiting_approval'].includes(memberState(snapshot, m)))
+        || tasks.some((t) => t.state === 'review')
+      return h('div', { className: 'concerto-live-stage', 'data-concerto-section': 'roster', 'data-concerto-live-stage': 'true', 'aria-label': '乐团实时演奏舞台' },
+        h('div', { className: 'concerto-live-stage-row' }, renderSprite(cmdMember)),
+        h('svg', { className: 'concerto-live-stage-svg', viewBox: '0 0 400 30', preserveAspectRatio: 'none', 'aria-hidden': true },
+          workerMembers.length > 0 && h('path', {
+            className: 'concerto-stage-arc',
+            'data-active': workerActive ? 'true' : undefined,
+            d: reviewerMembers.length > 0 ? 'M 200 2 C 200 18, 100 12, 100 28' : 'M 200 2 L 200 28',
+          }),
+          reviewerMembers.length > 0 && h('path', {
+            className: 'concerto-stage-arc',
+            'data-active': reviewerActive ? 'true' : undefined,
+            d: workerMembers.length > 0 ? 'M 200 2 C 200 18, 300 12, 300 28' : 'M 200 2 L 200 28',
+          })),
+        h('div', { className: 'concerto-live-stage-wings' },
+          workerMembers.length > 0 && h('div', { className: 'concerto-live-stage-wing' }, workerMembers.map(renderSprite)),
+          reviewerMembers.length > 0 && h('div', { className: 'concerto-live-stage-wing' }, reviewerMembers.map(renderSprite))))
+    })(),
 
     renderPrimaryTabs()),
     compact && h('div', { className: 'concerto-hero-compact' },
@@ -1836,6 +1907,23 @@ export function ConcertoTeamView({ sessionId, openView }) {
           sessionId,
           badgeLabel: `${pinnedPreview.label} v${pinnedPreview.object?.version ?? ''}（当前最新 v${pinnedPreview.object?.latestVersion ?? ''}）`,
         }))),
+
+  filePreview && h(InspectorDialog, { title: `文件预览 · ${filePreview.relativePath}`, onClose: () => setFilePreview(null) },
+    h('div', { className: 'concerto-drawer-body', style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('code', { style: { fontSize: 'var(--cc-fs-code)', overflowWrap: 'anywhere' } }, filePreview.path),
+        h('div', { style: { display: 'flex', gap: 6 } },
+          h('button', {
+            type: 'button',
+            className: 'concerto-btn',
+            onClick: () => { try { navigator.clipboard?.writeText?.(filePreview.path) } catch { /* ignore */ } },
+          }, '复制路径'),
+          h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: () => setFilePreview(null) }, '关闭'))),
+      filePreview.loading && h('p', { className: 'concerto-quiet' }, '读取文件中…'),
+      filePreview.error && h('p', { role: 'alert', className: 'concerto-field-error' }, filePreview.error),
+      !filePreview.loading && !filePreview.error && h(React.Fragment, null,
+        h('div', { className: 'concerto-quiet' }, `${filePreview.sizeBytes} 字节${filePreview.truncated ? '（仅显示前 48 KiB）' : ''}`),
+        h('pre', { style: { margin: 0, maxHeight: '60vh', overflow: 'auto', padding: 12, borderRadius: 'var(--cc-radius-ctrl)', background: 'var(--cc-card-nested-bg)', fontFamily: 'var(--cc-font-mono)', fontSize: 'var(--cc-fs-code)', whiteSpace: 'pre-wrap' } }, filePreview.content)))),
 
   runLimitsOpen && h(InspectorDialog, { title: '本次运行的派发次数限制', onClose: () => setRunLimitsOpen(false) },
     h('form', { className: 'concerto-drawer-body', method: 'post', action: '/concerto/runs/dispatch-limits', onSubmit: saveRunLimits },

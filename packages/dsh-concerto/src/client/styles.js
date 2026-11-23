@@ -963,6 +963,12 @@ export const TEAM_CSS = `
   .concerto-stage-inspector-title { display: flex; align-items: center; gap: var(--cc-space-2); font-weight: var(--cc-fw-heading); font-size: var(--cc-fs-meta); }
   @keyframes concerto-stage-flow { to { stroke-dashoffset: -20; } }
   @keyframes concerto-stage-expand { from { opacity: 0; transform: translateY(-6px) scale(0.985); } to { opacity: 1; transform: none; } }
+  /* TeamHome Live Orchestra Performance Stage */
+  .concerto-live-stage { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: var(--cc-space-3) var(--cc-space-3) var(--cc-space-2); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: radial-gradient(ellipse 60% 55% at 50% 15%, color-mix(in srgb, var(--cc-accent) 9%, transparent), transparent 72%), var(--cc-card-nested-bg); }
+  .concerto-live-stage-svg { width: 100%; max-width: 460px; height: 30px; margin: -4px 0 -4px; pointer-events: none; overflow: visible; }
+  .concerto-live-stage-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); width: 100%; }
+  .concerto-live-stage-wings { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); width: 100%; }
+  .concerto-live-stage-wing { flex: 1 1 180px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); }
   @container concerto-set (max-width: 540px) { .concerto-stage-lanes { grid-template-columns: minmax(0, 1fr); } .concerto-stage-svg { display: none; } }
   @container concerto-set (max-width: 720px) { .concerto-set-member { grid-template-columns: repeat(2, minmax(0, 1fr)); } .concerto-set-member-remove { grid-column: 1 / -1; justify-self: start; } }
   @container concerto-set (max-width: 640px) { .concerto-set-card { padding: var(--cc-space-4); } }

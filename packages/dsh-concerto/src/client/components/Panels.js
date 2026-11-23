@@ -465,6 +465,20 @@ export function ConcertoPanel() {
     setSelectedStageNode(null)
   }
 
+  function cloneMemberDraft(index) {
+    const src = membersDraft[index]
+    if (!src) return
+    const prefix = src.roleKind === 'reviewer' ? 'reviewer' : 'worker'
+    const ids = new Set(membersDraft.map((m) => m.id))
+    let n = membersDraft.filter((m) => m.roleKind === src.roleKind).length + 1
+    while (ids.has(`${prefix}-${n}`)) n++
+    const copy = { ...src, id: `${prefix}-${n}` }
+    const next = [...membersDraft]
+    next.splice(index + 1, 0, copy)
+    setMembersDraft(next)
+    setSelectedStageNode(`member:${index + 1}`)
+  }
+
   async function onSave(event) {
     event.preventDefault()
     const dispatchLimits = readDispatchLimitsForm(event.currentTarget)
@@ -825,32 +839,15 @@ export function ConcertoPanel() {
               onChangeProvider: setProvider,
               onChangeModel: setModel,
             }),
-            commanderSource === 'api' && h(React.Fragment, null,
-              h(SettingsField, { label: 'API Base URL' },
-                h('input', {
-                  disabled: busy,
-                  className: 'concerto-input concerto-id',
-                  value: commanderBaseUrl,
-                  placeholder: 'https://api.deepseek.com/v1',
-                  onChange: (e) => setCommanderBaseUrl(e.target.value),
-                })),
-              h(SettingsField, { label: 'API Key' },
-                h('input', {
-                  type: 'password',
-                  disabled: busy,
-                  className: 'concerto-input concerto-id',
-                  value: commanderApiKey,
-                  placeholder: 'sk-...（本地 Ollama 可留空）',
-                  onChange: (e) => setCommanderApiKey(e.target.value),
-                })),
-              h(SettingsField, { label: 'Model' },
-                h('input', {
-                  disabled: busy,
-                  className: 'concerto-input concerto-id',
-                  value: model,
-                  placeholder: 'deepseek-chat / gpt-4o',
-                  onChange: (e) => setModel(e.target.value),
-                }))),
+            commanderSource === 'api' && h(ApiEndpointFields, {
+              disabled: busy,
+              baseUrl: commanderBaseUrl,
+              apiKey: commanderApiKey,
+              model,
+              onChangeBaseUrl: setCommanderBaseUrl,
+              onChangeApiKey: setCommanderApiKey,
+              onChangeModel: setModel,
+            }),
             commanderSource === 'external' && h(SettingsField, { label: '指挥者 Connector' },
               (() => {
                 const currentVal = commanderConnector || connectorOptions[0]?.id || 'antigravity'
@@ -883,6 +880,12 @@ export function ConcertoPanel() {
             h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
               h('button', {
                 type: 'button',
+                className: 'concerto-btn',
+                disabled: busy,
+                onClick: () => cloneMemberDraft(selectedMemberIdx),
+              }, '复制成员'),
+              h('button', {
+                type: 'button',
                 className: 'concerto-btn concerto-btn--danger',
                 disabled: busy,
                 'aria-label': `移除成员 ${selectedMember.id || selectedMemberIdx + 1}`,
@@ -910,32 +913,15 @@ export function ConcertoPanel() {
                     h('option', { value: 'readonly' }, '只读文件 (readonly)'),
                     h('option', { value: 'none' }, '仅协调 (none)')))
               : (selectedMember.source === 'api'
-                ? h(React.Fragment, null,
-                    h(SettingsField, { label: 'API Base URL' },
-                      h('input', {
-                        disabled: busy,
-                        className: 'concerto-input concerto-id',
-                        value: selectedMember.baseUrl ?? '',
-                        placeholder: 'https://api.deepseek.com/v1',
-                        onChange: (e) => updateMemberDraft(selectedMemberIdx, { baseUrl: e.target.value }),
-                      })),
-                    h(SettingsField, { label: 'API Key' },
-                      h('input', {
-                        type: 'password',
-                        disabled: busy,
-                        className: 'concerto-input concerto-id',
-                        value: selectedMember.apiKey ?? '',
-                        placeholder: 'sk-...（本地 Ollama 可留空）',
-                        onChange: (e) => updateMemberDraft(selectedMemberIdx, { apiKey: e.target.value }),
-                      })),
-                    h(SettingsField, { label: 'Model' },
-                      h('input', {
-                        disabled: busy,
-                        className: 'concerto-input concerto-id',
-                        value: selectedMember.model ?? '',
-                        placeholder: 'deepseek-chat / gpt-4o',
-                        onChange: (e) => updateMemberDraft(selectedMemberIdx, { model: e.target.value }),
-                      })))
+                ? h(ApiEndpointFields, {
+                    disabled: busy,
+                    baseUrl: selectedMember.baseUrl ?? '',
+                    apiKey: selectedMember.apiKey ?? '',
+                    model: selectedMember.model ?? '',
+                    onChangeBaseUrl: (val) => updateMemberDraft(selectedMemberIdx, { baseUrl: val }),
+                    onChangeApiKey: (val) => updateMemberDraft(selectedMemberIdx, { apiKey: val }),
+                    onChangeModel: (val) => updateMemberDraft(selectedMemberIdx, { model: val }),
+                  })
                 : h(SettingsField, { label: 'Connector' },
                     (() => {
                       const filtered = selectedMember.source === 'web'
@@ -964,6 +950,22 @@ export function ConcertoPanel() {
               onChangeProvider: (val) => updateMemberDraft(selectedMemberIdx, { provider: val }),
               onChangeModel: (val) => updateMemberDraft(selectedMemberIdx, { model: val }),
             })),
+          h(SettingsField, { label: '专长 / 人设（供指挥者智能分工）' },
+            h('input', {
+              disabled: busy,
+              className: 'concerto-input',
+              value: selectedMember.persona ?? '',
+              placeholder: '例如：前端 UI 专家、严格单测审查员、只负责文档整理',
+              onChange: (e) => updateMemberDraft(selectedMemberIdx, { persona: e.target.value }),
+            }),
+            h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 } },
+              ['前端 UI 专家', '后端逻辑开发', '严格测试验收', '架构与代码审查', '文档与总结'].map((tag) => h('button', {
+                key: tag,
+                type: 'button',
+                className: 'concerto-chip',
+                disabled: busy,
+                onClick: () => updateMemberDraft(selectedMemberIdx, { persona: tag }),
+              }, tag)))),
           h(ConnectionCheck, {
             label: selectedMember.id || `成员 ${selectedMemberIdx + 1}`,
             disabled: busy,
@@ -1081,6 +1083,79 @@ export function ConcertoPanel() {
     quarantinedUnknowns.length > 0 && h('details', { className: 'concerto-set-fold' },
       h('summary', null, `原工作区仍保留占用（${quarantinedUnknowns.length} 条）`),
       quarantinedUnknowns.map(recoveryRow))))
+}
+
+function ApiEndpointFields({
+  disabled = false,
+  baseUrl = '',
+  apiKey = '',
+  model = '',
+  onChangeBaseUrl,
+  onChangeApiKey,
+  onChangeModel,
+}) {
+  const listId = React.useId()
+  const [models, setModels] = React.useState([])
+  const [loading, setLoading] = React.useState(false)
+  const [hint, setHint] = React.useState('')
+
+  async function fetchModels() {
+    if (!baseUrl.trim() || loading) return
+    setLoading(true)
+    setHint('')
+    try {
+      const res = await request('/api/models', {
+        method: 'POST',
+        body: JSON.stringify({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() }),
+      })
+      const list = Array.isArray(res?.models) ? res.models : []
+      setModels(list)
+      if (list.length > 0 && !model.trim()) onChangeModel?.(list[0])
+      setHint(list.length > 0 ? `已拉取 ${list.length} 个模型` : '端点未返回模型列表，可手动输入')
+    } catch (error) {
+      setHint(error.message || '拉取失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return h(React.Fragment, null,
+    h(SettingsField, { label: 'API Base URL' },
+      h('input', {
+        disabled,
+        className: 'concerto-input concerto-id',
+        value: baseUrl,
+        placeholder: 'https://api.deepseek.com/v1',
+        onChange: (e) => onChangeBaseUrl?.(e.target.value),
+      })),
+    h(SettingsField, { label: 'API Key' },
+      h('input', {
+        type: 'password',
+        disabled,
+        className: 'concerto-input concerto-id',
+        value: apiKey,
+        placeholder: 'sk-...（本地 Ollama 可留空）',
+        onChange: (e) => onChangeApiKey?.(e.target.value),
+      })),
+    h(SettingsField, { label: 'Model', hint: hint || undefined },
+      h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
+        h('input', {
+          disabled,
+          list: models.length > 0 ? listId : undefined,
+          className: 'concerto-input concerto-id',
+          style: { flex: 1, minWidth: 0 },
+          value: model,
+          placeholder: 'deepseek-chat / gpt-4o',
+          onChange: (e) => onChangeModel?.(e.target.value),
+        }),
+        h('button', {
+          type: 'button',
+          className: 'concerto-btn',
+          disabled: disabled || loading || !baseUrl.trim(),
+          onClick: fetchModels,
+        }, loading ? '拉取中…' : '拉取模型')),
+      models.length > 0 && h('datalist', { id: listId },
+        models.map((m) => h('option', { key: m, value: m })))))
 }
 
 function ProviderModelFields({

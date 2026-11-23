@@ -157,6 +157,17 @@ export function registerConcertoRoutes(webServer, base, deps) {
     return out?.ok ? sendJson(res, 200, out) : replyError(res, statusForError(out?.code), out?.code || 'invalid', out?.detail)
   })
 
+  // 自定义 OpenAI 兼容 API 模型列表拉取
+  add(`${base}/api/models`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if ((req.method || 'GET').toUpperCase() !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.listApiModels !== 'function') return replyError(res, 503, 'host_unavailable', 'api model listing unavailable')
+    let body
+    try { body = await readJsonBody(req) } catch (err) { return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err)) }
+    const out = await deps.listApiModels(body)
+    return out?.ok ? sendJson(res, 200, out) : replyError(res, statusForError(out?.code), out?.code || 'invalid', out?.detail)
+  })
+
   // DSH LLM 提供商与模型目录（供团队配置页下拉选择，免手动输入）
   add(`${base}/llm/catalog`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
@@ -403,6 +414,17 @@ export function registerConcertoRoutes(webServer, base, deps) {
     if (typeof deps.sessionInfo !== 'function') return replyError(res, 500, 'invalid', 'sessionInfo unavailable')
     const out = deps.sessionInfo(sessionId)
     return out.ok ? sendTeamSnapshot(res, out) : sendJson(res, 404, out)
+  })
+
+  // 工作区交付文件只读预览（严格限制在当前运行工作区 / Worktree 目录内）
+  add(`${base}/files/preview`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if ((req.method || 'GET').toUpperCase() !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.previewFile !== 'function') return replyError(res, 503, 'host_unavailable', 'file preview unavailable')
+    let body
+    try { body = await readJsonBody(req) } catch (err) { return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err)) }
+    const out = deps.previewFile(body)
+    return out?.ok ? sendJson(res, 200, out) : replyError(res, statusForError(out?.code), out?.code || 'invalid', out?.detail)
   })
 
   // Git Worktree 成果一键查看 Diff / 合并回主分支 / 清理临时工作树

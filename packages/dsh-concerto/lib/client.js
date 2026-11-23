@@ -2446,6 +2446,12 @@ var TEAM_CSS = `
   .concerto-stage-inspector-title { display: flex; align-items: center; gap: var(--cc-space-2); font-weight: var(--cc-fw-heading); font-size: var(--cc-fs-meta); }
   @keyframes concerto-stage-flow { to { stroke-dashoffset: -20; } }
   @keyframes concerto-stage-expand { from { opacity: 0; transform: translateY(-6px) scale(0.985); } to { opacity: 1; transform: none; } }
+  /* TeamHome Live Orchestra Performance Stage */
+  .concerto-live-stage { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: var(--cc-space-3) var(--cc-space-3) var(--cc-space-2); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: radial-gradient(ellipse 60% 55% at 50% 15%, color-mix(in srgb, var(--cc-accent) 9%, transparent), transparent 72%), var(--cc-card-nested-bg); }
+  .concerto-live-stage-svg { width: 100%; max-width: 460px; height: 30px; margin: -4px 0 -4px; pointer-events: none; overflow: visible; }
+  .concerto-live-stage-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); width: 100%; }
+  .concerto-live-stage-wings { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); width: 100%; }
+  .concerto-live-stage-wing { flex: 1 1 180px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); }
   @container concerto-set (max-width: 540px) { .concerto-stage-lanes { grid-template-columns: minmax(0, 1fr); } .concerto-stage-svg { display: none; } }
   @container concerto-set (max-width: 720px) { .concerto-set-member { grid-template-columns: repeat(2, minmax(0, 1fr)); } .concerto-set-member-remove { grid-column: 1 / -1; justify-self: start; } }
   @container concerto-set (max-width: 640px) { .concerto-set-card { padding: var(--cc-space-4); } }
@@ -3360,6 +3366,19 @@ function ConcertoPanel() {
     setMembersDraft(membersDraft.filter((_, i) => i !== index));
     setSelectedStageNode(null);
   }
+  function cloneMemberDraft(index) {
+    const src = membersDraft[index];
+    if (!src) return;
+    const prefix = src.roleKind === "reviewer" ? "reviewer" : "worker";
+    const ids = new Set(membersDraft.map((m) => m.id));
+    let n = membersDraft.filter((m) => m.roleKind === src.roleKind).length + 1;
+    while (ids.has(`${prefix}-${n}`)) n++;
+    const copy = { ...src, id: `${prefix}-${n}` };
+    const next = [...membersDraft];
+    next.splice(index + 1, 0, copy);
+    setMembersDraft(next);
+    setSelectedStageNode(`member:${index + 1}`);
+  }
   async function onSave(event) {
     event.preventDefault();
     const dispatchLimits = readDispatchLimitsForm(event.currentTarget);
@@ -3785,44 +3804,15 @@ function ConcertoPanel() {
                 onChangeProvider: setProvider,
                 onChangeModel: setModel
               }),
-              commanderSource === "api" && h(
-                import_react5.default.Fragment,
-                null,
-                h(
-                  SettingsField,
-                  { label: "API Base URL" },
-                  h("input", {
-                    disabled: busy,
-                    className: "concerto-input concerto-id",
-                    value: commanderBaseUrl,
-                    placeholder: "https://api.deepseek.com/v1",
-                    onChange: (e) => setCommanderBaseUrl(e.target.value)
-                  })
-                ),
-                h(
-                  SettingsField,
-                  { label: "API Key" },
-                  h("input", {
-                    type: "password",
-                    disabled: busy,
-                    className: "concerto-input concerto-id",
-                    value: commanderApiKey,
-                    placeholder: "sk-...\uFF08\u672C\u5730 Ollama \u53EF\u7559\u7A7A\uFF09",
-                    onChange: (e) => setCommanderApiKey(e.target.value)
-                  })
-                ),
-                h(
-                  SettingsField,
-                  { label: "Model" },
-                  h("input", {
-                    disabled: busy,
-                    className: "concerto-input concerto-id",
-                    value: model,
-                    placeholder: "deepseek-chat / gpt-4o",
-                    onChange: (e) => setModel(e.target.value)
-                  })
-                )
-              ),
+              commanderSource === "api" && h(ApiEndpointFields, {
+                disabled: busy,
+                baseUrl: commanderBaseUrl,
+                apiKey: commanderApiKey,
+                model,
+                onChangeBaseUrl: setCommanderBaseUrl,
+                onChangeApiKey: setCommanderApiKey,
+                onChangeModel: setModel
+              }),
               commanderSource === "external" && h(
                 SettingsField,
                 { label: "\u6307\u6325\u8005 Connector" },
@@ -3865,6 +3855,12 @@ function ConcertoPanel() {
               h(
                 "div",
                 { style: { display: "flex", gap: 6, alignItems: "center" } },
+                h("button", {
+                  type: "button",
+                  className: "concerto-btn",
+                  disabled: busy,
+                  onClick: () => cloneMemberDraft(selectedMemberIdx)
+                }, "\u590D\u5236\u6210\u5458"),
                 h("button", {
                   type: "button",
                   className: "concerto-btn concerto-btn--danger",
@@ -3919,44 +3915,15 @@ function ConcertoPanel() {
                   h("option", { value: "readonly" }, "\u53EA\u8BFB\u6587\u4EF6 (readonly)"),
                   h("option", { value: "none" }, "\u4EC5\u534F\u8C03 (none)")
                 )
-              ) : selectedMember.source === "api" ? h(
-                import_react5.default.Fragment,
-                null,
-                h(
-                  SettingsField,
-                  { label: "API Base URL" },
-                  h("input", {
-                    disabled: busy,
-                    className: "concerto-input concerto-id",
-                    value: selectedMember.baseUrl ?? "",
-                    placeholder: "https://api.deepseek.com/v1",
-                    onChange: (e) => updateMemberDraft(selectedMemberIdx, { baseUrl: e.target.value })
-                  })
-                ),
-                h(
-                  SettingsField,
-                  { label: "API Key" },
-                  h("input", {
-                    type: "password",
-                    disabled: busy,
-                    className: "concerto-input concerto-id",
-                    value: selectedMember.apiKey ?? "",
-                    placeholder: "sk-...\uFF08\u672C\u5730 Ollama \u53EF\u7559\u7A7A\uFF09",
-                    onChange: (e) => updateMemberDraft(selectedMemberIdx, { apiKey: e.target.value })
-                  })
-                ),
-                h(
-                  SettingsField,
-                  { label: "Model" },
-                  h("input", {
-                    disabled: busy,
-                    className: "concerto-input concerto-id",
-                    value: selectedMember.model ?? "",
-                    placeholder: "deepseek-chat / gpt-4o",
-                    onChange: (e) => updateMemberDraft(selectedMemberIdx, { model: e.target.value })
-                  })
-                )
-              ) : h(
+              ) : selectedMember.source === "api" ? h(ApiEndpointFields, {
+                disabled: busy,
+                baseUrl: selectedMember.baseUrl ?? "",
+                apiKey: selectedMember.apiKey ?? "",
+                model: selectedMember.model ?? "",
+                onChangeBaseUrl: (val) => updateMemberDraft(selectedMemberIdx, { baseUrl: val }),
+                onChangeApiKey: (val) => updateMemberDraft(selectedMemberIdx, { apiKey: val }),
+                onChangeModel: (val) => updateMemberDraft(selectedMemberIdx, { model: val })
+              }) : h(
                 SettingsField,
                 { label: "Connector" },
                 (() => {
@@ -3988,6 +3955,28 @@ function ConcertoPanel() {
                 onChangeProvider: (val) => updateMemberDraft(selectedMemberIdx, { provider: val }),
                 onChangeModel: (val) => updateMemberDraft(selectedMemberIdx, { model: val })
               })
+            ),
+            h(
+              SettingsField,
+              { label: "\u4E13\u957F / \u4EBA\u8BBE\uFF08\u4F9B\u6307\u6325\u8005\u667A\u80FD\u5206\u5DE5\uFF09" },
+              h("input", {
+                disabled: busy,
+                className: "concerto-input",
+                value: selectedMember.persona ?? "",
+                placeholder: "\u4F8B\u5982\uFF1A\u524D\u7AEF UI \u4E13\u5BB6\u3001\u4E25\u683C\u5355\u6D4B\u5BA1\u67E5\u5458\u3001\u53EA\u8D1F\u8D23\u6587\u6863\u6574\u7406",
+                onChange: (e) => updateMemberDraft(selectedMemberIdx, { persona: e.target.value })
+              }),
+              h(
+                "div",
+                { style: { display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 } },
+                ["\u524D\u7AEF UI \u4E13\u5BB6", "\u540E\u7AEF\u903B\u8F91\u5F00\u53D1", "\u4E25\u683C\u6D4B\u8BD5\u9A8C\u6536", "\u67B6\u6784\u4E0E\u4EE3\u7801\u5BA1\u67E5", "\u6587\u6863\u4E0E\u603B\u7ED3"].map((tag) => h("button", {
+                  key: tag,
+                  type: "button",
+                  className: "concerto-chip",
+                  disabled: busy,
+                  onClick: () => updateMemberDraft(selectedMemberIdx, { persona: tag })
+                }, tag))
+              )
             ),
             h(ConnectionCheck, {
               label: selectedMember.id || `\u6210\u5458 ${selectedMemberIdx + 1}`,
@@ -4165,6 +4154,94 @@ function ConcertoPanel() {
         { className: "concerto-set-fold" },
         h("summary", null, `\u539F\u5DE5\u4F5C\u533A\u4ECD\u4FDD\u7559\u5360\u7528\uFF08${quarantinedUnknowns.length} \u6761\uFF09`),
         quarantinedUnknowns.map(recoveryRow)
+      )
+    )
+  );
+}
+function ApiEndpointFields({
+  disabled = false,
+  baseUrl = "",
+  apiKey = "",
+  model = "",
+  onChangeBaseUrl,
+  onChangeApiKey,
+  onChangeModel
+}) {
+  const listId = import_react5.default.useId();
+  const [models, setModels] = import_react5.default.useState([]);
+  const [loading, setLoading] = import_react5.default.useState(false);
+  const [hint, setHint] = import_react5.default.useState("");
+  async function fetchModels() {
+    if (!baseUrl.trim() || loading) return;
+    setLoading(true);
+    setHint("");
+    try {
+      const res = await request2("/api/models", {
+        method: "POST",
+        body: JSON.stringify({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() })
+      });
+      const list = Array.isArray(res?.models) ? res.models : [];
+      setModels(list);
+      if (list.length > 0 && !model.trim()) onChangeModel?.(list[0]);
+      setHint(list.length > 0 ? `\u5DF2\u62C9\u53D6 ${list.length} \u4E2A\u6A21\u578B` : "\u7AEF\u70B9\u672A\u8FD4\u56DE\u6A21\u578B\u5217\u8868\uFF0C\u53EF\u624B\u52A8\u8F93\u5165");
+    } catch (error) {
+      setHint(error.message || "\u62C9\u53D6\u5931\u8D25");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return h(
+    import_react5.default.Fragment,
+    null,
+    h(
+      SettingsField,
+      { label: "API Base URL" },
+      h("input", {
+        disabled,
+        className: "concerto-input concerto-id",
+        value: baseUrl,
+        placeholder: "https://api.deepseek.com/v1",
+        onChange: (e) => onChangeBaseUrl?.(e.target.value)
+      })
+    ),
+    h(
+      SettingsField,
+      { label: "API Key" },
+      h("input", {
+        type: "password",
+        disabled,
+        className: "concerto-input concerto-id",
+        value: apiKey,
+        placeholder: "sk-...\uFF08\u672C\u5730 Ollama \u53EF\u7559\u7A7A\uFF09",
+        onChange: (e) => onChangeApiKey?.(e.target.value)
+      })
+    ),
+    h(
+      SettingsField,
+      { label: "Model", hint: hint || void 0 },
+      h(
+        "div",
+        { style: { display: "flex", gap: 6, alignItems: "center" } },
+        h("input", {
+          disabled,
+          list: models.length > 0 ? listId : void 0,
+          className: "concerto-input concerto-id",
+          style: { flex: 1, minWidth: 0 },
+          value: model,
+          placeholder: "deepseek-chat / gpt-4o",
+          onChange: (e) => onChangeModel?.(e.target.value)
+        }),
+        h("button", {
+          type: "button",
+          className: "concerto-btn",
+          disabled: disabled || loading || !baseUrl.trim(),
+          onClick: fetchModels
+        }, loading ? "\u62C9\u53D6\u4E2D\u2026" : "\u62C9\u53D6\u6A21\u578B")
+      ),
+      models.length > 0 && h(
+        "datalist",
+        { id: listId },
+        models.map((m) => h("option", { key: m, value: m }))
       )
     )
   );
@@ -12451,6 +12528,7 @@ function ConcertoTeamView({ sessionId, openView }) {
   const [highlightTaskId, setHighlightTaskId] = import_react20.default.useState("");
   const [highlightObjectId, setHighlightObjectId] = import_react20.default.useState("");
   const [pinnedPreview, setPinnedPreview] = import_react20.default.useState(null);
+  const [filePreview, setFilePreview] = import_react20.default.useState(null);
   const [busy, setBusy] = import_react20.default.useState(false);
   const [actionError, setActionError] = import_react20.default.useState("");
   const [runLimitsOpen, setRunLimitsOpen] = import_react20.default.useState(false);
@@ -12763,6 +12841,35 @@ function ConcertoTeamView({ sessionId, openView }) {
       setHighlightObjectId((cur) => cur === targetId ? "" : cur);
     }, 2400);
   }, [sessionId, changeTab]);
+  async function openFilePreview(filePath, taskId = "") {
+    if (!filePath) return;
+    setFilePreview({ loading: true, error: "", relativePath: filePath, path: filePath, content: "", sizeBytes: 0, truncated: false });
+    try {
+      const res = await request("/files/preview", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, path: filePath, ...taskId ? { taskId } : {} })
+      });
+      setFilePreview({
+        loading: false,
+        error: "",
+        relativePath: res.relativePath || filePath,
+        path: res.path || filePath,
+        content: res.content ?? "",
+        sizeBytes: res.sizeBytes ?? 0,
+        truncated: Boolean(res.truncated)
+      });
+    } catch (err) {
+      setFilePreview({
+        loading: false,
+        error: err?.message || "\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25",
+        relativePath: filePath,
+        path: filePath,
+        content: "",
+        sizeBytes: 0,
+        truncated: false
+      });
+    }
+  }
   async function openArtifactVersion(id, version, refTitle = "", label2 = "\u56FA\u5B9A\u8BC1\u636E") {
     const requestedRef = refTitle || `${id}@v${version}`;
     setPinnedPreview({ loading: true, error: "", object: null, requestedRef, label: label2 });
@@ -13232,7 +13339,23 @@ function ConcertoTeamView({ sessionId, openView }) {
               onViewAllArtifacts: () => changeTab("artifacts"),
               isLight
             })
-          )
+          ),
+          Array.isArray(task.result.artifactRefs) && (() => {
+            const fileRefs = task.result.artifactRefs.filter((r) => typeof r === "string" && r.trim() && !/^(table|checklist|mindmap|diagram|board|html):|^event-|^view-/i.test(r.trim()));
+            if (fileRefs.length === 0) return null;
+            return h(
+              "div",
+              { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" } },
+              h("span", { className: "concerto-group-label" }, "\u4EA4\u4ED8\u6587\u4EF6\u9884\u89C8\uFF1A"),
+              fileRefs.map((ref) => h("button", {
+                key: ref,
+                type: "button",
+                className: "concerto-chip",
+                "data-concerto-file-preview": ref,
+                onClick: () => openFilePreview(ref, task.taskId)
+              }, `\u{1F4C4} ${ref}`))
+            );
+          })()
         ),
         task.review && h(
           "div",
@@ -13549,16 +13672,14 @@ function ConcertoTeamView({ sessionId, openView }) {
             }, text, " ", h("b", null, String(count))))
           )
         ),
-        // 常驻成员小精灵条（单行横向滚动，不折行）
-        h(
-          "div",
-          { className: "concerto-roster-strip", "data-concerto-section": "roster", "aria-label": "\u4E50\u56E2\u6210\u5458" },
-          members.map((member) => {
+        // 实时演奏乐团舞台（指挥者居中 + 发光协作连线 + 左执行者 / 右审查者）
+        (() => {
+          const renderSprite = (member) => {
             const st2 = memberState(snapshot, member);
             const count = pending.filter((r) => r.memberId === member.id).length;
             const capInfo = capByMemberId.get(member.id);
             const capBadge = capInfo ? formatCapabilitySummary(capInfo).badge : "";
-            const actLine = deriveMemberActivity(member, snapshot) || capBadge;
+            const actLine = deriveMemberActivity(member, snapshot) || capInfo?.persona || capBadge;
             return h(MemberSprite, {
               key: member.id,
               member,
@@ -13568,8 +13689,45 @@ function ConcertoTeamView({ sessionId, openView }) {
               selected: drawerState.memberId === member.id,
               onClick: () => openMemberDrawer(member.id, "messages")
             });
-          })
-        ),
+          };
+          const cmdMember = members.find((m) => m.roleKind === "commander") || null;
+          const workerMembers = members.filter((m) => m.roleKind === "worker");
+          const reviewerMembers = members.filter((m) => m.roleKind === "reviewer");
+          if (!cmdMember || workerMembers.length === 0 && reviewerMembers.length === 0) {
+            return h(
+              "div",
+              { className: "concerto-roster-strip", "data-concerto-section": "roster", "aria-label": "\u4E50\u56E2\u6210\u5458" },
+              members.map(renderSprite)
+            );
+          }
+          const workerActive = workerMembers.some((m) => ["running", "waiting_input", "waiting_approval"].includes(memberState(snapshot, m)));
+          const reviewerActive = reviewerMembers.some((m) => ["running", "review", "waiting_input", "waiting_approval"].includes(memberState(snapshot, m))) || tasks.some((t) => t.state === "review");
+          return h(
+            "div",
+            { className: "concerto-live-stage", "data-concerto-section": "roster", "data-concerto-live-stage": "true", "aria-label": "\u4E50\u56E2\u5B9E\u65F6\u6F14\u594F\u821E\u53F0" },
+            h("div", { className: "concerto-live-stage-row" }, renderSprite(cmdMember)),
+            h(
+              "svg",
+              { className: "concerto-live-stage-svg", viewBox: "0 0 400 30", preserveAspectRatio: "none", "aria-hidden": true },
+              workerMembers.length > 0 && h("path", {
+                className: "concerto-stage-arc",
+                "data-active": workerActive ? "true" : void 0,
+                d: reviewerMembers.length > 0 ? "M 200 2 C 200 18, 100 12, 100 28" : "M 200 2 L 200 28"
+              }),
+              reviewerMembers.length > 0 && h("path", {
+                className: "concerto-stage-arc",
+                "data-active": reviewerActive ? "true" : void 0,
+                d: workerMembers.length > 0 ? "M 200 2 C 200 18, 300 12, 300 28" : "M 200 2 L 200 28"
+              })
+            ),
+            h(
+              "div",
+              { className: "concerto-live-stage-wings" },
+              workerMembers.length > 0 && h("div", { className: "concerto-live-stage-wing" }, workerMembers.map(renderSprite)),
+              reviewerMembers.length > 0 && h("div", { className: "concerto-live-stage-wing" }, reviewerMembers.map(renderSprite))
+            )
+          );
+        })(),
         renderPrimaryTabs()
       ),
       compact && h(
@@ -14215,6 +14373,42 @@ function ConcertoTeamView({ sessionId, openView }) {
         sessionId,
         badgeLabel: `${pinnedPreview.label} v${pinnedPreview.object?.version ?? ""}\uFF08\u5F53\u524D\u6700\u65B0 v${pinnedPreview.object?.latestVersion ?? ""}\uFF09`
       })
+    ),
+    filePreview && h(
+      InspectorDialog,
+      { title: `\u6587\u4EF6\u9884\u89C8 \xB7 ${filePreview.relativePath}`, onClose: () => setFilePreview(null) },
+      h(
+        "div",
+        { className: "concerto-drawer-body", style: { display: "flex", flexDirection: "column", gap: 10 } },
+        h(
+          "div",
+          { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+          h("code", { style: { fontSize: "var(--cc-fs-code)", overflowWrap: "anywhere" } }, filePreview.path),
+          h(
+            "div",
+            { style: { display: "flex", gap: 6 } },
+            h("button", {
+              type: "button",
+              className: "concerto-btn",
+              onClick: () => {
+                try {
+                  navigator.clipboard?.writeText?.(filePreview.path);
+                } catch {
+                }
+              }
+            }, "\u590D\u5236\u8DEF\u5F84"),
+            h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setFilePreview(null) }, "\u5173\u95ED")
+          )
+        ),
+        filePreview.loading && h("p", { className: "concerto-quiet" }, "\u8BFB\u53D6\u6587\u4EF6\u4E2D\u2026"),
+        filePreview.error && h("p", { role: "alert", className: "concerto-field-error" }, filePreview.error),
+        !filePreview.loading && !filePreview.error && h(
+          import_react20.default.Fragment,
+          null,
+          h("div", { className: "concerto-quiet" }, `${filePreview.sizeBytes} \u5B57\u8282${filePreview.truncated ? "\uFF08\u4EC5\u663E\u793A\u524D 48 KiB\uFF09" : ""}`),
+          h("pre", { style: { margin: 0, maxHeight: "60vh", overflow: "auto", padding: 12, borderRadius: "var(--cc-radius-ctrl)", background: "var(--cc-card-nested-bg)", fontFamily: "var(--cc-font-mono)", fontSize: "var(--cc-fs-code)", whiteSpace: "pre-wrap" } }, filePreview.content)
+        )
+      )
     ),
     runLimitsOpen && h(
       InspectorDialog,

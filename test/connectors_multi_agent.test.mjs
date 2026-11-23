@@ -774,6 +774,87 @@ test('SSE runtime subscription, Git Worktree diff/merge/cleanup, and /concerto/c
   assert.equal(cleaned, true)
 })
 
+test('Custom API model auto-fetch, workspace file preview with traversal guard, and persona capability context', async (t) => {
+  const root = mkdtempSync(join(os.tmpdir(), 'concerto-preview-api-'))
+  t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }))
+  const workDir = join(root, 'workspace')
+  const outsideFile = join(root, 'secret.txt')
+  writeFileSync(outsideFile, 'TOP SECRET')
+  const { mkdirSync } = await import('node:fs')
+  mkdirSync(workDir, { recursive: true })
+  writeFileSync(join(workDir, 'deliverable.txt'), 'hello preview world\nline 2\n')
+
+  const apiServer = http.createServer((req, res) => {
+    if (req.url === '/v1/models') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ data: [{ id: 'model-alpha' }, { id: 'model-beta' }] }))
+      return
+    }
+    res.writeHead(404)
+    res.end()
+  })
+  await new Promise((resolve) => apiServer.listen(0, '127.0.0.1', resolve))
+  t.after(() => apiServer.close())
+
+  const routes = new Map()
+  const sessions = new Map()
+  const cleanups = []
+  const ctx = {
+    logger: { info() {}, warn() {}, error() {} },
+    sessions: { get: (id) => sessions.get(id), list: async () => [...sessions.values()] },
+    agents: { get: () => null, list: async () => [] },
+    agentPresets: { presetForSession: (s) => s?.preset ?? null },
+    sessionController: { async create() { return { sessionId: 'unused' } }, async prompt() {} },
+    get(name) { return this[name] },
+    effect(fn) { cleanups.push(fn()) },
+    webServer: { register({ path, handler }) { routes.set(path, handler); return () => {} } },
+    tools: { register() { return () => {} }, get: () => null },
+  }
+  const statePath = join(root, 'teams.json')
+  writeFileSync(statePath, JSON.stringify({
+    teams: [{
+      id: 'spec-team', name: 'Spec Team', version: 1,
+      team: {
+        id: 'spec-team', name: 'Spec Team',
+        commander: { id: 'commander', source: 'hosted', provider: 'x', model: 'm' },
+        members: [{ id: 'w-fe', roleKind: 'worker', source: 'external', connector: 'antigravity', persona: '前端 UI 专家' }],
+      },
+    }],
+    deletedVersions: [], requests: [],
+  }))
+  apply(ctx, { statePath, runtimePath: join(root, 'runtime.json'), teamsBundleDir: join(root, 'teams') })
+  t.after(() => { for (const c of cleanups) if (typeof c === 'function') c() })
+
+  async function req(method, path, body) {
+    const stream = Readable.from(body !== undefined ? [JSON.stringify(body)] : [])
+    Object.assign(stream, { method, url: path, socket: { remoteAddress: '127.0.0.1' }, headers: { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json' } })
+    let status, value
+    await routes.get(path.split('?')[0])(stream, { writeHead(s) { status = s }, end(txt) { value = txt ? JSON.parse(txt) : null } })
+    return { status, value }
+  }
+
+  // 1. /concerto/api/models fetches OpenAI-compatible model list
+  const modelsRes = await req('POST', '/concerto/api/models', { baseUrl: `http://127.0.0.1:${apiServer.address().port}/v1` })
+  assert.equal(modelsRes.status, 200, JSON.stringify(modelsRes.value))
+  assert.deepEqual(modelsRes.value.models, ['model-alpha', 'model-beta'])
+
+  // 2. Session capabilities include member persona for smart routing
+  sessions.set('s-spec', { id: 's-spec', preset: 'spec-team', header: { cwd: workDir } })
+  const sessRes = await req('GET', '/concerto/session?sessionId=s-spec')
+  assert.equal(sessRes.status, 200)
+  const wCap = sessRes.value.memberCapabilities.find((c) => c.memberId === 'w-fe')
+  assert.equal(wCap.persona, '前端 UI 专家')
+
+  // 3. /concerto/files/preview reads workspace file and blocks path traversal
+  const okPrev = await req('POST', '/concerto/files/preview', { sessionId: 's-spec', path: 'deliverable.txt' })
+  assert.equal(okPrev.status, 200, JSON.stringify(okPrev.value))
+  assert.match(okPrev.value.content, /hello preview world/)
+
+  const badPrev = await req('POST', '/concerto/files/preview', { sessionId: 's-spec', path: '../secret.txt' })
+  assert.equal(badPrev.status, 404)
+})
+
+
 
 
 
