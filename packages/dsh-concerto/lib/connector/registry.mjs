@@ -17,6 +17,17 @@ export function createConnectorRegistry() {
       return () => adapters.delete(adapter.id)
     },
 
+    /** 热更新或注册自定义适配器。 */
+    upsert(adapter) {
+      assertAdapter(adapter)
+      adapters.set(adapter.id, adapter)
+      return () => adapters.delete(adapter.id)
+    },
+
+    unregister(id) {
+      return adapters.delete(id)
+    },
+
     get(id) {
       return adapters.get(id) ?? null
     },
@@ -25,6 +36,11 @@ export function createConnectorRegistry() {
       return [...adapters.values()].map((adapter) => ({
         id: adapter.id,
         displayName: adapter.displayName ?? adapter.id,
+        protocol: adapter.protocol ?? 'native',
+        description: adapter.description ?? '',
+        custom: Boolean(adapter.custom),
+        ...(adapter.mode ? { mode: adapter.mode } : {}),
+        ...(adapter.command ? { command: adapter.command } : {}),
         capabilities: adapter.capabilities,
       }))
     },

@@ -12,6 +12,7 @@ const metadata = { teamId:'fixture', teamName:'成员消息验证', commanderId:
 runtime.bindSession('commander-session', 'run-fixture', metadata)
 runtime.bindSession('worker-session', 'run-fixture', metadata, { memberId:'w1',roleKind:'worker' })
 const reads = new Map()
+const approvePayloads = []
 let offline = false
 const output = resolve('.test-data/presentation-004')
 await mkdir(output, { recursive:true })
@@ -39,6 +40,7 @@ body{font:15px/1.6 system-ui;margin:24px;background:#0e1726;color:#eff7ff}
 </div>
 <div id="unmanaged" data-chat-flow-kind="assistant-step" data-chat-turn="1"><div class="we-avatar">原头像</div><p>无关会话不修改</p></div>
 <div id="dock"></div>
+<div id="tail-plan"></div>
 <script type="module">
 import {React,ReactDOM,ReactDOMClient} from '/host-runtime.js';
 const components={}, roots={};
@@ -59,8 +61,19 @@ const server = createServer(async (req, res) => {
       const sessionId = url.searchParams.get('sessionId')
       reads.set(sessionId, (reads.get(sessionId) || 0) + 1)
       if (offline && sessionId === 'commander-session') { req.socket.destroy(); return }
+      const binding = runtime.getBinding(sessionId)
       res.setHeader('content-type','application/json')
-      return res.end(JSON.stringify({ok:true,...runtime.getBinding(sessionId),...metadata,snapshot:runtime.getStatus('run-fixture')}))
+      return res.end(JSON.stringify({ok:true,...binding,...metadata,snapshot:runtime.getStatus(binding.teamSessionId)}))
+    }
+    if (url.pathname === '/concerto/runs/approve-plan' && req.method === 'POST') {
+      const chunks = []
+      for await (const ch of req) chunks.push(ch)
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+      approvePayloads.push(body)
+      const binding = runtime.getBinding(body.sessionId)
+      const out = runtime.approvePlan(binding.teamSessionId, { proposalId: body.proposalId, commandId: body.commandId }, { kind: 'user', id: 'local-owner' })
+      res.setHeader('content-type','application/json')
+      return res.end(JSON.stringify(out))
     }
     const paths = {'/client.js':resolve('packages/dsh-concerto/lib/client.js'),'/host-runtime.js':reactRoot+'/host-runtime.js','/vendor-BUMdD3V7.js':reactRoot+'/vendor-BUMdD3V7.js'}
     if (!paths[url.pathname]) { res.writeHead(404); return res.end() }
@@ -116,6 +129,29 @@ try {
   await page.setViewportSize({width:390,height:844})
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true)
   await page.screenshot({path:output+'/message-members-fixture-narrow.png',fullPage:true})
+
+  await page.setViewportSize({width:1280,height:1000})
+  runtime.bindSession('plan-cmd-session', 'run-plan-chat', { ...metadata, requirePlanApproval: true })
+  const pub = runtime.publishViewObject('run-plan-chat', {
+    id: 'chat-blueprint', type: 'checklist', title: '对话内计划确认', semanticKind: 'blueprint',
+    data: { items: [{ label: '确认后即派发任务' }] },
+  }, { kind: 'member', role: 'commander', id: 'c1' })
+  assert.equal(pub.ok, true)
+  const prop = runtime.submit({
+    decisionId: 'dec-plan-chat', expectedPlanRevision: 1, action: 'propose_plan',
+    payload: { planId: 'chat-blueprint', planVersion: 1 },
+  }, 'run-plan-chat', { kind: 'member', role: 'commander', id: 'c1' })
+  assert.equal(prop.ok, true)
+  await page.evaluate(() => window.mountTurn('tail-plan', 'plan-cmd-session', 1))
+  const chatPlanCard = page.locator('#tail-plan [data-concerto-chat-plan-gate="pending"]')
+  await chatPlanCard.waitFor()
+  await chatPlanCard.getByRole('button', { name: '确认开工 v1' }).click()
+  await page.locator('#tail-plan [data-concerto-chat-plan-gate="approved"]').waitFor()
+  assert.equal(approvePayloads.length, 1)
+  assert.equal(approvePayloads[0].sessionId, 'plan-cmd-session')
+  assert.equal(approvePayloads[0].proposalId, prop.result.proposalId)
+  assert.equal(runtime.getStatus('run-plan-chat').planGate.status, 'approved')
+
   assert.deepEqual(errors,[])
-  console.log(JSON.stringify({status:'PASS',checks:['member identity','flow isolation','wallpaper ownership','unchanged prose','latest turn only','shared polling','unmount restoration','offline recovery','390px layout'],reads:Object.fromEntries(reads),errors}))
+  console.log(JSON.stringify({status:'PASS',checks:['member identity','flow isolation','wallpaper ownership','unchanged prose','latest turn only','shared polling','unmount restoration','offline recovery','390px layout','in-chat plan confirmation'],reads:Object.fromEntries(reads),errors}))
 } finally { await browser?.close(); server.close() }

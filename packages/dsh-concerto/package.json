@@ -1,6 +1,6 @@
 {
   "name": "dsh-concerto",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
@@ -48,8 +48,7 @@
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.1.3",
-    "markmap-lib": "^0.18.13",
-    "markmap-view": "^0.18.13",
+    "@microsoft/focusgroup-polyfill": "1.6.0",
     "roughjs": "^4.6.6"
   }
 }

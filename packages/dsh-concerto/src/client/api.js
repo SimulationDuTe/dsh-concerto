@@ -18,6 +18,12 @@ export const TEAM_TOOLS = [
   'get_team_status',
   'submit_decision',
   'dispatch_task',
+  'dispatch_review',
+  'list_skills',
+  'read_skill',
+  'publish_project_skill',
+  'manage_member_duties',
+  'read_project_skill',
   'get_task',
   'report_progress',
   'submit_result',
@@ -120,11 +126,32 @@ export const EVENT_LABEL = {
   'question.delivery_failed': '回答送达失败',
   'result.submitted': '提交结果',
   'review.submitted': '验收结论',
+  'review.feedback_created': '添加审查意见',
+  'review.feedback_reply': '补交修订证据',
+  'review.feedback_close': '关闭审查意见',
+  'review.feedback_reopen': '重新打开审查意见',
   'execution.settled': '执行结束',
   'task.blocked': '任务阻塞',
+  'task.cancelled': '任务取消',
+  'task.unblocked': '任务解除阻塞',
+  'worktree.prepared': '已创建隔离 Worktree',
+  'worktree.dirty_detected': '检测到未提交工作区变更',
+  'worktree.fallback_shared': '回退共享目录执行',
   'view.object.published': '发布对象',
   'view.object.patched': '更新对象',
+  'checklist.edited': '用户编辑验收清单',
+  'shared_artifact.edited': '用户编辑共编成果',
   'team.view.updated': '更新指挥台',
+  'project.skill.published': '发布项目方法',
+  'skill.loaded': '加载方法',
+  'skill.delivered': '派发冻结方法',
+  'user.suggestion': '用户中途建议',
+  'task.auto_cascaded': '⚡ 自动瀑布接力',
+  'race.started': '🏁 启动双解赛马',
+  'race.winner_selected': '🏆 采纳赛马胜者',
+  'verification.passed': '✅ 验证门禁通过',
+  'verification.failed': '❌ 验证门禁未通过',
+  'memory.updated': '🧠 团队记忆已更新',
 }
 
 export const STATE_META = {
@@ -160,13 +187,13 @@ export const styles = {
     fontSize: 'var(--cc-font-size)',
     lineHeight: 1.6,
   },
-  title: { fontWeight: 600, marginBottom: 8 },
+  title: { fontWeight: 'var(--cc-fw-heading, 600)', marginBottom: 8 },
   row: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' },
   input: {
-    padding: '5px 9px',
+    padding: '6px 10px',
     borderRadius: 'var(--cc-radius-ctrl)',
     border: '1px solid var(--cc-border)',
-    background: 'var(--dsw-specific-input-major, var(--cc-card-nested-bg))',
+    background: 'var(--cc-input-bg, var(--cc-card-nested-bg))',
     color: 'var(--cc-text-primary)',
     minWidth: 160,
   },
@@ -174,17 +201,18 @@ export const styles = {
     padding: '5px 12px',
     borderRadius: 'var(--cc-radius-ctrl)',
     border: '1px solid var(--cc-border)',
-    background: 'var(--cc-card-nested-bg)',
+    background: 'var(--dsw-alias-button-elevated-fill, var(--cc-card-nested-bg))',
     color: 'var(--cc-text-primary)',
+    fontWeight: 'var(--cc-fw-strong, 500)',
     cursor: 'pointer',
   },
   primary: {
     padding: '5px 12px',
     borderRadius: 'var(--cc-radius-ctrl)',
-    border: '1px solid var(--cc-accent-fill, var(--cc-accent))',
-    background: 'var(--cc-accent-fill, var(--cc-accent))',
-    color: 'var(--cc-on-accent)',
-    fontWeight: 600,
+    border: '1px solid transparent',
+    background: 'var(--cc-primary-fill, var(--cc-accent-fill))',
+    color: 'var(--cc-on-primary, var(--cc-on-accent))',
+    fontWeight: 'var(--cc-fw-strong, 500)',
     cursor: 'pointer',
   },
   item: { padding: '6px 8px', borderTop: '1px solid var(--cc-border-subtle)' },
@@ -209,7 +237,7 @@ export const styles = {
     cursor: 'pointer',
   },
   inlineDot: { width: 6, height: 6, borderRadius: 'var(--cc-radius-pill)', background: 'var(--cc-state-done)', display: 'inline-block' },
-  inlineChip: { padding: '0 6px', borderRadius: 'var(--cc-radius-pill)', border: '1px solid var(--cc-accent-border)', background: 'var(--cc-accent-soft)', color: 'var(--cc-accent-text)' },
+  inlineChip: { padding: '0 6px', borderRadius: 'var(--cc-radius-pill)', border: '1px solid transparent', background: 'var(--cc-accent-soft)', color: 'var(--cc-accent-text)' },
   inlineCard: {
     marginTop: 4,
     padding: '6px 10px',
@@ -448,7 +476,8 @@ export function readResolvedHostTheme() {
     const rawBgLayer1 = readColor(`var(--dsw-alias-bg-layer-1, ${fb.bgLayer1})`, fb.bgLayer1)
     const rawBgLayer2 = readColor(`var(--dsw-alias-bg-layer-2, ${fb.bgLayer2})`, fb.bgLayer2)
     const rawBgLayer3 = readColor(`var(--dsw-alias-bg-layer-3, ${fb.bgLayer3})`, fb.bgLayer3)
-    const rawBgOverlay = readColor(`var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-2, ${fb.bgLayer2}))`, rawBgLayer2)
+    // Floating surfaces follow DSH popovers (layer-2); --dsw-alias-bg-overlay is a mid-grey press fill in DSH.
+    const rawBgOverlay = rawBgLayer2
 
     const glassAttr = document.body?.getAttribute('data-we-glass-page') === 'on'
     const isGlass = glassAttr || (backdropBlur !== 'none' && backdropBlur !== '')
@@ -638,10 +667,29 @@ export async function fetchMemberActivity(sessionId, memberId, { before = null, 
   return await request('/members/activity?' + params.toString())
 }
 
+export function fetchMemberDuties(sessionId, memberId) {
+  return request('/members/duties?' + new URLSearchParams({ sessionId, memberId }))
+}
+
+export function updateMemberDuties(sessionId, memberId, change) {
+  return request('/members/duties', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId, memberId, ...change }),
+  })
+}
+
 export async function saveViewObjectUserLayout(sessionId, payload) {
   return await request('/view-objects/user-layout', {
     method: 'POST',
     body: JSON.stringify({ ...payload, sessionId }),
+  })
+}
+
+export async function importExcalidrawBoard(sessionId, file) {
+  const params = new URLSearchParams({ sessionId, filename: file.name })
+  return await request('/view-objects/import-excalidraw?' + params.toString(), {
+    method: 'POST',
+    body: file,
   })
 }
 
@@ -717,12 +765,18 @@ const VIEW_STATE_KEY_PREFIX = 'concerto.viewState.'
 function defaultViewState() {
   return {
     activeTab: 'overview',
-    taskViewMode: 'auto',
-    expandedTaskIds: [],
+    selectedTaskId: '',
     artifactFilters: { taskId: 'all', memberId: 'all', type: 'all' },
     scrollTop: 0,
     canvasViewports: {},
   }
+}
+
+function selectedTaskFromState(state) {
+  if (typeof state?.selectedTaskId === 'string') return state.selectedTaskId
+  return Array.isArray(state?.expandedTaskIds) && state.expandedTaskIds.length > 0
+    ? String(state.expandedTaskIds.at(-1))
+    : ''
 }
 
 export function readSessionViewState(sessionId) {
@@ -733,8 +787,8 @@ export function readSessionViewState(sessionId) {
     return {
       ...defaultViewState(),
       ...cached,
+      selectedTaskId: selectedTaskFromState(cached),
       artifactFilters: { ...defaultViewState().artifactFilters, ...(cached.artifactFilters || {}) },
-      expandedTaskIds: Array.isArray(cached.expandedTaskIds) ? [...cached.expandedTaskIds] : [],
       canvasViewports: { ...(cached.canvasViewports || {}) },
     }
   }
@@ -747,8 +801,8 @@ export function readSessionViewState(sessionId) {
           const merged = {
             ...defaultViewState(),
             ...parsed,
+            selectedTaskId: selectedTaskFromState(parsed),
             artifactFilters: { ...defaultViewState().artifactFilters, ...(parsed.artifactFilters || {}) },
-            expandedTaskIds: Array.isArray(parsed.expandedTaskIds) ? parsed.expandedTaskIds : [],
             canvasViewports: parsed.canvasViewports && typeof parsed.canvasViewports === 'object' ? parsed.canvasViewports : {},
           }
           sessionViewStates.set(key, merged)
@@ -769,8 +823,8 @@ export function writeSessionViewState(sessionId, patch = {}) {
   const next = {
     ...cur,
     ...patch,
+    ...(typeof patch.selectedTaskId === 'string' ? { selectedTaskId: patch.selectedTaskId } : {}),
     ...(patch.artifactFilters ? { artifactFilters: { ...cur.artifactFilters, ...patch.artifactFilters } } : {}),
-    ...(patch.expandedTaskIds ? { expandedTaskIds: [...patch.expandedTaskIds] } : {}),
     ...(patch.canvasViewports ? { canvasViewports: { ...cur.canvasViewports, ...patch.canvasViewports } } : {}),
   }
   sessionViewStates.set(key, next)
@@ -851,7 +905,7 @@ export function readHostChatMessages(sessionId) {
 const sessionReaders = new Map()
 export function sessionReader(sessionId) {
   if (sessionReaders.has(sessionId)) return sessionReaders.get(sessionId)
-  let value = { info: null, error: '' }
+  let value = { info: null, error: '', loaded: false }
   const listeners = new Set()
   let stop
   let refresh = () => {}
@@ -862,6 +916,9 @@ export function sessionReader(sessionId) {
   function start() {
     let disposed = false
     let timer
+    let sseTimer
+    let sseConnected = false
+    let eventSource = null
     let inFlight = false
     const controller = new AbortController()
     async function load() {
@@ -873,20 +930,40 @@ export function sessionReader(sessionId) {
           publish({
             info: value.info && value.info.snapshot?.serverTime > info.snapshot?.serverTime ? value.info : info,
             error: '',
+            loaded: true,
           })
         }
       } catch (error) {
         if (!disposed) {
-          publish(error.status === 404 ? { info: null, error: '' } : { ...value, error: '同步失败：' + error.message })
+          publish(error.status === 404
+            ? { info: null, error: '', loaded: true }
+            : { ...value, error: '同步失败：' + error.message, loaded: true })
         }
       } finally {
         inFlight = false
-        if (!disposed) timer = setTimeout(load, typeof document !== 'undefined' && document.hidden ? 10000 : 2000)
+        if (!disposed) {
+          const fallbackDelay = typeof document !== 'undefined' && document.hidden ? 15000 : (sseConnected ? 12000 : 2000)
+          timer = setTimeout(load, fallbackDelay)
+        }
       }
     }
     refresh = () => {
       clearTimeout(timer)
       load()
+    }
+    if (typeof EventSource === 'function' && sessionId) {
+      try {
+        eventSource = new EventSource(API + '/events?sessionId=' + encodeURIComponent(sessionId))
+        eventSource.addEventListener('ready', () => { sseConnected = true })
+        eventSource.addEventListener('update', () => {
+          sseConnected = true
+          clearTimeout(sseTimer)
+          sseTimer = setTimeout(refresh, 40)
+        })
+        eventSource.onerror = () => { sseConnected = false }
+      } catch {
+        sseConnected = false
+      }
     }
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', refresh)
@@ -898,6 +975,8 @@ export function sessionReader(sessionId) {
     return () => {
       disposed = true
       clearTimeout(timer)
+      clearTimeout(sseTimer)
+      try { eventSource?.close() } catch { /* ignore */ }
       controller.abort()
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', refresh)
@@ -941,8 +1020,26 @@ export function memberState(snapshot, member) {
   const execution = (snapshot.executions || []).filter((e) => e.memberId === member.id).at(-1)
   const task = execution && (snapshot.tasks || []).find((t) => t.executionId === execution.executionId)
   if (execution?.state === 'unknown') return 'unknown'
+  if (execution?.kind === 'review') {
+    if (execution.state === 'running' || execution.state === 'waiting_input' || execution.state === 'waiting_approval') {
+      return execution.state
+    }
+    if (execution.state === 'interrupting') return 'cancelling'
+    return 'idle'
+  }
   if (task?.viewState) return task.viewState
   return member.roleKind === 'commander' ? '协调' : 'idle'
+}
+
+export async function fetchViewObjectVersion(sessionId, id, version) {
+  const params = new URLSearchParams({ sessionId: String(sessionId || ''), id: String(id || '') })
+  if (Number.isInteger(version)) params.set('version', String(version))
+  return request('/view-objects/read?' + params.toString())
+}
+
+export async function fetchSkillsInfo(sessionId) {
+  const params = new URLSearchParams({ sessionId: String(sessionId || '') })
+  return request('/skills?' + params.toString())
 }
 
 export function readGlassFloor() {
@@ -967,6 +1064,24 @@ export function findTeamTab() {
   if (typeof document === 'undefined') return null
   const tabs = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')]
   return tabs.find((el) => /团队|Team/i.test(el.textContent || '')) || null
+}
+
+export function syncHostTeamTabVisibility(visible) {
+  if (typeof document === 'undefined') return
+  const tab = findTeamTab()
+  if (!tab) return
+  if (visible) {
+    tab.hidden = false
+    if (tab.style.display === 'none') tab.style.display = ''
+    return
+  }
+  tab.hidden = true
+  tab.style.display = 'none'
+  if (tab.getAttribute('aria-selected') === 'true') {
+    const tabs = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')]
+    const chatTab = tabs.find((el) => el !== tab && !el.hidden && el.style.display !== 'none')
+    if (chatTab) chatTab.click()
+  }
 }
 
 export function selectHostTeamTab(sessionId, force = false) {

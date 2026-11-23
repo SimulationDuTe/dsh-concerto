@@ -46,9 +46,11 @@ function startAppServer({ bin, cwd, timeoutMs, onEvent, onRequest, spawnProcess 
   const child = spawnProcess(bin, ['app-server'], { cwd, stdio: ['pipe', 'pipe', 'pipe'] })
   const pending = new Map(), requests = new Map(), waiters = [], events = []
   let nextId = 0, failure = null, cancelling = false
+  const closed = Promise.withResolvers()
   function fail(error) {
     if (failure) return
     failure = error
+    closed.resolve(error)
     for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(error) }
     pending.clear()
     for (const waiter of waiters.splice(0)) { clearTimeout(waiter.timer); waiter.reject(error) }
@@ -112,11 +114,10 @@ function startAppServer({ bin, cwd, timeoutMs, onEvent, onRequest, spawnProcess 
       } else if (message.id !== undefined && pending.has(message.id)) {
         const entry = pending.get(message.id)
         pending.delete(message.id); clearTimeout(entry.timer)
-        if (message.error) entry.reject(new Error(JSON.stringify(message.error)))
+        if (message.error) entry.reject(Object.assign(new Error(JSON.stringify(message.error)), { rpcCode: message.error.code }))
         else entry.resolve(message.result)
       } else if (message.method) {
-        // Only terminal notices are needed for race-free completion lookup.
-        if (message.method === 'turn/completed') events.push(message)
+        if (message.method === 'turn/completed' || message.method === 'serverRequest/resolved') events.push(message)
         onEvent(message)
         for (const waiter of [...waiters]) if (waiter.match(message)) {
           waiters.splice(waiters.indexOf(waiter), 1); clearTimeout(waiter.timer); waiter.resolve(message)
@@ -128,29 +129,36 @@ function startAppServer({ bin, cwd, timeoutMs, onEvent, onRequest, spawnProcess 
   child.stdin.on('error', fail)
   child.stderr.resume()
   child.on('exit', (code, signal) => fail(new Error(`app-server exited: code=${code}, signal=${signal}`)))
-  return { call, waitFor, respond, notify: (method, params) => write({ jsonrpc: '2.0', method, params }),
+  return { call, waitFor, respond, closed: closed.promise, notify: (method, params) => write({ jsonrpc: '2.0', method, params }),
     pid: Number.isInteger(child.pid) ? child.pid : null,
     expectStop() { cancelling = true; resumeCompletionTimers() },
-    close() { fail(new Error('app-server closed')); rl.close(); child.kill() } }
+    close() { fail(new Error('app-server closed')); rl.close(); if (Number.isInteger(child.pid) && child.exitCode === null && !child.killed) { try { child.kill() } catch { /* already exited */ } } } }
 }
 
-export function createCodexAdapter({ bin = '', defaultCwd = '', timeoutMs = 180000, spawnProcess = spawn } = {}) {
+export function createCodexAdapter({ bin = '', defaultCwd = '', planModel = '', timeoutMs = 180000, spawnProcess = spawn } = {}) {
   const resolvedBin = resolveCodexBin(bin)
-  const open = (cwd, onEvent, onRequest) => startAppServer({ bin: resolvedBin, cwd: cwd || defaultCwd || process.cwd(), timeoutMs, spawnProcess, onEvent, onRequest })
+  const open = (cwd, onEvent, onRequest, deadline = timeoutMs) => startAppServer({
+    bin: resolvedBin, cwd: cwd || defaultCwd || process.cwd(), timeoutMs: deadline, spawnProcess, onEvent, onRequest,
+  })
   return {
     id: 'codex', displayName: 'Codex (app-server)',
     // Advertise the adapter, not every feature measured in a separate backend spike.
-    capabilities: { approval: true, cancel: true, resume: false, dynamicTools: true, midTurnQuestion: false, streaming: false },
+    capabilities: { approval: true, cancel: true, resume: false, dynamicTools: true, nextTurnQuestion: true, midTurnQuestion: Boolean(planModel), streaming: false },
     async probe({ cwd } = {}) {
-      const server = open(cwd, () => {}, async (request, _respond, write) => {
-        await write({ id: request.id, error: { code: -32601, message: 'No tools exposed during probe' } })
-      })
+      let server
       try {
+        server = open(cwd, () => {}, async (request, _respond, write) => {
+          await write({ id: request.id, error: { code: -32601, message: 'No tools exposed during probe' } })
+        }, Math.min(timeoutMs, 5000))
         const init = await server.call('initialize', { clientInfo: CLIENT_INFO, capabilities: { experimentalApi: true } })
         await server.notify('initialized', {})
         return { ok: true, userAgent: init.userAgent, bin: resolvedBin }
-      } catch (error) { return { ok: false, code: 'connector_unavailable', detail: error.message } }
-      finally { server.close() }
+      } catch (error) {
+        const code = [-32601, -32602].includes(error.rpcCode) ? 'version_mismatch' : 'connector_unavailable'
+        return { ok: false, code, detail: error.message }
+      } finally {
+        server?.close()
+      }
     },
     async reconcile(nativeSessionRef, { cwd, sameHostBoot = false } = {}) {
       const pid = Number.isInteger(nativeSessionRef?.pid) ? nativeSessionRef.pid : null
@@ -222,9 +230,11 @@ export function createCodexAdapter({ bin = '', defaultCwd = '', timeoutMs = 1800
         try { server?.close?.() } catch { /* ignore */ }
       }
     },
-    start({ cwd, prompt, sandbox = 'read-only', approvals = 'ask', dynamicTools = [], onToolCall = null, onEvent = () => {} }) {
+    start({ cwd, prompt, sandbox = 'read-only', approvals = 'ask', dynamicTools = [], onToolCall = null, onEvent = () => {}, afterTurn = null }) {
       if (!['ask', 'accept', 'decline'].includes(approvals)) throw new Error('approvals must be ask, accept or decline')
-      let threadId, turnId, cancelRequested = false, text = ''
+      let threadId, turnId, activeTurn = false, cancelRequested = false, text = ''
+      let planning = Boolean(planModel)
+      const plannedQuestions = new Map()
       const began = performance.now()
       const emit = (event) => onEvent({ ...event, observedAt: new Date().toISOString(), elapsedMs: Math.round(performance.now() - began) })
       const server = open(cwd, (message) => {
@@ -276,7 +286,8 @@ export function createCodexAdapter({ bin = '', defaultCwd = '', timeoutMs = 1800
             emit({ type: 'approval.resolved', requestId: String(id), decision: approvals, actor: { kind: 'policy', id: approvals } })
           }
         } else if (method === 'item/tool/requestUserInput') {
-          emit({ type: CONNECTOR_EVENT.questionRequested, requestId: String(id), payload: params })
+          if (planning) plannedQuestions.set(String(id), null)
+          emit({ type: CONNECTOR_EVENT.questionRequested, requestId: String(id), responseMode: 'same_turn', payload: params })
         } else if (method === 'item/permissions/requestApproval') {
           await respond(id, { permissions: {}, scope: 'turn' })
           emit({ type: 'approval.unsupported', payload: { method, reason: 'granular permissions are not exposed by this adapter' } })
@@ -286,7 +297,9 @@ export function createCodexAdapter({ bin = '', defaultCwd = '', timeoutMs = 1800
             const args = params?.arguments ?? params?.input ?? params?.args ?? {}
             let result
             try {
-              result = await onToolCall(name, args)
+              result = planning && ['ask_task_question', 'submit_result', 'submit_review'].includes(name)
+                ? { ok: false, code: 'precondition_failed', detail: 'Use native questions in the planning turn. Submit work after the task turn begins.' }
+                : await onToolCall(name, args)
             } catch (error) {
               result = { ok: false, code: 'invalid', detail: error.message }
             }
@@ -315,22 +328,54 @@ export function createCodexAdapter({ bin = '', defaultCwd = '', timeoutMs = 1800
           threadId = thread.thread.id
           emit({ type: 'execution.phase', phase: 'thread.ack' })
           emit({ type: CONNECTOR_EVENT.started, threadId, ...(server.pid !== null ? { pid: server.pid } : {}) })
-          emit({ type: 'execution.phase', phase: 'turn.sent' })
-          const turn = await server.call('turn/start', { threadId, input: [{ type: 'text', text: prompt }], effort: 'low' })
-          turnId = turn.turn.id
-          emit({ type: 'execution.phase', phase: 'turn.ack', turnId })
-          if (cancelRequested) await server.call('turn/interrupt', { threadId, turnId })
-          const end = await server.waitFor((message) => message.method === 'turn/completed' && message.params.threadId === threadId && message.params.turn.id === turnId)
-          const status = end.params.turn.status
-          if (!['completed', 'interrupted', 'failed'].includes(status)) throw new Error(`Unknown terminal status: ${status}`)
-          return { ok: status === 'completed', status, text: text.trim(), threadId, turnId, detail: end.params.turn.error?.message }
+          let next = { prompt: planning ? `Clarify any missing requirements for this task in Plan mode. Use native user input only if needed, then finish the planning turn. Concerto will start the task turn separately.\n\n${prompt}` : prompt }
+          while (next && !cancelRequested) {
+            text = ''
+            emit({ type: 'execution.phase', phase: 'turn.sent' })
+            const turn = await server.call('turn/start', {
+              threadId, input: [{ type: 'text', text: next.prompt }], effort: 'low',
+              ...(planModel ? { collaborationMode: { mode: planning ? 'plan' : 'default',
+                settings: { model: planModel, reasoning_effort: null, developer_instructions: null } } } : {}),
+            })
+            turnId = turn.turn.id
+            activeTurn = true
+            emit({ type: 'execution.phase', phase: 'turn.ack', turnId })
+            next.accepted?.()
+            if (cancelRequested) await server.call('turn/interrupt', { threadId, turnId })
+            const end = await server.waitFor((message) => message.method === 'turn/completed' && message.params.threadId === threadId && message.params.turn.id === turnId)
+            activeTurn = false
+            const status = end.params.turn.status
+            if (!['completed', 'interrupted', 'failed'].includes(status)) throw new Error(`Unknown terminal status: ${status}`)
+            if (status !== 'completed' || cancelRequested) return { ok: status === 'completed', status, text: text.trim(), threadId, turnId, detail: end.params.turn.error?.message }
+            if (planning) {
+              const replies = [...plannedQuestions.values()]
+              if (replies.includes(null)) throw new Error('The native planning turn ended with an unanswered question')
+              await Promise.all(replies)
+              planning = false
+              next = { prompt: `The planning turn has finished. Execute the original assignment now, using any confirmed answers in the conversation.\n\n${prompt}` }
+            } else {
+              next = afterTurn ? await Promise.race([
+                afterTurn({ threadId, turnId }), server.closed.then((error) => { throw error }),
+              ]) : null
+              if (!next && !cancelRequested) return { ok: true, status, text: text.trim(), threadId, turnId }
+            }
+          }
+          return { ok: false, status: 'interrupted', text: text.trim(), threadId, turnId }
         } catch (error) {
           return { ok: false, status: 'unknown', code: 'execution_unknown', detail: error.message, text }
         } finally { server.close() }
       })()
       return { completion,
-        respond: (requestId, answer) => server.respond(requestId, answer),
-        async cancel() { cancelRequested = true; server.expectStop(); if (turnId) await server.call('turn/interrupt', { threadId, turnId }) },
+        async respond(requestId, answer) {
+          const key = String(requestId)
+          if (!plannedQuestions.has(key)) return server.respond(requestId, answer)
+          const reply = server.respond(requestId, answer).then(() => server.waitFor((message) =>
+            message.method === 'serverRequest/resolved' && message.params.threadId === threadId && String(message.params.requestId) === key))
+          plannedQuestions.set(key, reply)
+          await reply
+          plannedQuestions.delete(key)
+        },
+        async cancel() { cancelRequested = true; server.expectStop(); if (activeTurn) await server.call('turn/interrupt', { threadId, turnId }) },
         dispose() { server.close() },
       }
     },

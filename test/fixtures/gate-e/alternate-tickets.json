@@ -1,0 +1,5 @@
+[
+  { "id": "A-1", "owner": "ops", "state": "blocked", "effort": 0 },
+  { "id": "A-2", "owner": "api", "state": "done", "effort": 20 },
+  { "id": "A-3", "owner": "api", "state": "open", "effort": 7 }
+]

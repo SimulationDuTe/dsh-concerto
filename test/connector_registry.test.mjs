@@ -18,7 +18,14 @@ test('registry: register / get / list', () => {
   registry.register(fakeAdapter('fake'))
 
   assert.equal(registry.get('fake').id, 'fake')
-  assert.deepEqual(registry.list(), [{ id: 'fake', displayName: 'Fake Connector', capabilities: { streaming: true } }])
+  assert.deepEqual(registry.list(), [{
+    id: 'fake',
+    displayName: 'Fake Connector',
+    protocol: 'native',
+    description: '',
+    custom: false,
+    capabilities: { streaming: true },
+  }])
 })
 
 test('registry: unknown id resolves to null', () => {

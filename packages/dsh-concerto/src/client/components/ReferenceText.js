@@ -1,15 +1,7 @@
 import { h } from '../api.js'
 import { parseViewObjectReferences, resolveViewObjectRef } from '../../../lib/domain/view_objects.mjs'
 import { StructuredObjectCard } from './StructuredObjectCard.js'
-
-const TYPE_ICON = {
-  table: '▦',
-  checklist: '☑',
-  mindmap: '◎',
-  diagram: '⇢',
-  board: '✎',
-  html: '▣',
-}
+import { UiIcon } from './UiIcon.js'
 
 function scrollToInlineObjectRef(type, id) {
   if (typeof document === 'undefined') return
@@ -53,7 +45,7 @@ function renderInlineSpans(line, onJumpObject, viewObjects = [], onViewAllArtifa
       if (shownRefCount < collapseThreshold) {
         shownRefCount += 1
         const obj = (viewObjects || []).find((o) => o.type === normType && o.id === refId)
-        const displayLabel = (TYPE_ICON[normType] ? TYPE_ICON[normType] + ' ' : '') + (obj?.title || refId)
+        const displayLabel = obj?.title || refId
         parts.push(h('button', {
           key: parts.length,
           type: 'button',
@@ -62,7 +54,7 @@ function renderInlineSpans(line, onJumpObject, viewObjects = [], onViewAllArtifa
           'data-concerto-inline-ref': `${normType}:${refId}`,
           style: { margin: '0 2px', verticalAlign: 'baseline' },
           onClick: () => (onJumpObject ? onJumpObject({ type: normType, id: refId }) : scrollToInlineObjectRef(normType, refId)),
-        }, displayLabel))
+        }, h(UiIcon, { name: normType }), displayLabel))
       } else {
         skippedCollapsed += 1
       }
@@ -178,7 +170,7 @@ export function ReferenceText({
             title: `${tok.type}:${tok.id}`,
             'data-concerto-inline-ref': `${tok.type}:${tok.id}`,
             onClick: () => (onJumpObject ? onJumpObject({ type: tok.type, id: tok.id }) : scrollToInlineObjectRef(tok.type, tok.id)),
-          }, (TYPE_ICON[tok.type] ? TYPE_ICON[tok.type] + ' ' : '') + displayTitle + ' ›'))
+          }, h(UiIcon, { name: tok.type }), displayTitle + ' ›'))
       }
       if (!obj.ok) {
         return h(StructuredObjectCard, {

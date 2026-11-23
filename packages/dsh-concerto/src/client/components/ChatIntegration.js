@@ -13,6 +13,7 @@ import {
   memberState,
   findTeamTab,
   selectHostTeamTab,
+  syncHostTeamTabVisibility,
   requestMemberDrawerOpen,
   useHostTheme,
 } from '../api.js'
@@ -24,6 +25,12 @@ const TOOL_LABELS = {
   get_team_status: '读取团队状态',
   submit_decision: '提交团队决策',
   dispatch_task: '派发任务',
+  dispatch_review: '派发独立审查',
+  list_skills: '查看方法索引',
+  read_skill: '读取方法正文',
+  publish_project_skill: '发布项目方法',
+  manage_member_duties: '管理成员职责',
+  read_project_skill: '读取项目方法',
   get_task: '读取任务详情',
   report_progress: '汇报任务进展',
   submit_result: '提交任务交付',
@@ -35,21 +42,60 @@ const TOOL_LABELS = {
   update_team_view: '更新指挥台简报',
 }
 
+function ChatPlanConfirmation({ snapshot, info, canAct, onApprove, sessionId, showTeamLink, onAfterJump }) {
+  const planGate = snapshot?.planGate
+  if (!planGate?.planRef || snapshot?.goalCompletion) return null
+  const { planRef, proposalId, status, commanderWake } = planGate
+  if (status === 'approved' && (snapshot.tasks?.length ?? 0) > 0) return null
+  const planLabel = `${planRef.title || planRef.id} v${planRef.version}`
+  const message = status === 'pending' ? '等待确认开工'
+    : status === 'stale' ? '计划已更新，等待指挥者提交新版本'
+      : commanderWake === 'accepted' ? '已确认开工，续接消息已提交'
+        : commanderWake === 'manual' ? '已确认开工，请在对话中手动继续' : '已确认开工'
+  return h('section', {
+    className: 'concerto-feedback concerto-plan-confirmation',
+    'data-state': status,
+    'data-concerto-chat-plan-gate': status,
+    'aria-label': '开工计划',
+  },
+  h('span', { role: 'status' }, h('strong', null, planLabel), ' · ', message),
+  h('div', { className: 'concerto-plan-actions' },
+    status === 'pending' && info?.roleKind === 'commander' && h('button', {
+      type: 'button',
+      className: 'concerto-btn concerto-btn--primary',
+      disabled: !canAct,
+      onClick: () => onApprove(proposalId),
+    }, `确认开工 v${planRef.version}`),
+    showTeamLink && h('button', {
+      type: 'button',
+      className: 'concerto-btn concerto-btn--ghost',
+      onClick: () => {
+        onAfterJump?.()
+        selectHostTeamTab(sessionId, true)
+      },
+    }, '在团队页查看计划')))
+}
+
 export function ConcertoDock({ sessionId }) {
   useTeamCss()
   const hostTheme = useHostTheme()
-  const { info, error, refresh } = useTeamSession(sessionId)
+  const { info, error, loaded, refresh } = useTeamSession(sessionId)
   const [teamTabAvailable, setTeamTabAvailable] = React.useState(false)
   const snapshot = info?.snapshot
 
   React.useEffect(() => {
-    if (!info || typeof requestAnimationFrame === 'undefined') return
+    if (!loaded || typeof requestAnimationFrame === 'undefined') return
     const frame = requestAnimationFrame(() => {
-      selectHostTeamTab(sessionId, false)
-      setTeamTabAvailable(Boolean(findTeamTab()))
+      syncHostTeamTabVisibility(Boolean(info))
+      if (info) {
+        selectHostTeamTab(sessionId, false)
+        setTeamTabAvailable(Boolean(findTeamTab()))
+      } else {
+        setTeamTabAvailable(false)
+      }
     })
     return () => cancelAnimationFrame(frame)
-  }, [sessionId, Boolean(info)])
+  }, [sessionId, loaded, Boolean(info)])
 
   const [actionError, setActionError] = React.useState('')
   const [busy, setBusy] = React.useState(false)
@@ -74,7 +120,9 @@ export function ConcertoDock({ sessionId }) {
 
   React.useEffect(() => {
     if (!open || typeof document === 'undefined') return
-    const escape = (event) => { if (event.key === 'Escape') close() }
+    const escape = (event) => {
+      if (event.key === 'Escape' && !document.querySelector('.concerto-surface:modal')) close()
+    }
     document.addEventListener('keydown', escape)
     return () => document.removeEventListener('keydown', escape)
   }, [open, close])
@@ -102,7 +150,9 @@ export function ConcertoDock({ sessionId }) {
   const active = snapshot.executions.filter((e) => ['running', 'waiting_input', 'waiting_approval', 'interrupting'].includes(e.state))
   const unknown = snapshot.executions.filter((e) => e.state === 'unknown' && !e.quarantined)
   const members = roster(snapshot)
-  const summary = active.length + ' 个执行 · ' + pending.length + ' 项待处理' + (unknown.length ? ' · ' + unknown.length + ' 项状态未知' : '')
+  const summary = active.length + ' 个执行 · ' + pending.length + ' 项待处理'
+    + (snapshot.planGate?.status === 'pending' && !snapshot.goalCompletion ? ' · 待确认计划' : '')
+    + (unknown.length ? ' · ' + unknown.length + ' 项状态未知' : '')
 
   const sprite = (member) => {
     const state = memberState(snapshot, member)
@@ -139,6 +189,15 @@ export function ConcertoDock({ sessionId }) {
   h('div', { style: styles.muted }, '最后同步 ' + new Date(snapshot.serverTime).toLocaleTimeString()),
   error && h('p', { role: 'status' }, error + '；保留最后一次成功快照'),
   actionError && h('p', { role: 'alert' }, actionError),
+  h(ChatPlanConfirmation, {
+    snapshot,
+    info,
+    canAct,
+    sessionId,
+    showTeamLink: teamTabAvailable,
+    onAfterJump: close,
+    onApprove: (proposalId) => command('/runs/approve-plan', { proposalId }),
+  }),
   pending.length > 0 && h('h3', null, '需要处理'),
   pending.filter((r) => !selectedMember || r.memberId === selectedMember).map((item) =>
     h(RequestCard, {
@@ -357,14 +416,14 @@ export function ConcertoTurnCard({ sessionId, turn }) {
     }
   }
 
-  async function answer(item, ans) {
+  async function command(path, bodyInput) {
     setBusy(true)
     setActionError('')
-    const input = { sessionId, requestId: item.requestId, answer: ans }
-    const signature = JSON.stringify(input)
+    const input = { sessionId, ...bodyInput }
+    const signature = JSON.stringify({ path, input })
     if (lastCommand.current?.signature !== signature) lastCommand.current = { signature, id: crypto.randomUUID() }
     try {
-      await request('/requests/respond', { method: 'POST', body: JSON.stringify({ ...input, commandId: lastCommand.current.id }) })
+      await request(path, { method: 'POST', body: JSON.stringify({ ...input, commandId: lastCommand.current.id }) })
       lastCommand.current = null
       refresh()
     } catch (err) {
@@ -373,6 +432,7 @@ export function ConcertoTurnCard({ sessionId, turn }) {
       setBusy(false)
     }
   }
+  const answer = (item, ans) => command('/requests/respond', { requestId: item.requestId, answer: ans })
 
   if (!info || !snapshot) return h('div', { ref: anchor, className: 'concerto-turn-anchor' })
   const pending = pendingRequests(snapshot)
@@ -434,6 +494,14 @@ export function ConcertoTurnCard({ sessionId, turn }) {
         h('small', null, label(state) + (count ? ' · ' + count + ' 项待办' : ''))))
     })),
     selected && h('button', { type: 'button', className: 'concerto-btn', style: { marginTop: 10 }, onClick: () => setSelected('') }, '查看全部成员'),
+    h(ChatPlanConfirmation, {
+      snapshot,
+      info,
+      canAct,
+      sessionId,
+      showTeamLink: true,
+      onApprove: (proposalId) => command('/runs/approve-plan', { proposalId }),
+    }),
     tasks.length === 0 && h('p', { style: styles.muted }, selected ? selected + ' 当前没有分配的任务。' : '暂无任务，团队已就绪。'),
     tasks.slice(-4).map((task) => h('article', { key: task.taskId, className: 'concerto-turn-task' },
       h('strong', null, (task.memberId || '待分配') + ' · ' + task.title),

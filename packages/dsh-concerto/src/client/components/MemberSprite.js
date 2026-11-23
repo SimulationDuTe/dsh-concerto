@@ -50,8 +50,9 @@ export function MemberGlyph({ member, state = 'idle', size = 32 }) {
   const ring = stateRingColor(state)
   const instrument = resolveInstrument(member)
   const isRunning = state === 'running' || state === '协调'
-  const sourceBadge = member?.connector === 'codex'
-    ? 'C'
+  const CONNECTOR_BADGE = { antigravity: 'A', claude: 'C', codex: 'C', gemini: 'G', opencode: 'O' }
+  const sourceBadge = member?.connector
+    ? (CONNECTOR_BADGE[member.connector] || 'W')
     : (member?.source === 'hosted' ? 'D' : 'W')
 
   return h('svg', {

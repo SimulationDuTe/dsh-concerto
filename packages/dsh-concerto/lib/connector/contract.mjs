@@ -25,6 +25,7 @@ export const CONNECTOR_EVENT = Object.freeze({
 /** 能力标记：必须来自实测，不得假声明（§7.4 / §17.1）。 */
 export const CONNECTOR_CAPABILITY = Object.freeze({
   midTurnQuestion: 'midTurnQuestion',
+  nextTurnQuestion: 'nextTurnQuestion',
   approval: 'approval',
   cancel: 'cancel',
   resume: 'resume',

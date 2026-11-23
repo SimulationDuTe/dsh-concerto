@@ -2,6 +2,7 @@ import React from 'react'
 import { h, API, styles, saveViewObjectUserLayout, useHostTheme, readCanvasViewport, writeCanvasViewport } from '../../api.js'
 import { approxLineWidth, layoutDiagram, layoutMindmapTree, parseMarkdownToMindmap, objectToExcalidrawScene, STATUS_TOKENS } from '../../../../lib/domain/view_layout.mjs'
 import { downloadTextFile, exportSvgElement, exportPngFromSvgElement } from './exportUtils.js'
+import { UiIcon } from '../UiIcon.js'
 
 let cachedRoughPromise = null
 function loadRoughModule() {
@@ -86,14 +87,25 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
   const [pan, setPan] = React.useState(() => ({ x: initialVp.panX || 0, y: initialVp.panY || 0 }))
   const [roughApi, setRoughApi] = React.useState(null)
   const [saveNote, setSaveNote] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+  const [failedSave, setFailedSave] = React.useState(null)
+  const savingRef = React.useRef(false)
+  const userVersionRef = React.useRef(userLayoutVer)
+  const editId = React.useId()
+  const noteId = React.useId()
 
   const activeDragRef = React.useRef(null)
   const svgRef = React.useRef(null)
   const roughOverlayRef = React.useRef(null)
+  const editInputRef = React.useRef(null)
   const instanceIdRef = React.useRef(Math.random().toString(36).slice(2))
   const isActivelyEditing = Boolean(editingNodeId) || addingNote || inModal
 
-  const broadcastUserLayer = React.useCallback((nextOffsets, nextLabels, nextNotes, version, viewport) => {
+  React.useEffect(() => {
+    if (editingNodeId) editInputRef.current?.focus()
+  }, [editingNodeId])
+
+  const broadcastUserLayer = React.useCallback((nextOffsets, nextLabels, nextNotes, version, viewport, saveStatus) => {
     if (typeof window === 'undefined' || !object?.id) return
     try {
       window.dispatchEvent(new CustomEvent(EXCALIDRAW_SYNC_EVENT, {
@@ -106,6 +118,7 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
           annotations: nextNotes,
           version,
           viewport,
+          saveStatus,
         },
       }))
     } catch {}
@@ -120,7 +133,16 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       if (d.offsets) setUserOffsets(d.offsets)
       if (d.labelOverrides) setLabelOverrides(d.labelOverrides)
       if (Array.isArray(d.annotations)) setAnnotations(d.annotations)
-      if (typeof d.version === 'number') setUserLayoutVer(d.version)
+      if (typeof d.version === 'number') {
+        userVersionRef.current = d.version
+        setUserLayoutVer(d.version)
+      }
+      if (d.saveStatus) {
+        savingRef.current = d.saveStatus.phase === 'saving'
+        setSaving(savingRef.current)
+        setSaveNote(d.saveStatus.note)
+        setFailedSave(d.saveStatus.failure || null)
+      }
       if (d.viewport) {
         setZoom(d.viewport.scale || 1)
         setPan({ x: d.viewport.panX || 0, y: d.viewport.panY || 0 })
@@ -151,6 +173,8 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       setLabelOverrides(object.userLayout?.labelOverrides || {})
       setAnnotations(Array.isArray(object.userLayout?.annotations) ? object.userLayout.annotations : [])
       setUserLayoutVer(object.userLayout?.version ?? 0)
+      userVersionRef.current = object.userLayout?.version ?? 0
+      setFailedSave(null)
       return
     }
     if (object.version !== appliedObj?.version) {
@@ -161,13 +185,14 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       }
     }
     const serverUserVer = object.userLayout?.version ?? 0
-    if (serverUserVer > userLayoutVer && !isActivelyEditing) {
+    if (serverUserVer > userLayoutVer && !isActivelyEditing && !failedSave && !saving) {
       setUserOffsets(object.userLayout?.offsets || {})
       setLabelOverrides(object.userLayout?.labelOverrides || {})
       setAnnotations(Array.isArray(object.userLayout?.annotations) ? object.userLayout.annotations : [])
       setUserLayoutVer(serverUserVer)
+      userVersionRef.current = serverUserVer
     }
-  }, [object?.id, object?.version, object?.userLayout?.version, isActivelyEditing])
+  }, [object?.id, object?.version, object?.userLayout?.version, isActivelyEditing, failedSave, saving])
 
   React.useEffect(() => {
     if (typeof document === 'undefined') return
@@ -196,8 +221,8 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
           shape: r.type,
           label: labelOverrides[r.id] || baseLabel,
           lines: [labelOverrides[r.id] || baseLabel],
-          x: Math.round((r.x || 40 * (idx + 1)) + (off.dx || 0)),
-          y: Math.round((r.y || 40) + (off.dy || 0)),
+          x: Math.round((r.x ?? 40 * (idx + 1)) + (off.dx || 0)),
+          y: Math.round((r.y ?? 40) + (off.dy || 0)),
           width: Math.max(84, Math.round(r.width || 136)),
           height: Math.max(38, Math.round(r.height || 52)),
           status: r.customData?.status,
@@ -208,8 +233,8 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
         .filter((t) => !t.containerId && typeof t.text === 'string' && t.text.trim())
         .map((t, idx) => ({
           id: t.id || 'ft-' + idx,
-          x: Math.round(t.x || 24),
-          y: Math.round((t.y || 24) + 14),
+          x: Math.round(t.x ?? 24),
+          y: Math.round((t.y ?? 24) + 14),
           text: t.text,
         }))
       const edges = arrows.map((a) => {
@@ -225,8 +250,10 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
         const semantic = isErr ? 'blocked' : (isUnk ? 'unknown' : (a.customData?.critical || toNode?.critical ? 'critical' : 'default'))
         return { x1, y1, x2, y2, midX: Math.round((x1 + x2) / 2), midY: Math.round((y1 + y2) / 2), label: a.customData?.label, semantic }
       })
-      const width = Math.max(360, ...nodes.map((n) => n.x + n.width + 40), ...freeTexts.map((t) => t.x + 120))
-      const height = Math.max(200, ...nodes.map((n) => n.y + n.height + 40), ...freeTexts.map((t) => t.y + 40))
+      const width = Math.max(360, ...nodes.map((n) => n.x + n.width + 40),
+        ...freeTexts.map((t) => t.x + approxLineWidth(t.text, fontSize) + 40), ...edges.map((e) => Math.max(e.x1, e.x2) + 40))
+      const height = Math.max(200, ...nodes.map((n) => n.y + n.height + 40),
+        ...freeTexts.map((t) => t.y + 40), ...edges.map((e) => Math.max(e.y1, e.y2) + 40))
       return { nodes, edges, freeTexts, omittedTypes, width, height }
     }
     if (currentObj?.type === 'mindmap') {
@@ -305,30 +332,43 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
     }
   }, [roughApi, layout.nodes, hostTheme])
 
-  async function persistUserLayer(nextOffsets, nextLabels, nextNotes, reset = false, nextViewport = null) {
+  async function persistUserLayer(nextOffsets, nextLabels, nextNotes, reset = false, nextViewport = null, expectedVersion = userVersionRef.current) {
+    if (savingRef.current) return
     broadcastUserLayer(nextOffsets, nextLabels, nextNotes, undefined, nextViewport)
     if (!sessionId || !currentObj?.id) return
+    savingRef.current = true
+    setSaving(true)
+    setFailedSave(null)
+    setSaveNote('正在保存…')
+    broadcastUserLayer(nextOffsets, nextLabels, nextNotes, undefined, nextViewport, { phase: 'saving', note: '正在保存…' })
     try {
       const res = await saveViewObjectUserLayout(sessionId, {
         id: currentObj.id,
-        expectedUserVersion: userLayoutVer,
+        expectedUserVersion: expectedVersion,
         offsets: nextOffsets,
         labelOverrides: nextLabels,
         annotations: nextNotes,
         reset,
       })
-      if (res?.ok && res.userLayout) {
-        setUserLayoutVer(res.userLayout.version)
-        setSaveNote('已保存布局 v' + res.userLayout.version)
-        broadcastUserLayer(nextOffsets, nextLabels, nextNotes, res.userLayout.version, nextViewport)
-      }
-    } catch {
-      // Static mock harness without /view-objects/user-layout stays local
+      if (!res?.ok || !res.userLayout) throw new Error('未取得服务器保存结果')
+      userVersionRef.current = res.userLayout.version
+      setUserLayoutVer(res.userLayout.version)
+      setSaveNote('已保存布局 v' + res.userLayout.version)
+      broadcastUserLayer(nextOffsets, nextLabels, nextNotes, res.userLayout.version, nextViewport, { phase: 'saved', note: '已保存布局 v' + res.userLayout.version })
+    } catch (err) {
+      setSaveNote('修改尚未保存')
+      const failure = { offsets: nextOffsets, labels: nextLabels, notes: nextNotes, reset, viewport: nextViewport, conflict: err.status === 409, message: err.message }
+      setFailedSave(failure)
+      broadcastUserLayer(nextOffsets, nextLabels, nextNotes, undefined, nextViewport, { phase: 'failed', note: '修改尚未保存', failure })
+    } finally {
+      savingRef.current = false
+      setSaving(false)
     }
   }
 
   function startNodeDrag(node, e) {
     e.stopPropagation()
+    if (savingRef.current) return
     const baseOff = userOffsets[node.id] || { dx: 0, dy: 0 }
     activeDragRef.current = { kind: 'node', id: node.id, startX: e.clientX, startY: e.clientY, dx0: baseOff.dx, dy0: baseOff.dy }
   }
@@ -379,8 +419,13 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       ? { ...labelOverrides, [editingNodeId]: trimmed }
       : labelOverrides
     setLabelOverrides(nextLabels)
-    setEditingNodeId('')
+    closeNodeEditor()
     persistUserLayer(userOffsets, nextLabels, annotations)
+  }
+
+  function closeNodeEditor() {
+    svgRef.current?.querySelector(`[data-concerto-excalidraw-node="${CSS.escape(editingNodeId)}"]`)?.focus()
+    setEditingNodeId('')
   }
 
   function commitAnnotation() {
@@ -425,7 +470,7 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
     'aria-label': '适应窗口',
     title: '适应窗口',
     onClick: fitView,
-  }, iconOnly ? '⊡' : '适应窗口')
+  }, iconOnly ? h(UiIcon, { name: 'expand' }) : '适应窗口')
 
   return h('div', {
     'data-concerto-renderer-root': 'excalidraw',
@@ -434,11 +479,12 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
   inModal && h('div', { className: 'concerto-canvas-bar' },
     h('span', { className: 'concerto-num' }, summaryText),
     h('div', { className: 'concerto-canvas-btns' },
-      h('button', { type: 'button', className: 'concerto-btn', onClick: () => { setAddingNote(true); setNoteDraft('待确认边界') } }, '添加批注'),
+      h('button', { type: 'button', className: 'concerto-btn', disabled: saving, onClick: () => { setAddingNote(true); setNoteDraft('待确认边界') } }, '添加批注'),
       zoomOutBtn(false),
       zoomInBtn(false),
       fitBtn(false),
-      h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: resetLayout }, '重置布局'),
+      h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', disabled: saving, onClick: resetLayout }, '重置布局')),
+    h('div', { className: 'concerto-canvas-export' },
       h('button', { type: 'button', className: 'concerto-btn', onClick: exportExcalidraw }, '导出 .excalidraw'),
       h('button', { type: 'button', className: 'concerto-btn', onClick: () => exportSvgElement(svgRef.current, `${currentObj.id}.svg`, layout.width, layout.height) }, '导出 SVG'),
       h('button', { type: 'button', className: 'concerto-btn', onClick: () => exportPngFromSvgElement(svgRef.current, `${currentObj.id}.png`, layout.width, layout.height) }, '导出 PNG'))),
@@ -454,14 +500,24 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
     h('button', { type: 'button', className: 'concerto-btn concerto-btn--primary', onClick: () => { setAppliedObj(pendingMergeObj); setPendingMergeObj(null) } }, '合并保留我的位置'),
     h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: () => setPendingMergeObj(null) }, '忽略')),
 
-  editingNodeId && h('div', { style: { display: 'flex', gap: 6, marginBottom: 8 } },
-    h('input', { value: editingDraft, onChange: (e) => setEditingDraft(e.target.value), placeholder: '修改节点文字', style: { ...styles.input, flex: 1 } }),
-    h('button', { type: 'button', className: 'concerto-btn concerto-btn--primary', onClick: commitNodeLabel }, '确定'),
-    h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: () => setEditingNodeId('') }, '取消')),
+  failedSave && h('div', { role: 'status', className: 'concerto-feedback', 'data-tone': 'error' },
+    h('span', null, failedSave.conflict ? '服务器布局已更新。你的修改尚未保存，重新保存将覆盖当前已知布局。' : `布局保存失败：${failedSave.message}。你的修改仍保留在当前画布。`),
+    h('button', {
+      type: 'button', className: 'concerto-btn', disabled: saving || (failedSave.conflict && (object?.userLayout?.version ?? 0) <= userLayoutVer),
+      onClick: () => persistUserLayer(failedSave.offsets, failedSave.labels, failedSave.notes, failedSave.reset, failedSave.viewport, failedSave.conflict ? object.userLayout.version : userVersionRef.current),
+    }, failedSave.conflict ? '用我的布局重新保存' : '重试保存')),
+  saving && h('p', { role: 'status', className: 'concerto-quiet' }, '正在保存布局…'),
 
-  addingNote && h('div', { style: { display: 'flex', gap: 6, marginBottom: 8 } },
-    h('input', { value: noteDraft, onChange: (e) => setNoteDraft(e.target.value), placeholder: '输入白板批注', style: { ...styles.input, flex: 1 } }),
-    h('button', { type: 'button', className: 'concerto-btn concerto-btn--primary', disabled: !noteDraft.trim(), onClick: commitAnnotation }, '添加'),
+  editingNodeId && h('div', { className: 'concerto-inline-editor' },
+    h('label', { htmlFor: editId }, '节点文字'),
+    h('input', { ref: editInputRef, id: editId, value: editingDraft, disabled: saving, onChange: (e) => setEditingDraft(e.target.value), className: 'concerto-input' }),
+    h('button', { type: 'button', className: 'concerto-btn concerto-btn--primary', disabled: saving, onClick: commitNodeLabel }, '确定'),
+    h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: closeNodeEditor }, '取消')),
+
+  addingNote && h('div', { className: 'concerto-inline-editor' },
+    h('label', { htmlFor: noteId }, '白板批注'),
+    h('input', { id: noteId, value: noteDraft, disabled: saving, onChange: (e) => setNoteDraft(e.target.value), className: 'concerto-input' }),
+    h('button', { type: 'button', className: 'concerto-btn concerto-btn--primary', disabled: saving || !noteDraft.trim(), onClick: commitAnnotation }, '添加'),
     h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: () => { setAddingNote(false); setNoteDraft('') } }, '取消')),
 
   h('div', {
@@ -565,7 +621,16 @@ export function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
         'data-y': n.y,
         style: { cursor: 'move' },
         onMouseDown: (e) => startNodeDrag(n, e),
-        onDoubleClick: (e) => { e.stopPropagation(); setEditingNodeId(n.id); setEditingDraft(n.label) },
+        role: 'button',
+        tabIndex: 0,
+        'aria-label': `编辑节点：${n.label}`,
+        'aria-disabled': saving || undefined,
+        onKeyDown: (e) => {
+          if (e.key === ' ') e.preventDefault()
+          if (e.key === 'Enter' && !savingRef.current) { setEditingNodeId(n.id); setEditingDraft(n.label) }
+        },
+        onKeyUp: (e) => { if (e.key === ' ' && !savingRef.current) { setEditingNodeId(n.id); setEditingDraft(n.label) } },
+        onDoubleClick: (e) => { e.stopPropagation(); if (!savingRef.current) { setEditingNodeId(n.id); setEditingDraft(n.label) } },
       },
       h('title', null, `${n.label}${stInfo ? ' · ' + stInfo.label : ''}（拖拽移动，双击改字）`),
       !roughApi && (n.shape === 'ellipse'

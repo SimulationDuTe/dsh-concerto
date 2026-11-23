@@ -8,9 +8,11 @@
 
 /** 决策动作枚举：一次 submit_decision 想做什么 */
 export const DECISION_ACTION = Object.freeze({
+  proposePlan: 'propose_plan',
   createTask: 'create_task',       // 创建任务
   modifyTask: 'modify_task',       // 修改任务
   requestCancel: 'request_cancel', // 请求取消任务
+  unblockTask: 'unblock_task',     // 记录阻塞解除
   finishGoal: 'finish_goal',       // 完成目标
   wait: 'wait',                    // 等待（不产生动作，只记录原因）
 })
@@ -24,6 +26,10 @@ export const DECISION_ACTION = Object.freeze({
  * 用计算属性名 [DECISION_ACTION.xxx] 作为键，保证与枚举值永远同步。
  */
 const FIELDS = Object.freeze({
+  [DECISION_ACTION.proposePlan]: {
+    required: ['planId', 'planVersion'],
+    optional: [],
+  },
   [DECISION_ACTION.createTask]: {
     required: ['title', 'objective', 'constraints', 'acceptance', 'dependsOn', 'assigneeRole'],
     optional: ['requiresReview', 'requiredViews'],
@@ -35,6 +41,10 @@ const FIELDS = Object.freeze({
   [DECISION_ACTION.requestCancel]: {
     required: ['taskId'],
     optional: ['executionId', 'reason'],
+  },
+  [DECISION_ACTION.unblockTask]: {
+    required: ['taskId', 'expectedUpdatedAt', 'reason'],
+    optional: [],
   },
   [DECISION_ACTION.finishGoal]: {
     required: ['goalId', 'summary'],
@@ -163,6 +173,14 @@ export function validateDecisionPayload(action, payload) {
 
   // ---- 第 2 段：按 action 做类型 + 业务规则校验 ----
   switch (action) {
+    case DECISION_ACTION.proposePlan: {
+      if (!isString(payload.planId)) errors.push({ code: ERR.invalidType, field: 'planId' })
+      if (!Number.isInteger(payload.planVersion) || payload.planVersion < 1) {
+        errors.push({ code: ERR.invalidValue, field: 'planVersion' })
+      }
+      break
+    }
+
     case DECISION_ACTION.createTask: {
       // 逐字段类型校验
       if (!isString(payload.title)) errors.push({ code: ERR.invalidType, field: 'title' })
@@ -214,6 +232,13 @@ export function validateDecisionPayload(action, payload) {
       // optional：出现才校验
       if ('executionId' in payload && !isString(payload.executionId)) errors.push({ code: ERR.invalidType, field: 'executionId' })
       if ('reason' in payload && !isString(payload.reason)) errors.push({ code: ERR.invalidType, field: 'reason' })
+      break
+    }
+
+    case DECISION_ACTION.unblockTask: {
+      for (const field of ['taskId', 'expectedUpdatedAt', 'reason']) {
+        if (!isString(payload[field]) || !payload[field].trim()) errors.push({ code: ERR.invalidType, field })
+      }
       break
     }
 

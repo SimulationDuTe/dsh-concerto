@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTeamStore } from '../packages/dsh-concerto/lib/team_store.mjs'
@@ -123,4 +123,49 @@ test('saveTeam: persists across store instances when statePath is set', async ()
   assert.equal(list.length, 1)
   assert.equal(list[0].id, 'alpha')
   assert.equal(list[0].configVersion, 1)
+})
+
+test('team edits keep identity and reject writes to deleted or recreated versions across reopen', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'concerto-team-edits-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const statePath = join(dir, 'teams.json')
+  let store = createTeamStore({ statePath })
+  assert.equal(store.saveTeam({ team: teamA }).ok, true)
+  assert.equal(store.saveTeam({ team: teamA }).status, 409)
+
+  const edit = { team: { ...teamA, name: '甲组' }, expectedConfigVersion: 1, requestId: 'rename' }
+  assert.deepEqual(store.saveTeam(edit).body, { teamId: 'alpha', configVersion: 2, persisted: true })
+  assert.equal(store.getTeam('alpha').team.name, '甲组')
+  const oldDelete = { teamId: 'alpha', expectedConfigVersion: 1, requestId: 'delete-old' }
+  assert.equal(store.deleteTeam(oldDelete).body.currentConfigVersion, 2)
+  const deletion = { ...oldDelete, expectedConfigVersion: 2, requestId: 'delete-current' }
+  assert.equal(store.deleteTeam(deletion).ok, true)
+
+  store = createTeamStore({ statePath })
+  assert.equal(store.getTeam('alpha'), null)
+  assert.equal(store.deleteTeam(deletion).body.replayed, true)
+  assert.equal(store.saveTeam(edit).body.replayed, true)
+  assert.equal(store.getTeam('alpha'), null)
+  assert.equal(store.saveTeam({ team: teamA, expectedConfigVersion: 2 }).status, 409)
+  assert.equal(store.saveTeam({ team: teamA, expectedConfigVersion: 0 }).body.configVersion, 3)
+  assert.equal(store.deleteTeam(deletion).body.replayed, true)
+  assert.equal(store.getTeam('alpha').version, 3)
+  assert.equal(store.deleteTeam({ ...deletion, requestId: 'delete-again' }).body.currentConfigVersion, 3)
+})
+
+test('failed deletion leaves the team and receipt available for a safe retry', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'concerto-team-delete-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const statePath = join(dir, 'teams.json')
+  const store = createTeamStore({ statePath })
+  assert.equal(store.saveTeam({ team: teamA }).ok, true)
+  const before = await readFile(statePath)
+  await mkdir(statePath + '.tmp')
+  const mutation = { teamId: 'alpha', expectedConfigVersion: 1, requestId: 'delete-after-failure' }
+  assert.equal(store.deleteTeam(mutation).status, 500)
+  assert.equal(store.getTeam('alpha').version, 1)
+  assert.deepEqual(await readFile(statePath), before)
+  await rm(statePath + '.tmp', { recursive: true })
+  assert.equal(store.deleteTeam(mutation).body.replayed, undefined)
+  assert.equal(store.getTeam('alpha'), null)
 })

@@ -491,6 +491,12 @@ var TEAM_TOOLS = [
   "get_team_status",
   "submit_decision",
   "dispatch_task",
+  "dispatch_review",
+  "list_skills",
+  "read_skill",
+  "publish_project_skill",
+  "manage_member_duties",
+  "read_project_skill",
   "get_task",
   "report_progress",
   "submit_result",
@@ -585,11 +591,32 @@ var EVENT_LABEL = {
   "question.delivery_failed": "\u56DE\u7B54\u9001\u8FBE\u5931\u8D25",
   "result.submitted": "\u63D0\u4EA4\u7ED3\u679C",
   "review.submitted": "\u9A8C\u6536\u7ED3\u8BBA",
+  "review.feedback_created": "\u6DFB\u52A0\u5BA1\u67E5\u610F\u89C1",
+  "review.feedback_reply": "\u8865\u4EA4\u4FEE\u8BA2\u8BC1\u636E",
+  "review.feedback_close": "\u5173\u95ED\u5BA1\u67E5\u610F\u89C1",
+  "review.feedback_reopen": "\u91CD\u65B0\u6253\u5F00\u5BA1\u67E5\u610F\u89C1",
   "execution.settled": "\u6267\u884C\u7ED3\u675F",
   "task.blocked": "\u4EFB\u52A1\u963B\u585E",
+  "task.cancelled": "\u4EFB\u52A1\u53D6\u6D88",
+  "task.unblocked": "\u4EFB\u52A1\u89E3\u9664\u963B\u585E",
+  "worktree.prepared": "\u5DF2\u521B\u5EFA\u9694\u79BB Worktree",
+  "worktree.dirty_detected": "\u68C0\u6D4B\u5230\u672A\u63D0\u4EA4\u5DE5\u4F5C\u533A\u53D8\u66F4",
+  "worktree.fallback_shared": "\u56DE\u9000\u5171\u4EAB\u76EE\u5F55\u6267\u884C",
   "view.object.published": "\u53D1\u5E03\u5BF9\u8C61",
   "view.object.patched": "\u66F4\u65B0\u5BF9\u8C61",
-  "team.view.updated": "\u66F4\u65B0\u6307\u6325\u53F0"
+  "checklist.edited": "\u7528\u6237\u7F16\u8F91\u9A8C\u6536\u6E05\u5355",
+  "shared_artifact.edited": "\u7528\u6237\u7F16\u8F91\u5171\u7F16\u6210\u679C",
+  "team.view.updated": "\u66F4\u65B0\u6307\u6325\u53F0",
+  "project.skill.published": "\u53D1\u5E03\u9879\u76EE\u65B9\u6CD5",
+  "skill.loaded": "\u52A0\u8F7D\u65B9\u6CD5",
+  "skill.delivered": "\u6D3E\u53D1\u51BB\u7ED3\u65B9\u6CD5",
+  "user.suggestion": "\u7528\u6237\u4E2D\u9014\u5EFA\u8BAE",
+  "task.auto_cascaded": "\u26A1 \u81EA\u52A8\u7011\u5E03\u63A5\u529B",
+  "race.started": "\u{1F3C1} \u542F\u52A8\u53CC\u89E3\u8D5B\u9A6C",
+  "race.winner_selected": "\u{1F3C6} \u91C7\u7EB3\u8D5B\u9A6C\u80DC\u8005",
+  "verification.passed": "\u2705 \u9A8C\u8BC1\u95E8\u7981\u901A\u8FC7",
+  "verification.failed": "\u274C \u9A8C\u8BC1\u95E8\u7981\u672A\u901A\u8FC7",
+  "memory.updated": "\u{1F9E0} \u56E2\u961F\u8BB0\u5FC6\u5DF2\u66F4\u65B0"
 };
 var STATE_META = {
   running: { cls: "concerto-state-running", icon: "\u27F3", label: "\u6267\u884C\u4E2D" },
@@ -622,13 +649,13 @@ var styles = {
     fontSize: "var(--cc-font-size)",
     lineHeight: 1.6
   },
-  title: { fontWeight: 600, marginBottom: 8 },
+  title: { fontWeight: "var(--cc-fw-heading, 600)", marginBottom: 8 },
   row: { display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" },
   input: {
-    padding: "5px 9px",
+    padding: "6px 10px",
     borderRadius: "var(--cc-radius-ctrl)",
     border: "1px solid var(--cc-border)",
-    background: "var(--dsw-specific-input-major, var(--cc-card-nested-bg))",
+    background: "var(--cc-input-bg, var(--cc-card-nested-bg))",
     color: "var(--cc-text-primary)",
     minWidth: 160
   },
@@ -636,17 +663,18 @@ var styles = {
     padding: "5px 12px",
     borderRadius: "var(--cc-radius-ctrl)",
     border: "1px solid var(--cc-border)",
-    background: "var(--cc-card-nested-bg)",
+    background: "var(--dsw-alias-button-elevated-fill, var(--cc-card-nested-bg))",
     color: "var(--cc-text-primary)",
+    fontWeight: "var(--cc-fw-strong, 500)",
     cursor: "pointer"
   },
   primary: {
     padding: "5px 12px",
     borderRadius: "var(--cc-radius-ctrl)",
-    border: "1px solid var(--cc-accent-fill, var(--cc-accent))",
-    background: "var(--cc-accent-fill, var(--cc-accent))",
-    color: "var(--cc-on-accent)",
-    fontWeight: 600,
+    border: "1px solid transparent",
+    background: "var(--cc-primary-fill, var(--cc-accent-fill))",
+    color: "var(--cc-on-primary, var(--cc-on-accent))",
+    fontWeight: "var(--cc-fw-strong, 500)",
     cursor: "pointer"
   },
   item: { padding: "6px 8px", borderTop: "1px solid var(--cc-border-subtle)" },
@@ -671,7 +699,7 @@ var styles = {
     cursor: "pointer"
   },
   inlineDot: { width: 6, height: 6, borderRadius: "var(--cc-radius-pill)", background: "var(--cc-state-done)", display: "inline-block" },
-  inlineChip: { padding: "0 6px", borderRadius: "var(--cc-radius-pill)", border: "1px solid var(--cc-accent-border)", background: "var(--cc-accent-soft)", color: "var(--cc-accent-text)" },
+  inlineChip: { padding: "0 6px", borderRadius: "var(--cc-radius-pill)", border: "1px solid transparent", background: "var(--cc-accent-soft)", color: "var(--cc-accent-text)" },
   inlineCard: {
     marginTop: 4,
     padding: "6px 10px",
@@ -894,7 +922,7 @@ function readResolvedHostTheme() {
     const rawBgLayer1 = readColor(`var(--dsw-alias-bg-layer-1, ${fb.bgLayer1})`, fb.bgLayer1);
     const rawBgLayer2 = readColor(`var(--dsw-alias-bg-layer-2, ${fb.bgLayer2})`, fb.bgLayer2);
     const rawBgLayer3 = readColor(`var(--dsw-alias-bg-layer-3, ${fb.bgLayer3})`, fb.bgLayer3);
-    const rawBgOverlay = readColor(`var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-2, ${fb.bgLayer2}))`, rawBgLayer2);
+    const rawBgOverlay = rawBgLayer2;
     const glassAttr = document.body?.getAttribute("data-we-glass-page") === "on";
     const isGlass = glassAttr || backdropBlur !== "none" && backdropBlur !== "";
     const wallpaperUnderlay = rootCS.getPropertyValue("--we-wallpaper-underlay")?.trim() || bodyCS.getPropertyValue("--we-wallpaper-underlay")?.trim() || "";
@@ -1053,7 +1081,7 @@ function onMemberDrawerRequest(listener) {
   drawerListeners.add(listener);
   return () => drawerListeners.delete(listener);
 }
-async function request(path, init) {
+async function request2(path, init) {
   const res = await fetch(API + path, {
     headers: { "content-type": "application/json" },
     credentials: "same-origin",
@@ -1071,46 +1099,62 @@ async function fetchMemberActivity(sessionId, memberId, { before = null, limit =
   const params = new URLSearchParams({ sessionId, limit: String(limit) });
   if (memberId) params.set("memberId", memberId);
   if (before !== null && before !== void 0 && String(before) !== "") params.set("before", String(before));
-  return await request("/members/activity?" + params.toString());
+  return await request2("/members/activity?" + params.toString());
+}
+function fetchMemberDuties(sessionId, memberId) {
+  return request2("/members/duties?" + new URLSearchParams({ sessionId, memberId }));
+}
+function updateMemberDuties(sessionId, memberId, change) {
+  return request2("/members/duties", {
+    method: "POST",
+    body: JSON.stringify({ sessionId, memberId, ...change })
+  });
 }
 async function saveViewObjectUserLayout(sessionId, payload) {
-  return await request("/view-objects/user-layout", {
+  return await request2("/view-objects/user-layout", {
     method: "POST",
     body: JSON.stringify({ ...payload, sessionId })
   });
 }
+async function importExcalidrawBoard(sessionId, file) {
+  const params = new URLSearchParams({ sessionId, filename: file.name });
+  return await request2("/view-objects/import-excalidraw?" + params.toString(), {
+    method: "POST",
+    body: file
+  });
+}
 async function saveUserViewPreferences(sessionId, payload) {
-  return await request("/view-preferences", {
+  return await request2("/view-preferences", {
     method: "POST",
     body: JSON.stringify({ ...payload, sessionId })
   });
 }
 async function fetchRuns() {
-  return await request("/runs");
+  return await request2("/runs");
 }
 async function launchTeamSession(payload) {
-  return await request("/teams/launch", {
+  return await request2("/teams/launch", {
     method: "POST",
     body: JSON.stringify(payload || {})
   });
 }
 async function revealSession(payload) {
-  return await request("/sessions/reveal", {
+  return await request2("/sessions/reveal", {
     method: "POST",
     body: JSON.stringify(payload || {})
   });
 }
 async function fetchUnknownExecutions() {
-  return await request("/recovery/unknown");
+  return await request2("/recovery/unknown");
 }
 async function reconcileUnknownExecution(payload) {
-  return await request("/recovery/reconcile", {
+  return await request2("/recovery/reconcile", {
     method: "POST",
     body: JSON.stringify(payload || {})
   });
 }
 async function adjudicateRecoveryExecution(payload) {
-  return await request("/recovery/adjudicate", {
+  return await request2("/recovery/adjudicate", {
     method: "POST",
     body: JSON.stringify(payload || {})
   });
@@ -1149,12 +1193,15 @@ var VIEW_STATE_KEY_PREFIX = "concerto.viewState.";
 function defaultViewState() {
   return {
     activeTab: "overview",
-    taskViewMode: "auto",
-    expandedTaskIds: [],
+    selectedTaskId: "",
     artifactFilters: { taskId: "all", memberId: "all", type: "all" },
     scrollTop: 0,
     canvasViewports: {}
   };
+}
+function selectedTaskFromState(state) {
+  if (typeof state?.selectedTaskId === "string") return state.selectedTaskId;
+  return Array.isArray(state?.expandedTaskIds) && state.expandedTaskIds.length > 0 ? String(state.expandedTaskIds.at(-1)) : "";
 }
 function readSessionViewState(sessionId) {
   const key = String(sessionId || "");
@@ -1164,8 +1211,8 @@ function readSessionViewState(sessionId) {
     return {
       ...defaultViewState(),
       ...cached,
+      selectedTaskId: selectedTaskFromState(cached),
       artifactFilters: { ...defaultViewState().artifactFilters, ...cached.artifactFilters || {} },
-      expandedTaskIds: Array.isArray(cached.expandedTaskIds) ? [...cached.expandedTaskIds] : [],
       canvasViewports: { ...cached.canvasViewports || {} }
     };
   }
@@ -1178,8 +1225,8 @@ function readSessionViewState(sessionId) {
           const merged = {
             ...defaultViewState(),
             ...parsed,
+            selectedTaskId: selectedTaskFromState(parsed),
             artifactFilters: { ...defaultViewState().artifactFilters, ...parsed.artifactFilters || {} },
-            expandedTaskIds: Array.isArray(parsed.expandedTaskIds) ? parsed.expandedTaskIds : [],
             canvasViewports: parsed.canvasViewports && typeof parsed.canvasViewports === "object" ? parsed.canvasViewports : {}
           };
           sessionViewStates.set(key, merged);
@@ -1200,8 +1247,8 @@ function writeSessionViewState(sessionId, patch = {}) {
   const next = {
     ...cur,
     ...patch,
+    ...typeof patch.selectedTaskId === "string" ? { selectedTaskId: patch.selectedTaskId } : {},
     ...patch.artifactFilters ? { artifactFilters: { ...cur.artifactFilters, ...patch.artifactFilters } } : {},
-    ...patch.expandedTaskIds ? { expandedTaskIds: [...patch.expandedTaskIds] } : {},
     ...patch.canvasViewports ? { canvasViewports: { ...cur.canvasViewports, ...patch.canvasViewports } } : {}
   };
   sessionViewStates.set(key, next);
@@ -1272,7 +1319,7 @@ function readHostChatMessages(sessionId) {
 var sessionReaders = /* @__PURE__ */ new Map();
 function sessionReader(sessionId) {
   if (sessionReaders.has(sessionId)) return sessionReaders.get(sessionId);
-  let value = { info: null, error: "" };
+  let value = { info: null, error: "", loaded: false };
   const listeners = /* @__PURE__ */ new Set();
   let stop;
   let refresh = () => {
@@ -1284,32 +1331,57 @@ function sessionReader(sessionId) {
   function start() {
     let disposed = false;
     let timer;
+    let sseTimer;
+    let sseConnected = false;
+    let eventSource = null;
     let inFlight = false;
     const controller = new AbortController();
     async function load() {
       if (disposed || inFlight) return;
       inFlight = true;
       try {
-        const info = await request("/session?sessionId=" + encodeURIComponent(sessionId), { signal: controller.signal });
+        const info = await request2("/session?sessionId=" + encodeURIComponent(sessionId), { signal: controller.signal });
         if (!disposed) {
           publish({
             info: value.info && value.info.snapshot?.serverTime > info.snapshot?.serverTime ? value.info : info,
-            error: ""
+            error: "",
+            loaded: true
           });
         }
       } catch (error) {
         if (!disposed) {
-          publish(error.status === 404 ? { info: null, error: "" } : { ...value, error: "\u540C\u6B65\u5931\u8D25\uFF1A" + error.message });
+          publish(error.status === 404 ? { info: null, error: "", loaded: true } : { ...value, error: "\u540C\u6B65\u5931\u8D25\uFF1A" + error.message, loaded: true });
         }
       } finally {
         inFlight = false;
-        if (!disposed) timer = setTimeout(load, typeof document !== "undefined" && document.hidden ? 1e4 : 2e3);
+        if (!disposed) {
+          const fallbackDelay = typeof document !== "undefined" && document.hidden ? 15e3 : sseConnected ? 12e3 : 2e3;
+          timer = setTimeout(load, fallbackDelay);
+        }
       }
     }
     refresh = () => {
       clearTimeout(timer);
       load();
     };
+    if (typeof EventSource === "function" && sessionId) {
+      try {
+        eventSource = new EventSource(API + "/events?sessionId=" + encodeURIComponent(sessionId));
+        eventSource.addEventListener("ready", () => {
+          sseConnected = true;
+        });
+        eventSource.addEventListener("update", () => {
+          sseConnected = true;
+          clearTimeout(sseTimer);
+          sseTimer = setTimeout(refresh, 40);
+        });
+        eventSource.onerror = () => {
+          sseConnected = false;
+        };
+      } catch {
+        sseConnected = false;
+      }
+    }
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", refresh);
     }
@@ -1320,6 +1392,11 @@ function sessionReader(sessionId) {
     return () => {
       disposed = true;
       clearTimeout(timer);
+      clearTimeout(sseTimer);
+      try {
+        eventSource?.close();
+      } catch {
+      }
       controller.abort();
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", refresh);
@@ -1358,14 +1435,43 @@ function memberState(snapshot, member) {
   const execution = (snapshot.executions || []).filter((e) => e.memberId === member.id).at(-1);
   const task = execution && (snapshot.tasks || []).find((t) => t.executionId === execution.executionId);
   if (execution?.state === "unknown") return "unknown";
+  if (execution?.kind === "review") {
+    if (execution.state === "running" || execution.state === "waiting_input" || execution.state === "waiting_approval") {
+      return execution.state;
+    }
+    if (execution.state === "interrupting") return "cancelling";
+    return "idle";
+  }
   if (task?.viewState) return task.viewState;
   return member.roleKind === "commander" ? "\u534F\u8C03" : "idle";
+}
+async function fetchViewObjectVersion(sessionId, id, version) {
+  const params = new URLSearchParams({ sessionId: String(sessionId || ""), id: String(id || "") });
+  if (Number.isInteger(version)) params.set("version", String(version));
+  return request2("/view-objects/read?" + params.toString());
 }
 var autoOpenedSessions = /* @__PURE__ */ new Set();
 function findTeamTab() {
   if (typeof document === "undefined") return null;
   const tabs = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')];
   return tabs.find((el) => /团队|Team/i.test(el.textContent || "")) || null;
+}
+function syncHostTeamTabVisibility(visible) {
+  if (typeof document === "undefined") return;
+  const tab = findTeamTab();
+  if (!tab) return;
+  if (visible) {
+    tab.hidden = false;
+    if (tab.style.display === "none") tab.style.display = "";
+    return;
+  }
+  tab.hidden = true;
+  tab.style.display = "none";
+  if (tab.getAttribute("aria-selected") === "true") {
+    const tabs = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')];
+    const chatTab = tabs.find((el) => el !== tab && !el.hidden && el.style.display !== "none");
+    if (chatTab) chatTab.click();
+  }
 }
 function selectHostTeamTab(sessionId, force = false) {
   if (typeof document === "undefined" || !sessionId) return false;
@@ -1387,7 +1493,7 @@ function selectHostTeamTab(sessionId, force = false) {
 }
 
 // packages/dsh-concerto/src/client/components/Panels.js
-var import_react3 = __toESM(require_react(), 1);
+var import_react5 = __toESM(require_react(), 1);
 
 // packages/dsh-concerto/src/client/styles.js
 var import_react2 = __toESM(require_react(), 1);
@@ -1395,25 +1501,39 @@ var BASELINE_ROOT_CSS = `:where(:root){${Object.entries(HOST_FALLBACK_CSS_VARS).
 var TEAM_CSS = `
   ${BASELINE_ROOT_CSS}
   .concerto-surface {
+    box-sizing: border-box;
+    --cc-radius-xs: var(--dsw-radius-xs, 4px);
     --cc-radius-card: var(--dsw-radius-md, var(--cc-fb-radius-md));
     --cc-radius-ctrl: var(--dsw-radius-sm, var(--cc-fb-radius-sm));
     --cc-radius-lg: var(--dsw-radius-lg, var(--cc-fb-radius-lg));
+    --cc-radius-xl: var(--dsw-radius-xl, var(--dsw-radius-lg, var(--cc-fb-radius-lg)));
     --cc-radius-pill: var(--cc-fb-radius-pill);
+    --cc-corner-shape: var(--dsw-corner-shape, round);
+
+    /* DSH motion language */
+    --cc-ease: var(--ds-ease-in-out, cubic-bezier(.4, 0, .2, 1));
+    --cc-dur-fast: var(--ds-transition-duration-fast, .1s);
+    --cc-dur: var(--ds-transition-duration, .2s);
+    --cc-dur-slow: var(--ds-transition-duration-slow, .3s);
 
     --cc-font-sans: var(--dsw-font-family, var(--dsh-font-family-text-default, system-ui, sans-serif));
     --cc-font-mono: var(--ds-font-family-code, var(--dsh-font-family-code-default, ui-monospace, monospace));
     --cc-font-size: var(--dsh-content-font-size, 1em);
     --cc-font-size-secondary: var(--dsh-content-font-size-secondary, 0.92em);
 
-    /* Typography scale strictly relative to host content font size */
-    --cc-fs-display: calc(var(--cc-font-size) * 1.25);
-    --cc-fs-title: calc(var(--cc-font-size) * 1.07);
+    /* DSH type ramp (11/12/13/14/16/20/24) shifted by the host content-size setting,
+       the same way DSH applies --dsh-content-font-delta to its own UI. */
+    --cc-fs-delta: calc(var(--cc-font-size) - 14px);
+    --cc-fs-display: calc(20px + var(--cc-fs-delta));
+    --cc-fs-title: calc(16px + var(--cc-fs-delta));
     --cc-fs-body: var(--cc-font-size);
     --cc-fs-meta: var(--cc-font-size-secondary);
-    --cc-fs-caption: calc(var(--cc-font-size) * 0.85);
-    --cc-fs-micro: calc(var(--cc-font-size) * 0.72);
+    --cc-fs-caption: calc(12px + var(--cc-fs-delta));
+    --cc-fs-micro: calc(11px + var(--cc-fs-delta));
     --cc-fs-code: var(--dsh-code-font-size, 0.85em);
     --cc-fs-terminal: var(--dsh-terminal-font-size, 0.92em);
+    --cc-fw-strong: 500;
+    --cc-fw-heading: 600;
 
     /* 4px spacing ladder */
     --cc-space-1: 4px;
@@ -1428,7 +1548,16 @@ var TEAM_CSS = `
     --cc-card-nested-bg: var(--cc-contrast-nested-bg, var(--dsw-alias-bg-module-platform, var(--dsw-alias-bg-layer-2, var(--cc-fb-bg-layer-2))));
     --cc-panel-bg: var(--cc-contrast-panel-bg, var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base, var(--cc-fb-bg-layer-2))));
     --cc-canvas-bg: var(--cc-contrast-canvas-bg, var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-base, var(--cc-fb-bg-layer-1))));
-    --cc-overlay-bg: var(--cc-contrast-overlay-bg, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base, var(--cc-fb-bg-layer-2)))));
+    /* Floating surfaces follow DSH popovers (layer-2). --dsw-alias-bg-overlay is a mid-grey
+       hover/press fill in DSH, not a surface, so it is only used for pressed states. */
+    --cc-overlay-bg: var(--cc-contrast-overlay-bg, var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base, var(--cc-fb-bg-layer-2))));
+    --cc-pressed-bg: var(--dsw-alias-bg-overlay, var(--cc-card-nested-bg));
+    --cc-menu-bg: var(--cc-contrast-overlay-bg, var(--dsw-specific-menu, var(--cc-overlay-bg)));
+    --cc-menu-blur: var(--dsw-menu-backdrop-filter, var(--cc-backdrop-blur));
+    --cc-input-bg: var(--dsw-specific-input-major, var(--cc-card-nested-bg));
+    --cc-skeleton: var(--dsw-alias-bg-skeleton, var(--cc-card-nested-bg));
+    --cc-hover: var(--dsw-alias-interactive-bg-hover, var(--cc-accent-soft));
+    --cc-active: var(--dsw-alias-interactive-bg-active, var(--cc-accent-hover));
     --cc-backdrop-blur: var(--dsw-mask-blur, none);
 
     --cc-border: var(--dsw-alias-border-l2, var(--cc-fb-border));
@@ -1437,6 +1566,8 @@ var TEAM_CSS = `
     --cc-shadow-soft: var(--dsw-elevation-soft, var(--dsw-shadow-lv1, var(--cc-fb-shadow-soft)));
     --cc-shadow-panel: var(--dsw-elevation-panel, var(--dsw-shadow-lv1, var(--cc-fb-shadow-panel)));
     --cc-shadow-prominent: var(--dsw-elevation-prominent, var(--dsw-shadow-lv3, var(--cc-fb-shadow-prominent)));
+    --cc-shadow-pop: var(--dsw-shadow-lv3, var(--cc-shadow-prominent));
+    --cc-focus-ring: var(--dsw-focus-ring-color, var(--cc-accent));
 
     /* Contrast-checked ink hierarchy */
     --cc-text-primary: var(--cc-contrast-text-primary, var(--dsw-alias-label-primary, var(--cc-fb-text-primary)));
@@ -1451,6 +1582,13 @@ var TEAM_CSS = `
     --cc-accent-soft: color-mix(in srgb, var(--cc-accent) 16%, transparent);
     --cc-accent-hover: var(--dsw-alias-interactive-bg-hover-accent, color-mix(in srgb, var(--cc-accent) 24%, transparent));
     --cc-accent-border: var(--cc-contrast-accent-border, color-mix(in srgb, var(--cc-accent) 48%, transparent));
+    --cc-accent-tint: var(--dsw-alias-state-business-tertiary, var(--cc-accent-soft));
+
+    /* DSH primary buttons are the neutral brand ink (black on light, white on dark);
+       the business accent stays for links, selection and live state. */
+    --cc-primary-fill: var(--dsw-alias-button-primary-fill, var(--cc-accent-fill));
+    --cc-primary-hover: var(--dsw-alias-button-primary-hover, var(--cc-accent-fill));
+    --cc-on-primary: var(--dsw-alias-label-primary-foreground, var(--cc-on-accent));
 
     /* Semantic status tokens (independent of accent hue, translucent tints safe in both polarities) */
     --cc-state-running: var(--cc-accent-text);
@@ -1479,66 +1617,102 @@ var TEAM_CSS = `
     line-height: 1.6;
   }
   .concerto-surface *, .concerto-surface *::before, .concerto-surface *::after { box-sizing: border-box; }
-  .concerto-surface h3 { font-family: var(--cc-font-sans); font-size: var(--cc-fs-title); font-weight: 600; line-height: 1.4; color: var(--cc-text-primary); margin: 0; }
+  .concerto-surface :is(h2, h3) { font-family: var(--cc-font-sans); font-size: var(--cc-fs-title); font-weight: var(--cc-fw-heading); line-height: 1.5; color: var(--cc-text-primary); margin: 0; overflow-wrap: anywhere; }
+  .concerto-surface strong { font-weight: var(--cc-fw-strong); }
+  .concerto-surface { scrollbar-width: thin; scrollbar-color: var(--dsh-scrollbar-thumb, var(--dsw-alias-scrollbar-bg-l1, var(--cc-border-strong))) transparent; }
+  .concerto-surface ::selection { background: var(--dsw-alias-bg-document-selection, var(--cc-accent-soft)); }
+  .concerto-surface .concerto-dialog-title { font-size: var(--cc-fs-title); }
   .concerto-surface p { font: inherit; margin: var(--cc-space-1) 0; }
   .concerto-surface code, .concerto-surface pre { font-family: var(--cc-font-mono); font-size: var(--cc-fs-code); }
   .concerto-surface :where(button, textarea, select, input) { font-family: inherit; font-size: var(--cc-fs-meta); color: inherit; }
   .concerto-surface button:disabled { opacity: .45; cursor: not-allowed; }
-  .concerto-surface button:focus-visible, .concerto-surface summary:focus-visible, .concerto-surface [tabindex]:focus-visible, .concerto-surface select:focus-visible {
+  .concerto-surface :is(button, input, textarea, summary, [tabindex], select):focus-visible {
     outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--cc-accent));
     outline-offset: 2px;
   }
   .concerto-num { font-variant-numeric: tabular-nums; }
-  .concerto-kpi-accent { color: var(--cc-accent-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .concerto-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+  .concerto-field { display: flex; flex-direction: column; gap: 6px; margin-block: var(--cc-space-3); min-width: 0; }
+  .concerto-field > label { font-size: var(--cc-fs-meta); font-weight: var(--cc-fw-strong); }
+  .concerto-field-hint { color: var(--cc-text-secondary); font-size: var(--cc-fs-caption) !important; margin: 0 !important; }
+  .concerto-field-error { color: var(--cc-state-blocked); font-size: var(--cc-fs-meta); margin-block: 4px; }
+  .concerto-input, .concerto-textarea {
+    width: 100%; min-width: 0; min-height: 36px; padding: 7px 11px; font: inherit;
+    border: 1px solid var(--cc-border); border-radius: var(--cc-radius-ctrl); corner-shape: var(--cc-corner-shape);
+    background: var(--cc-input-bg); color: var(--cc-text-primary);
+    transition: border-color var(--cc-dur-fast) var(--cc-ease), box-shadow var(--cc-dur-fast) var(--cc-ease);
+  }
+  .concerto-input::placeholder, .concerto-textarea::placeholder { color: var(--cc-text-muted); }
+  .concerto-input:hover, .concerto-textarea:hover { border-color: var(--cc-border-strong); }
+  .concerto-surface :is(.concerto-input, .concerto-textarea):focus-visible { outline: none; border-color: var(--cc-accent-border); box-shadow: 0 0 0 3px var(--cc-accent-soft); }
+  .concerto-textarea { resize: vertical; min-height: 76px; line-height: 1.6; }
+  .concerto-surface :is(.concerto-input, .concerto-textarea):user-invalid { border-color: var(--cc-state-blocked); }
+  .concerto-feedback { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--cc-space-2); padding: var(--cc-space-2) var(--cc-space-3); border: 1px solid color-mix(in srgb, var(--cc-state-attention) 30%, transparent); border-radius: var(--cc-radius-ctrl); corner-shape: var(--cc-corner-shape); background: var(--cc-state-attention-bg); font-size: var(--cc-fs-meta); overflow-wrap: anywhere; }
+  .concerto-feedback[data-tone="error"] { border-color: color-mix(in srgb, var(--cc-state-blocked) 30%, transparent); background: var(--cc-state-blocked-bg); }
+  .concerto-plan-confirmation { margin-block-end: var(--cc-space-2); }
+  .concerto-plan-confirmation[data-state="approved"] { border-color: var(--cc-border-subtle); background: var(--cc-card-bg); }
+  .concerto-plan-actions { display: flex; flex-wrap: wrap; gap: var(--cc-space-2); }
+  .concerto-inline-editor { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-block-end: 8px; }
+  .concerto-inline-editor label { font-size: var(--cc-fs-meta); font-weight: var(--cc-fw-strong); }
+  .concerto-inline-editor .concerto-input { flex: 1 1 180px; }
+  .concerto-kpi-accent { color: var(--cc-text-primary); font-weight: var(--cc-fw-heading); font-variant-numeric: tabular-nums; }
   .concerto-id { font-family: var(--cc-font-mono); font-size: var(--cc-fs-caption); font-variant-numeric: tabular-nums; }
-  .concerto-quiet { color: var(--cc-text-muted); font-size: var(--cc-fs-caption); font-weight: 500; }
-  .concerto-group-label { font-size: var(--cc-fs-caption); font-weight: 600; color: var(--cc-text-muted); letter-spacing: 0.02em; }
+  .concerto-quiet { color: var(--cc-text-muted); font-size: var(--cc-fs-caption); font-weight: 400; }
+  .concerto-icon { display: inline-block; flex: none; vertical-align: -2px; }
+  .concerto-quiet .concerto-icon { margin-right: 4px; }
+  .concerto-group-label { display: flex; align-items: center; gap: var(--cc-space-2); font-size: var(--cc-fs-caption); font-weight: var(--cc-fw-strong); color: var(--cc-text-muted); }
 
-  /* Interactive grammar: btn / tag / badge / chip / link */
+  /* Interactive grammar: btn / tag / badge / chip / link \u2014 mirrors DSH button tokens */
   .concerto-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    min-height: 28px; padding: 0 var(--cc-space-3);
-    border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-ctrl);
-    background: var(--cc-card-nested-bg); color: var(--cc-text-primary);
-    font-size: var(--cc-fs-meta); font-weight: 500; cursor: pointer;
-    transition: border-color .12s ease;
+    min-height: 32px; padding: 4px var(--cc-space-3);
+    border: 1px solid var(--cc-border); border-radius: var(--cc-radius-ctrl); corner-shape: var(--cc-corner-shape);
+    background: var(--dsw-alias-button-elevated-fill, var(--cc-card-bg)); color: var(--cc-text-primary);
+    font-size: var(--cc-fs-meta); font-weight: var(--cc-fw-strong); line-height: 1.4; cursor: pointer;
+    transition: border-color var(--cc-dur-fast) var(--cc-ease), background-color var(--cc-dur-fast) var(--cc-ease), color var(--cc-dur-fast) var(--cc-ease), transform var(--cc-dur-fast) var(--cc-ease);
     white-space: nowrap;
   }
-  .concerto-btn:hover:not(:disabled) { border-color: var(--cc-accent-border); background: var(--dsw-alias-interactive-bg-hover, var(--cc-accent-soft)); }
-  .concerto-btn:active:not(:disabled) { background: var(--dsw-alias-interactive-bg-active, var(--cc-accent-hover)); }
-  .concerto-btn--primary { border-color: var(--cc-accent-fill); background: var(--cc-accent-fill); color: var(--cc-on-accent); font-weight: 600; }
-  .concerto-btn--primary:hover:not(:disabled) { filter: brightness(1.07); background: var(--cc-accent-fill); }
-  .concerto-btn--attn { border-color: color-mix(in srgb, var(--cc-state-attention) 42%, transparent); background: var(--cc-state-attention-bg); color: var(--cc-state-attention); font-weight: 600; }
-  .concerto-btn--attn:hover:not(:disabled) { background: color-mix(in srgb, var(--cc-state-attention) 24%, transparent); }
+  .concerto-btn:hover:not(:disabled) { border-color: var(--cc-border-strong); background: var(--dsw-alias-interactive-bg-hover-solid, var(--cc-hover)); }
+  .concerto-btn:active:not(:disabled) { background: var(--cc-active); transform: scale(.98); }
+  .concerto-btn--primary { border-color: transparent; background: var(--cc-primary-fill); color: var(--cc-on-primary); }
+  .concerto-btn--primary:hover:not(:disabled) { border-color: transparent; background: var(--cc-primary-hover); color: var(--cc-on-primary); }
+  .concerto-btn--primary:active:not(:disabled) { background: var(--cc-primary-fill); }
+  .concerto-btn--attn { border-color: transparent; background: var(--cc-state-attention-bg); color: var(--cc-state-attention); }
+  .concerto-btn--attn:hover:not(:disabled) { border-color: transparent; background: color-mix(in srgb, var(--cc-state-attention) 22%, transparent); }
   .concerto-btn--ghost { border-color: transparent; background: transparent; color: var(--cc-text-secondary); }
-  .concerto-btn--ghost:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover, var(--cc-accent-soft)); color: var(--cc-text-primary); }
-  .concerto-btn--icon { width: 28px; min-width: 28px; padding: 0; }
-  .concerto-btn--pin[aria-pressed="true"] { border-color: var(--cc-accent-border); background: var(--cc-accent-soft); color: var(--cc-accent-text); font-weight: 600; }
+  .concerto-btn--ghost:hover:not(:disabled) { border-color: transparent; background: var(--cc-hover); color: var(--cc-text-primary); }
+  .concerto-btn--danger { border-color: transparent; background: transparent; color: var(--cc-state-blocked); }
+  .concerto-btn--danger:hover:not(:disabled) { border-color: transparent; background: var(--dsw-alias-interactive-bg-hover-danger, var(--cc-state-blocked-bg)); }
+  .concerto-btn--icon { width: 32px; min-width: 32px; padding: 0; }
+  .concerto-btn[aria-pressed="true"] { border-color: var(--cc-accent-border); background: var(--cc-accent-soft); color: var(--cc-accent-text); }
+  .concerto-btn--pin[aria-pressed="true"] { border-color: transparent; background: var(--cc-accent-soft); color: var(--cc-accent-text); }
   .concerto-canvas-btns .concerto-btn:focus-visible,
   .concerto-stage-tools .concerto-btn:focus-visible { outline-width: 1px; outline-offset: 1px; }
   @media (pointer: coarse) {
-    .concerto-btn { min-height: 36px; }
-    .concerto-btn--icon { width: 36px; min-width: 36px; }
+    .concerto-btn, button.concerto-chip { min-height: 44px; min-width: 44px; }
+    .concerto-btn--icon { width: 44px; min-width: 44px; }
+    .concerto-mm-hit { r: 22px; }
   }
 
   .concerto-tag, .concerto-chip, .concerto-badge {
     display: inline-flex; align-items: center; gap: 4px;
     padding: 1px 8px; border-radius: var(--cc-radius-pill); corner-shape: round;
-    font-size: var(--cc-fs-caption); line-height: 1.45;
+    font-size: var(--cc-fs-caption); line-height: 1.5; white-space: nowrap;
   }
-  .concerto-tag { background: var(--cc-card-nested-bg); color: var(--cc-text-secondary); border: 0; font-weight: 500; }
-  .concerto-badge { background: var(--cc-accent-soft); color: var(--cc-accent-text); border: 1px solid var(--cc-accent-border); font-weight: 600; }
+  .concerto-tag { background: var(--cc-card-nested-bg); color: var(--cc-text-secondary); border: 0; font-weight: 400; }
+  .concerto-badge { background: var(--cc-accent-soft); color: var(--cc-accent-text); border: 0; font-weight: var(--cc-fw-strong); }
   .concerto-chip {
     background: var(--cc-accent-soft);
     color: var(--cc-accent-text);
-    border: 1px solid var(--cc-accent-border);
-    cursor: pointer; font-weight: 500;
-    transition: border-color .12s ease;
+    border: 1px solid transparent;
+    cursor: pointer; font-weight: 400;
+    transition: border-color var(--cc-dur-fast) var(--cc-ease), background-color var(--cc-dur-fast) var(--cc-ease);
   }
-  .concerto-chip:hover { border-color: var(--cc-accent); background: var(--cc-accent-hover); color: var(--cc-text-primary); }
-  .concerto-link { border: 0; background: none; padding: 0; color: var(--cc-accent-text); font-size: var(--cc-fs-meta); font-weight: 500; cursor: pointer; }
+  .concerto-chip:hover { border-color: var(--cc-accent-border); background: var(--cc-accent-hover); }
+  span.concerto-chip { cursor: default; }
+  button.concerto-chip { min-height: 24px; }
+  .concerto-link { border: 0; background: none; padding: 0; color: var(--cc-accent-text); font-size: var(--cc-fs-meta); font-weight: 400; cursor: pointer; text-underline-offset: 3px; }
   .concerto-link:hover { text-decoration: underline; }
-
   .concerto-panel {
     position: fixed;
     top: 72px;
@@ -1547,12 +1721,13 @@ var TEAM_CSS = `
     max-height: calc(100dvh - 320px);
     overflow: auto;
     z-index: 1000;
-    padding: 18px;
+    padding: var(--cc-space-4) var(--cc-space-5);
     background: var(--cc-panel-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
-    border: 1px solid var(--cc-border-strong);
+    border: 1px solid var(--cc-border-subtle);
     border-radius: var(--cc-radius-lg);
+    corner-shape: var(--cc-corner-shape);
     box-shadow: var(--cc-shadow-prominent);
   }
   .concerto-dock {
@@ -1563,8 +1738,9 @@ var TEAM_CSS = `
     background: var(--cc-overlay-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
-    border: 1px solid var(--cc-border);
+    border: 1px solid var(--cc-border-subtle);
     border-radius: var(--cc-radius-card);
+    corner-shape: var(--cc-corner-shape);
     box-shadow: var(--cc-shadow-soft);
     padding: 6px 10px;
   }
@@ -1574,9 +1750,10 @@ var TEAM_CSS = `
     align-items: center;
     gap: 8px;
     padding: 5px 10px;
-    min-height: 40px;
-    border: 1px solid var(--cc-border-subtle);
-    border-radius: var(--cc-radius-ctrl);
+    min-height: 44px;
+    border: 1px solid transparent;
+    border-radius: var(--cc-radius-card);
+    corner-shape: var(--cc-corner-shape);
     background: var(--cc-card-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
@@ -1584,19 +1761,18 @@ var TEAM_CSS = `
     cursor: pointer;
     text-align: left;
     flex: none;
-    transition: border-color .14s ease;
+    transition: border-color var(--cc-dur-fast) var(--cc-ease), background-color var(--cc-dur-fast) var(--cc-ease);
   }
   .concerto-sprite:hover {
-    border-color: var(--cc-accent);
-    background: var(--dsw-alias-interactive-bg-hover, var(--cc-accent-soft));
+    background: var(--cc-hover);
   }
   .concerto-sprite[aria-pressed="true"] {
-    border-color: var(--cc-accent);
+    border-color: var(--cc-accent-border);
     background: var(--cc-accent-soft);
   }
   .concerto-sprite[aria-pressed="true"] .concerto-sprite-meta strong { color: var(--cc-accent-text); }
   .concerto-sprite-meta { min-width: 0; max-width: 190px; }
-  .concerto-sprite-meta strong { display: block; font-size: var(--cc-fs-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .concerto-sprite-meta strong { display: block; font-size: var(--cc-fs-meta); font-weight: var(--cc-fw-strong); line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .concerto-sprite small { display: block; color: var(--cc-text-muted); font-size: var(--cc-fs-caption); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .concerto-sprite svg { flex: none; }
   .concerto-sprite[data-state="running"] .concerto-halo-pulse { animation: concerto-pulse 2.1s ease-in-out infinite; }
@@ -1618,19 +1794,21 @@ var TEAM_CSS = `
     background: var(--cc-card-nested-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
-    color: var(--cc-text-primary);
-    border: 1px solid var(--cc-border);
+    color: var(--cc-text-secondary);
+    border: 1px solid var(--cc-border-subtle);
     border-radius: var(--cc-radius-card);
+    corner-shape: var(--cc-corner-shape);
     font-family: var(--cc-font-sans);
-    font-size: var(--cc-fs-caption);
-    font-weight: 600;
+    font-size: var(--cc-fs-micro);
+    font-weight: var(--cc-fw-strong);
     line-height: 1.3;
     cursor: pointer;
-    box-shadow: var(--cc-shadow-soft);
+    transition: background-color var(--cc-dur-fast) var(--cc-ease), border-color var(--cc-dur-fast) var(--cc-ease);
   }
   .concerto-message-avatar button:hover {
-    border-color: var(--cc-accent);
-    background: var(--cc-accent-soft);
+    border-color: var(--cc-border);
+    background: var(--cc-hover);
+    color: var(--cc-text-primary);
   }
   .concerto-message-avatar button[data-state="attention"] svg { animation: concerto-float 2.4s ease-in-out infinite; }
   .concerto-message-avatar small { font: inherit; max-width: 44px; overflow-wrap: anywhere; }
@@ -1638,7 +1816,8 @@ var TEAM_CSS = `
   .concerto-turn-anchor { display: contents; }
   .concerto-turn-card {
     border: 1px solid var(--cc-border-subtle);
-    border-radius: var(--cc-radius-card);
+    border-radius: var(--cc-radius-lg);
+    corner-shape: var(--cc-corner-shape);
     background: var(--cc-card-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
@@ -1650,7 +1829,8 @@ var TEAM_CSS = `
   }
   .concerto-tool-card {
     border: 1px solid var(--cc-border-subtle);
-    border-radius: var(--cc-radius-ctrl);
+    border-radius: var(--cc-radius-card);
+    corner-shape: var(--cc-corner-shape);
     background: var(--cc-card-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
@@ -1658,7 +1838,7 @@ var TEAM_CSS = `
     color: var(--cc-text-secondary);
   }
   .concerto-turn-heading { display: flex; gap: var(--cc-space-2); align-items: center; flex-wrap: wrap; }
-  .concerto-turn-heading strong { flex: 1; }
+  .concerto-turn-heading strong { flex: 1; font-weight: var(--cc-fw-heading); }
   .concerto-turn-heading small { color: var(--cc-text-muted); }
   .concerto-turn-members { display: flex; flex-wrap: wrap; gap: var(--cc-space-2); margin-top: var(--cc-space-3); }
   .concerto-turn-member {
@@ -1690,102 +1870,199 @@ var TEAM_CSS = `
 
   /* \u56E2\u961F\u4E3B\u9875\uFF08\u5E38\u9A7B\u7C98\u9876 + \u6982\u89C8 / \u4EFB\u52A1 / \u6210\u679C\uFF09 */
   .concerto-team-view {
+    container: concerto / inline-size;
+    overflow-anchor: none;
     height: 100%;
     overflow: auto;
-    padding: var(--cc-space-4) var(--cc-space-5) 180px;
+    padding: 0 clamp(12px, 2%, 24px) 160px;
     border-radius: var(--cc-radius-card);
     background: var(--dsw-alias-bg-base, var(--cc-fb-bg-base));
     display: flex;
     flex-direction: column;
     gap: var(--cc-space-6);
   }
+  .concerto-team-view > :is(.concerto-hero, .concerto-tab-content) { width: 100%; max-width: 1440px; margin-inline: auto; flex: none; min-width: 0; }
+  .concerto-tab-content { display: flex; flex-direction: column; gap: var(--cc-space-6); }
+  .concerto-tab-content[data-concerto-tabpanel="tasks"], .concerto-tab-content[data-concerto-tabpanel="artifacts"] { gap: var(--cc-space-4); }
+  .concerto-tab-content, .concerto-tab-content [data-concerto-section], .concerto-task-module, .concerto-card { scroll-margin-block: 16px; }
+  .concerto-tab-content, .concerto-tab-content :is([data-concerto-section], .concerto-task-module, .concerto-card, button, a, input, select, textarea, summary, [tabindex]) { scroll-margin-block-start: var(--cc-sticky-height, 16px); }
   .concerto-hero {
-    position: sticky;
-    top: 0;
+    position: relative;
     z-index: 5;
-    border: 1px solid var(--cc-border-subtle);
-    border-radius: var(--cc-radius-card);
-    padding: var(--cc-space-3) var(--cc-space-4);
-    background: var(--cc-overlay-bg);
+    margin-top: var(--cc-space-4);
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-xl);
+    corner-shape: var(--cc-corner-shape);
+    padding: var(--cc-space-5) var(--cc-space-6) 0;
+    background: var(--cc-card-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
-    box-shadow: var(--cc-shadow-panel);
+    box-shadow: var(--cc-shadow-soft);
     display: flex;
     flex-direction: column;
-    gap: var(--cc-space-2);
-    transition: padding .16s ease, gap .16s ease;
+    gap: var(--cc-space-4);
   }
-  .concerto-hero[data-compact="true"] { padding-block: var(--cc-space-2); gap: var(--cc-space-2); }
-  .concerto-hero[data-compact="true"] .concerto-hero-goal,
-  .concerto-hero[data-compact="true"] .concerto-sprite small { display: none; }
+  .concerto-hero .concerto-sprite { background: transparent; border-color: transparent; box-shadow: none; padding: 4px 10px 4px 4px; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .concerto-hero .concerto-roster-strip { min-width: 0; width: 100%; margin-inline: -4px; }
+  .concerto-hero .concerto-tabbar { width: 100%; justify-content: flex-start; border-bottom: 0; border-top: 1px solid var(--cc-border-subtle); margin-top: calc(var(--cc-space-1) * -1); }
+  .concerto-hero .concerto-tabs { flex: 0 0 auto; justify-content: flex-start; gap: var(--cc-space-4); }
+  .concerto-hero .concerto-tab-btn { padding: 12px 2px; border-radius: 0; }
+  .concerto-hero .concerto-tab-btn:hover { background: transparent; }
+  .concerto-hero .concerto-tab-btn[aria-selected="true"]::after { inset-inline: 0; }
+  .concerto-hero .concerto-tab-btn[aria-selected="true"] { background: transparent; color: var(--cc-accent-text); }
+  .concerto-hero .concerto-tabs .concerto-tab-btn .concerto-tag { background: transparent; color: var(--cc-text-muted); padding-inline: 0; border: 0; }
+  .concerto-hero .concerto-sprite:hover { background: var(--cc-hover); }
+  .concerto-hero .concerto-sprite[aria-pressed="true"] { border-color: transparent; background: var(--cc-accent-soft); }
+  .concerto-hero[data-compact="true"] {
+    position: sticky;
+    top: 0;
+    margin-top: 0;
+    border-top-color: transparent;
+    border-radius: 0 0 var(--cc-radius-lg) var(--cc-radius-lg);
+    padding: var(--cc-space-2) var(--cc-space-4);
+    gap: var(--cc-space-1);
+    background: var(--cc-card-bg);
+    background: color(from var(--cc-card-bg) srgb r g b / max(alpha, 0.86));
+    box-shadow: var(--cc-shadow-panel);
+  }
+  .concerto-hero-compact { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-3); min-height: 40px; }
+  .concerto-hero-compact-title, .concerto-hero-compact-actions { display: flex; align-items: center; gap: var(--cc-space-2); min-width: 0; }
+  .concerto-hero-compact-title { flex: 1 1 auto; }
+  .concerto-hero-compact-title > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--cc-fs-title); font-weight: var(--cc-fw-heading); }
+  .concerto-hero-compact-actions { flex: 0 1 auto; }
+  .concerto-hero .concerto-compact-tabbar { width: auto; max-width: 100%; border-top: 0; margin-top: 0; overflow-x: auto; }
+  .concerto-hero .concerto-compact-tabbar .concerto-tabs { gap: var(--cc-space-1); }
+  .concerto-hero .concerto-compact-tabbar .concerto-tab-btn { padding: 6px 10px; border-radius: var(--cc-radius-ctrl); }
+  .concerto-hero .concerto-compact-tabbar .concerto-tab-btn:hover { background: var(--cc-hover); }
+  .concerto-hero .concerto-compact-tabbar .concerto-tab-btn[aria-selected="true"] { background: var(--cc-accent-soft); }
+  .concerto-hero .concerto-compact-tabbar .concerto-tab-btn[aria-selected="true"]::after { display: none; }
+  .concerto-hero .concerto-compact-tabbar .concerto-tag { display: none; }
+  .concerto-compact-roster { display: flex; align-items: center; gap: 2px; max-width: 180px; overflow: hidden; }
+  .concerto-compact-member { display: inline-flex; align-items: center; justify-content: center; padding: 2px; border: 1px solid transparent; border-radius: var(--cc-radius-pill); background: transparent; cursor: pointer; transition: background-color var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-compact-member:hover { background: var(--cc-hover); }
+  .concerto-compact-member[aria-pressed="true"] { border-color: var(--cc-accent-border); background: var(--cc-accent-soft); }
+
+  /* Floating menus & popovers use DSH menu material */
+  .concerto-attention-anchor { position: relative; display: inline-flex; }
+  .concerto-attention-popover { position: absolute; z-index: 60; inset: calc(100% + var(--cc-space-2)) 0 auto auto; width: min(520px, calc(100vw - 32px)); max-height: min(68dvh, 640px); overflow: auto; overscroll-behavior: contain; padding: var(--cc-space-4); border: 1px solid var(--cc-border); border-radius: var(--cc-radius-lg); corner-shape: var(--cc-corner-shape); background: var(--cc-overlay-bg); box-shadow: var(--cc-shadow-pop); }
+  .concerto-attention-popover-head, .concerto-attention-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); }
+  .concerto-attention-popover-head { margin-bottom: var(--cc-space-3); }
+  .concerto-attention-content { display: flex; flex-direction: column; gap: var(--cc-space-2); }
+  .concerto-attention-pills { display: flex; flex-wrap: wrap; gap: var(--cc-space-2); }
+  .concerto-attention-summary { margin: 0; font-size: var(--cc-fs-meta); color: var(--cc-text-secondary); }
   .concerto-hero-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); flex-wrap: wrap; }
-  .concerto-hero-title { margin: 0; font-size: var(--cc-fs-display); font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: var(--cc-space-2); flex-wrap: wrap; }
+  .concerto-hero-heading { min-width: 0; flex: 1 1 260px; display: flex; flex-direction: column; gap: var(--cc-space-1); }
+  .concerto-hero-actions { display: flex; gap: var(--cc-space-2); align-items: center; flex-wrap: wrap; }
+  .concerto-hero-actions-menu { position: relative; }
+  .concerto-hero-actions-menu > summary { list-style: none; cursor: pointer; }
+  .concerto-hero-actions-menu > summary::-webkit-details-marker { display: none; }
+  .concerto-hero-menu-list { position: absolute; z-index: 30; inset: calc(100% + var(--cc-space-1)) 0 auto auto; display: flex; flex-direction: column; align-items: stretch; gap: 2px; min-width: 200px; padding: var(--cc-space-1); border: 1px solid var(--cc-border); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); background: var(--cc-menu-bg); backdrop-filter: var(--cc-menu-blur); -webkit-backdrop-filter: var(--cc-menu-blur); box-shadow: var(--cc-shadow-pop); }
+  .concerto-hero-menu-list > .concerto-tag { align-self: stretch; margin: 0; padding: 6px var(--cc-space-3) 4px; background: transparent; color: var(--cc-text-muted); border-radius: 0; }
+  .concerto-hero-menu-list > .concerto-btn { justify-content: flex-start; color: var(--cc-text-primary); font-weight: 400; border-radius: var(--cc-radius-ctrl); }
+  .concerto-hero-actions-menu[open] > summary { background: var(--cc-pressed-bg); color: var(--cc-text-primary); }
+  .concerto-hero-title { margin: 0; font-size: var(--cc-fs-display); font-weight: var(--cc-fw-heading); line-height: 1.4; display: flex; align-items: center; gap: var(--cc-space-3); flex-wrap: wrap; }
+  .concerto-hero-title h2 { font-size: inherit; line-height: inherit; }
+  .concerto-hero[data-compact="true"] .concerto-hero-title { font-size: var(--cc-fs-title); }
   .concerto-hero-goal {
-    margin: 2px 0 0;
-    font-size: var(--cc-fs-meta);
+    margin: 0;
+    font-size: var(--cc-fs-body);
     color: var(--cc-text-secondary);
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
-  .concerto-live-dot { display: inline-flex; align-items: center; gap: 6px; font-size: var(--cc-fs-caption); color: var(--cc-text-muted); font-weight: 500; }
-  .concerto-live-dot::before { content: ""; width: 7px; height: 7px; border-radius: var(--cc-radius-pill); corner-shape: round; background: var(--cc-state-done); box-shadow: 0 0 0 3px var(--cc-state-done-bg); }
+  .concerto-hero-status { display: flex; align-items: center; gap: var(--cc-space-2) var(--cc-space-5); flex-wrap: wrap; }
+  .concerto-hero-legend { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cc-space-1) var(--cc-space-4); margin: 0; padding: 0; list-style: none; }
+  .concerto-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); white-space: nowrap; }
+  .concerto-legend-item::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--cc-legend-color, var(--cc-text-muted)); }
+  .concerto-legend-item > b { font-weight: var(--cc-fw-strong); color: var(--cc-text-primary); font-variant-numeric: tabular-nums; }
+  .concerto-legend-item[data-status="done"] { --cc-legend-color: var(--cc-state-done); }
+  .concerto-legend-item[data-status="review"] { --cc-legend-color: var(--cc-state-review); }
+  .concerto-legend-item[data-status="running"] { --cc-legend-color: var(--cc-accent); }
+  .concerto-legend-item[data-status="blocked"] { --cc-legend-color: var(--cc-state-blocked); }
+  .concerto-legend-item[data-status="pending"] { --cc-legend-color: var(--cc-border-strong); }
+  .concerto-live-dot { display: inline-flex; align-items: center; gap: 6px; font-size: var(--cc-fs-caption); color: var(--cc-text-muted); font-weight: 400; }
+  .concerto-live-dot::before { content: ""; width: 6px; height: 6px; border-radius: var(--cc-radius-pill); corner-shape: round; background: var(--cc-state-done); box-shadow: 0 0 0 3px var(--cc-state-done-bg); }
+  .concerto-live-dot:not([data-offline="true"])::before { animation: concerto-breathe 2.8s var(--cc-ease) infinite; }
+  .concerto-live-dot[data-offline="true"] { color: var(--cc-state-blocked); }
   .concerto-live-dot[data-offline="true"]::before { background: var(--cc-state-blocked); box-shadow: 0 0 0 3px var(--cc-state-blocked-bg); }
-  .concerto-progress-wrap { display: flex; align-items: center; gap: var(--cc-space-3); flex-wrap: wrap; }
-  .concerto-progress-bar { flex: 1; min-width: 140px; height: 5px; border-radius: var(--cc-radius-pill); corner-shape: round; background: var(--cc-border-subtle); overflow: hidden; display: flex; }
+  .concerto-progress-wrap { display: flex; align-items: center; gap: var(--cc-space-3); flex: 1 1 320px; min-width: 0; }
+  .concerto-progress-bar { flex: 1 1 200px; min-width: 120px; height: 6px; border-radius: var(--cc-radius-pill); corner-shape: round; background: var(--cc-card-nested-bg); box-shadow: inset 0 0 0 1px var(--cc-border-subtle); overflow: hidden; display: flex; gap: 2px; }
+  .concerto-progress-bar > div { border-radius: var(--cc-radius-pill); transition: width var(--cc-dur-slow) var(--cc-ease); }
+  .concerto-progress-label { font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); white-space: nowrap; }
   .concerto-seg-done { background: var(--cc-state-done); }
   .concerto-seg-review { background: var(--cc-state-review); }
   .concerto-seg-run { background: var(--cc-accent); }
   .concerto-seg-block { background: var(--cc-state-blocked); }
 
   .concerto-briefing-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: var(--cc-space-3); }
+  .concerto-briefing-grid[data-has-issues="false"] { grid-template-columns: 1.4fr 1fr; }
+  .concerto-empty-guide { display: flex; flex-direction: column; align-items: flex-start; gap: var(--cc-space-3); padding: var(--cc-space-6); border: 1px solid var(--cc-border); border-radius: var(--cc-radius-xl); corner-shape: var(--cc-corner-shape); background: var(--cc-card-bg); box-shadow: var(--cc-shadow-soft); }
+  .concerto-empty-guide p { margin: 0; color: var(--cc-text-secondary); }
+  .concerto-empty-guide-readiness { font-size: var(--cc-fs-meta); }
+  .concerto-empty-guide-examples { display: flex; flex-wrap: wrap; gap: var(--cc-space-2); }
   .concerto-briefing-cell {
-    padding: var(--cc-space-3) var(--cc-space-4);
-    border-radius: var(--cc-radius-ctrl);
-    background: var(--cc-card-bg);
-    backdrop-filter: var(--cc-backdrop-blur);
-    -webkit-backdrop-filter: var(--cc-backdrop-blur);
-    border: 1px solid var(--cc-border-subtle);
+    padding: var(--cc-space-4);
+    border-radius: var(--cc-radius-card);
+    corner-shape: var(--cc-corner-shape);
+    background: var(--cc-card-nested-bg);
+    border: 1px solid transparent;
     min-width: 0;
+    line-height: 1.65;
   }
-  .concerto-briefing-cell .concerto-group-label { margin-bottom: var(--cc-space-1); }
-  .concerto-briefing-cell[data-tone="attention"] { background: var(--cc-state-attention-bg); border-color: color-mix(in srgb, var(--cc-state-attention) 35%, transparent); }
+  .concerto-briefing-cell .concerto-group-label { margin-bottom: var(--cc-space-2); }
+  .concerto-briefing-cell[data-tone="attention"] { background: var(--cc-state-attention-bg); border-color: color-mix(in srgb, var(--cc-state-attention) 22%, transparent); }
   .concerto-briefing-cell[data-tone="attention"] .concerto-group-label { color: var(--cc-state-attention); }
   .concerto-briefing-cell[data-tone="calm"] > :not(.concerto-group-label) { color: var(--cc-text-muted); }
 
-  .concerto-key-tasks { display: flex; flex-direction: column; gap: var(--cc-space-2); }
+  .concerto-key-tasks { display: flex; flex-direction: column; gap: 2px; padding: var(--cc-space-1); border: 1px solid var(--cc-border); border-radius: var(--cc-radius-lg); corner-shape: var(--cc-corner-shape); background: var(--cc-card-bg); box-shadow: var(--cc-shadow-soft); }
   .concerto-key-task-row {
     width: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-3); flex-wrap: wrap;
-    padding: var(--cc-space-2) var(--cc-space-3); border-radius: var(--cc-radius-ctrl); border: 1px solid var(--cc-border-subtle);
-    background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur);
+    min-height: 48px; padding: var(--cc-space-2) var(--cc-space-3); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); border: 1px solid transparent;
+    background: transparent;
     color: inherit; cursor: pointer; text-align: left;
-    box-shadow: var(--cc-shadow-soft);
-    transition: border-color .12s ease;
+    transition: background-color var(--cc-dur-fast) var(--cc-ease);
   }
-  .concerto-key-task-row:hover { border-color: var(--cc-accent); background: var(--dsw-alias-interactive-bg-hover, var(--cc-accent-soft)); }
+  .concerto-key-task-row:hover { background: var(--cc-hover); }
+  .concerto-key-task-row:active { background: var(--cc-active); }
+  .concerto-key-task-row + .concerto-key-task-row { box-shadow: 0 -1px 0 0 var(--cc-border-subtle); }
+  .concerto-key-task-main, .concerto-key-task-side { display: inline-flex; align-items: center; gap: var(--cc-space-2); min-width: 0; }
+  .concerto-key-task-main > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .concerto-key-task-member { font-size: var(--cc-fs-caption); color: var(--cc-text-muted); white-space: nowrap; }
+  .concerto-key-task-side .concerto-id { color: var(--cc-text-muted); min-width: 52px; text-align: end; }
 
   .concerto-filter-bar {
-    display: flex; align-items: center; gap: var(--cc-space-2); flex-wrap: wrap;
+    display: flex; align-items: center; gap: var(--cc-space-3); flex-wrap: wrap;
     padding: var(--cc-space-2) var(--cc-space-3);
-    border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-ctrl);
+    border: 1px solid var(--cc-border); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape);
     background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur);
-    margin-bottom: var(--cc-space-3);
+    margin-bottom: 0;
   }
-  .concerto-filter-bar select { min-height: 28px; padding: 3px 8px; border-radius: var(--cc-radius-ctrl); border: 1px solid var(--cc-border); background: var(--cc-canvas-bg); color: var(--cc-text-primary); font: inherit; transition: border-color .12s ease; }
-  .concerto-filter-bar select[data-active="true"] { border-color: var(--cc-accent); background: var(--cc-accent-soft); color: var(--cc-accent-text); font-weight: 600; }
-  .concerto-req-view-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: var(--cc-radius-pill); corner-shape: round; font-size: var(--cc-fs-caption); border: 1px solid var(--cc-border-subtle); background: var(--cc-card-nested-bg); }
-  .concerto-req-view-pill[data-missing="true"] { border-color: var(--cc-state-attention); background: var(--cc-state-attention-bg); color: var(--cc-state-attention); font-weight: 600; }
+  .concerto-filter-bar label { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); }
+  .concerto-filter-bar select { min-height: 32px; max-width: 100%; padding: 4px 8px; border-radius: var(--cc-radius-ctrl); corner-shape: var(--cc-corner-shape); border: 1px solid var(--cc-border); background: var(--cc-input-bg); color: var(--cc-text-primary); font: inherit; font-size: var(--cc-fs-meta); cursor: pointer; transition: border-color var(--cc-dur-fast) var(--cc-ease), background-color var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-filter-bar select:hover { border-color: var(--cc-border-strong); }
+  .concerto-filter-bar select[data-active="true"] { border-color: var(--cc-accent-border); background: var(--cc-accent-soft); color: var(--cc-accent-text); font-weight: var(--cc-fw-strong); }
+  .concerto-import-actions { display: inline-flex; align-items: center; gap: var(--cc-space-2); flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+  .concerto-import-actions > .concerto-quiet:empty { display: none; }
+  .concerto-req-views { display: flex; flex-direction: column; gap: 6px; }
+  .concerto-req-view-list { display: flex; flex-wrap: wrap; gap: var(--cc-space-2); }
+  .concerto-req-view-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: var(--cc-radius-pill); corner-shape: round; font-size: var(--cc-fs-caption); border: 1px solid var(--cc-border-subtle); background: var(--cc-card-nested-bg); }
+  .concerto-req-view-pill[data-missing="true"] { border-color: color-mix(in srgb, var(--cc-state-attention) 40%, transparent); background: var(--cc-state-attention-bg); color: var(--cc-state-attention); font-weight: var(--cc-fw-strong); }
   .concerto-req-view-pill[data-suggested="true"] { border-color: var(--cc-border-subtle); background: var(--cc-card-nested-bg); color: var(--cc-text-secondary); }
-  .concerto-jump-banner { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: wrap; padding: var(--cc-space-2) var(--cc-space-3); border-radius: var(--cc-radius-ctrl); border: 1px solid var(--cc-accent-border); background: var(--cc-accent-soft); font-size: var(--cc-fs-meta); }
+  .concerto-jump-banner { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: wrap; padding: var(--cc-space-2) var(--cc-space-2) var(--cc-space-2) var(--cc-space-4); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); border: 1px solid transparent; background: var(--cc-accent-tint); font-size: var(--cc-fs-meta); animation: concerto-rise var(--cc-dur) var(--cc-ease); }
   .concerto-mindmap-outline { list-style: none; margin: 4px 0; padding-left: 18px; border-left: 1px solid var(--cc-border); display: flex; flex-direction: column; gap: 4px; }
   .concerto-mindmap-outline-root { padding-left: 0; border-left: none; }
   .concerto-mindmap-outline-node { padding: 4px 8px; border-radius: var(--cc-radius-ctrl); background: var(--cc-card-nested-bg); border: 1px solid var(--cc-border-subtle); display: inline-flex; align-items: center; flex-wrap: wrap; }
   .concerto-semantic-pill[data-semantic="live_execution"]::before { content: ""; width: 6px; height: 6px; border-radius: var(--cc-radius-pill); corner-shape: round; background: currentColor; animation: concerto-pulse 1.8s ease-in-out infinite; }
 
   .concerto-tabbar { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: wrap; border-bottom: 1px solid var(--cc-border-subtle); padding-bottom: 0; }
-  .concerto-tabs { display: inline-flex; align-items: center; gap: var(--cc-space-1); flex-wrap: nowrap; }
+  .concerto-tabs { display: inline-flex; align-items: center; gap: var(--cc-space-1); flex-wrap: nowrap; overflow-x: auto; min-width: 0; scrollbar-width: none; }
   .concerto-tab-btn {
     display: inline-flex;
+    position: relative;
+    flex: none;
+    white-space: nowrap;
     align-items: center;
     gap: 6px;
     padding: 7px var(--cc-space-3);
@@ -1794,69 +2071,99 @@ var TEAM_CSS = `
     background: transparent;
     color: var(--cc-text-secondary);
     cursor: pointer;
-    font-weight: 500;
-    font-size: var(--cc-fs-meta);
-    transition: box-shadow .14s ease;
+    font-weight: var(--cc-fw-strong);
+    font-size: var(--cc-fs-body);
+    min-height: 40px;
+    transition: color var(--cc-dur-fast) var(--cc-ease), background-color var(--cc-dur-fast) var(--cc-ease);
   }
-  .concerto-tab-btn:hover { background: var(--dsw-alias-interactive-bg-hover, var(--cc-accent-soft)); color: var(--cc-text-primary); }
+  .concerto-tab-btn:hover { background: var(--cc-hover); color: var(--cc-text-primary); }
   .concerto-tab-btn[aria-selected="true"] {
     background: var(--cc-accent-soft);
     color: var(--cc-accent-text);
-    font-weight: 600;
-    box-shadow: inset 0 -2px 0 var(--cc-accent);
+    font-weight: var(--cc-fw-strong);
   }
+  .concerto-tab-btn[aria-selected="true"]::after { content: ''; position: absolute; inset: auto 10px 0; border-block-end: 2px solid var(--cc-accent); border-radius: 2px 2px 0 0; animation: concerto-tab-in var(--cc-dur) var(--cc-ease); }
   .concerto-tab-btn[aria-selected="true"] .concerto-tag {
     background: var(--cc-accent-fill);
     color: var(--cc-on-accent);
-    font-weight: 600;
+    font-weight: var(--cc-fw-strong);
   }
 
-  /* Segmented switch (list / kanban toggle) */
-  .concerto-seg { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: var(--cc-radius-ctrl); background: var(--cc-card-nested-bg); border: 1px solid var(--cc-border-subtle); }
-  .concerto-seg-btn { border: 1px solid transparent; background: transparent; padding: 4px var(--cc-space-3); border-radius: calc(var(--cc-radius-ctrl) - 2px); font-size: var(--cc-fs-meta); color: var(--cc-text-secondary); cursor: pointer; font-weight: 500; transition: border-color .12s ease; }
-  .concerto-seg-btn[aria-pressed="true"] { background: var(--cc-accent-soft); border-color: var(--cc-accent-border); color: var(--cc-accent-text); font-weight: 600; box-shadow: var(--cc-shadow-soft); }
-
+  .concerto-tab-attention { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding-inline: 5px; border-radius: var(--cc-radius-pill); background: var(--cc-state-attention-bg); color: var(--cc-state-attention); font-size: var(--cc-fs-micro); font-weight: var(--cc-fw-heading); font-variant-numeric: tabular-nums; }
   .concerto-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); margin-bottom: var(--cc-space-3); flex-wrap: wrap; }
-  .concerto-section-title { font-size: var(--cc-fs-title); font-weight: 600; display: flex; align-items: center; gap: var(--cc-space-2); color: var(--cc-text-primary); }
-  .concerto-count-pill { font-size: var(--cc-fs-caption); font-weight: 600; padding: 1px 8px; border-radius: var(--cc-radius-pill); corner-shape: round; background: var(--cc-card-nested-bg); color: var(--cc-text-secondary); border: 0; }
+  .concerto-section-title { font-size: var(--cc-fs-title); font-weight: var(--cc-fw-heading); display: flex; align-items: center; gap: var(--cc-space-2); color: var(--cc-text-primary); }
+  .concerto-section-title > .concerto-tag { font-variant-numeric: tabular-nums; }
+  .concerto-count-pill { font-size: var(--cc-fs-caption); font-weight: var(--cc-fw-strong); padding: 1px 8px; border-radius: var(--cc-radius-pill); corner-shape: round; background: var(--cc-card-nested-bg); color: var(--cc-text-secondary); border: 0; }
 
-  .concerto-state-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: var(--cc-radius-pill); corner-shape: round; font-size: var(--cc-fs-caption); font-weight: 600; white-space: nowrap; }
+  .concerto-state-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 6px; border-radius: var(--cc-radius-pill); corner-shape: round; font-size: var(--cc-fs-caption); font-weight: var(--cc-fw-strong); line-height: 1.5; white-space: nowrap; }
   .concerto-state-running { background: var(--cc-state-running-bg); color: var(--cc-state-running); }
   .concerto-state-attention { background: var(--cc-state-attention-bg); color: var(--cc-state-attention); }
   .concerto-state-review { background: var(--cc-state-review-bg); color: var(--cc-state-review); }
   .concerto-state-done { background: var(--cc-state-done-bg); color: var(--cc-state-done); }
   .concerto-state-blocked { background: var(--cc-state-blocked-bg); color: var(--cc-state-blocked); }
   .concerto-state-unknown { background: var(--cc-state-unknown-bg); color: var(--cc-state-unknown); }
-  .concerto-state-idle { background: var(--cc-card-nested-bg); color: var(--cc-text-muted); }
+  .concerto-state-idle { background: var(--cc-card-nested-bg); color: var(--cc-text-secondary); }
 
   /* \u5F85\u5904\u7406\u533A */
-  .concerto-attn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: var(--cc-space-3); }
-  .concerto-attn-card { border-radius: var(--cc-radius-card); padding: var(--cc-space-4); background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur); border: 1px solid var(--cc-border-subtle); box-shadow: var(--cc-shadow-soft); position: relative; overflow: hidden; display: flex; flex-direction: column; gap: var(--cc-space-2); }
-  .concerto-attn-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--cc-state-attention); }
+  .concerto-attn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(290px, 100%), 1fr)); gap: var(--cc-space-3); }
+  .concerto-attn-card { border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); padding: var(--cc-space-4) var(--cc-space-4) var(--cc-space-4) calc(var(--cc-space-4) + 3px); background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur); border: 1px solid var(--cc-border); box-shadow: var(--cc-shadow-soft); position: relative; overflow: hidden; display: flex; flex-direction: column; gap: var(--cc-space-2); }
+  .concerto-attn-card::before { content: ""; position: absolute; left: 0; top: var(--cc-space-3); bottom: var(--cc-space-3); width: 3px; border-radius: 0 3px 3px 0; background: var(--cc-state-attention); }
   .concerto-attn-card[data-kind="unknown"]::before { background: var(--cc-state-unknown); }
   .concerto-attn-card[data-kind="blocked"]::before, .concerto-attn-card[data-kind="failed"]::before { background: var(--cc-state-blocked); }
   .concerto-attn-card[data-kind="review"]::before { background: var(--cc-state-review); }
   .concerto-attn-card[data-kind="unknown"] { background-image: repeating-linear-gradient(-45deg, transparent, transparent 10px, var(--cc-state-unknown-bg) 10px, var(--cc-state-unknown-bg) 20px); }
+  .concerto-attention-popover .concerto-attn-card { box-shadow: none; background: var(--cc-card-bg); }
 
   /* \u540D\u518C */
-  .concerto-roster-strip { display: flex; gap: var(--cc-space-2); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; padding-bottom: 2px; }
+  .concerto-roster-strip { display: flex; gap: var(--cc-space-1); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; padding-bottom: 2px; }
   .concerto-roster-strip::-webkit-scrollbar { display: none; }
   .concerto-roster-strip > * { flex: none; scroll-snap-align: start; }
 
-  /* \u770B\u677F\u4E0E\u5217\u8868 */
+  /* \u56FA\u5B9A\u770B\u677F\uFF1A\u5217\u662F\u5E26\u5E95\u8272\u7684\u6CF3\u9053\uFF0C\u5361\u7247\u4FDD\u7559\u4E00\u5C42\u5BBF\u4E3B\u6750\u8D28\u3002 */
   .concerto-board-cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--cc-space-3); align-items: start; }
-  .concerto-board-col { border-radius: var(--cc-radius-card); padding: 10px; min-height: 92px; display: flex; flex-direction: column; gap: var(--cc-space-2); background: var(--cc-card-nested-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur); border: 1px solid var(--cc-border-subtle); }
-  .concerto-board-col[data-empty="true"] { min-height: 0; padding: 8px 10px; opacity: 0.72; }
-  .concerto-board-col[data-empty="true"] .concerto-board-col-head { border-bottom: none; padding-bottom: 2px; }
-  .concerto-board-col-head { display: flex; align-items: center; justify-content: space-between; font-size: var(--cc-fs-caption); font-weight: 600; padding: 2px 4px 6px; border-bottom: 1px solid var(--cc-border-subtle); }
-  .concerto-kcard { border-radius: var(--cc-radius-ctrl); padding: 10px 12px; background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur); border: 1px solid var(--cc-border-subtle); box-shadow: var(--cc-shadow-soft); cursor: pointer; display: flex; flex-direction: column; gap: 6px; text-align: left; color: inherit; transition: border-color .14s ease; width: 100%; }
-  .concerto-kcard:hover { border-color: var(--cc-accent); background: var(--dsw-alias-interactive-bg-hover, var(--cc-accent-soft)); }
-  .concerto-kcard[data-blocked="true"] { border-color: var(--cc-state-blocked); background-image: repeating-linear-gradient(-45deg, transparent, transparent 8px, var(--cc-state-blocked-bg) 8px, var(--cc-state-blocked-bg) 16px); }
-  .concerto-kcard[data-unknown="true"] { border-color: var(--cc-state-unknown); background-image: repeating-linear-gradient(-45deg, transparent, transparent 8px, var(--cc-state-unknown-bg) 8px, var(--cc-state-unknown-bg) 16px); }
-  .concerto-kcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: var(--cc-fs-caption); color: var(--cc-text-muted); }
+  .concerto-board-col { min-width: 0; display: flex; flex-direction: column; gap: var(--cc-space-2); padding: var(--cc-space-2); border-radius: var(--cc-radius-lg); corner-shape: var(--cc-corner-shape); background: color-mix(in srgb, var(--cc-hover) 70%, transparent); }
+  .concerto-board-col-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); padding: var(--cc-space-1) var(--cc-space-2); font-size: var(--cc-fs-meta); color: var(--cc-text-secondary); --cc-col-color: var(--cc-text-muted); }
+  .concerto-board-col-head[data-state="pending"] { --cc-col-color: var(--cc-border-strong); }
+  .concerto-board-col-head[data-state="running"] { --cc-col-color: var(--cc-state-running); }
+  .concerto-board-col-head[data-state="review"] { --cc-col-color: var(--cc-state-review); }
+  .concerto-board-col-head[data-state="done"] { --cc-col-color: var(--cc-state-done); }
+  .concerto-board-col-head h3 { display: inline-flex; align-items: center; gap: var(--cc-space-2); margin: 0; font: inherit; font-weight: var(--cc-fw-strong); color: var(--cc-text-primary); }
+  .concerto-board-col-head h3::before { content: ''; width: 8px; height: 8px; flex: none; border-radius: var(--cc-radius-pill); background: var(--cc-col-color); }
+  .concerto-board-col-head > span { font-size: var(--cc-fs-caption); color: var(--cc-text-muted); }
+  .concerto-kanban-attention-summary { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 0; border-radius: var(--cc-radius-pill); background: var(--cc-state-attention-bg); color: var(--cc-state-attention); font: inherit; font-size: var(--cc-fs-caption); font-weight: var(--cc-fw-strong); cursor: pointer; transition: background-color var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-kanban-attention-summary:hover { background: color-mix(in srgb, var(--cc-state-attention) 22%, transparent); }
+  .concerto-board-jump { display: none; }
+  .concerto-board-empty { margin: 0; padding: var(--cc-space-4) var(--cc-space-2); border: 1px dashed var(--cc-border); border-radius: var(--cc-radius-card); color: var(--cc-text-muted); text-align: center; font-size: var(--cc-fs-caption); }
+  .concerto-kcard { position: relative; border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); padding: var(--cc-space-3); background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur); border: 1px solid var(--cc-border-subtle); box-shadow: var(--dsw-shadow-lv1, none); display: flex; flex-direction: column; gap: var(--cc-space-2); text-align: start; color: inherit; transition: border-color var(--cc-dur-fast) var(--cc-ease), box-shadow var(--cc-dur) var(--cc-ease), transform var(--cc-dur) var(--cc-ease); min-width: 0; }
+  .concerto-kcard:hover { border-color: var(--cc-border-strong); box-shadow: var(--cc-shadow-panel); transform: translateY(-1px); }
+  .concerto-kcard:has(.concerto-kcard-title:focus-visible) { outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--cc-accent)); outline-offset: 2px; }
+  .concerto-kcard h4 { margin: 0; font-size: var(--cc-fs-body); font-weight: var(--cc-fw-strong); line-height: 1.5; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .concerto-kcard-title { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+  .concerto-kcard-title::after { content: ''; position: absolute; inset: 0; border-radius: var(--cc-radius-card); }
+  .concerto-kcard .concerto-kcard-title:focus-visible { outline: none; }
+  .concerto-kcard > .concerto-kcard-summary { margin: 0; font-size: var(--cc-fs-meta); line-height: 1.55; color: var(--cc-text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-clamp: 2; overflow: clip; overflow-wrap: anywhere; }
+  .concerto-kcard[data-blocked="true"] { border-color: color-mix(in srgb, var(--cc-state-blocked) 55%, var(--cc-border-subtle)); }
+  .concerto-kcard[data-blocked="true"] > .concerto-kcard-summary { color: var(--cc-state-blocked); }
+  .concerto-kcard[data-unknown="true"] { border-color: var(--cc-state-unknown); border-style: dashed; }
+  .concerto-kcard-deps { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: var(--cc-space-1); }
+  .concerto-dependency-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 1px var(--cc-space-2); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-pill); background: var(--cc-card-nested-bg); color: var(--cc-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; transition: border-color var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-dependency-chip:hover { border-color: var(--cc-border-strong); color: var(--cc-text-primary); }
+  .concerto-kcard-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: wrap; padding-top: var(--cc-space-2); border-top: 1px solid var(--cc-border-subtle); font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); }
+  .concerto-kcard-member { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+  .concerto-kcard-id { margin-left: auto; color: var(--cc-text-muted); font-size: var(--cc-fs-caption); }
+  .concerto-board-card-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--cc-space-2); }
+  .concerto-board-card-list > li { min-width: 0; animation: concerto-rise var(--cc-dur) var(--cc-ease) both; }
+  .concerto-kcard[data-attention="true"]::before { content: ''; position: absolute; inset: var(--cc-space-3) auto var(--cc-space-3) -1px; width: 3px; border-radius: 0 3px 3px 0; background: var(--cc-state-attention); }
+  .concerto-kcard[data-blocked="true"]::before { background: var(--cc-state-blocked); }
+  .concerto-kcard-action { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); }
+  .concerto-kcard-context { color: var(--cc-text-muted); font-size: var(--cc-fs-caption); }
+  .concerto-empty-avatar { width: 20px; height: 20px; flex: none; border: 1px dashed var(--cc-border-strong); border-radius: 50%; }
+  .concerto-diagram-node[role="button"] { cursor: pointer; }
+  .concerto-diagram-node[role="button"]:focus-visible { outline: none; }
+  .concerto-diagram-node[role="button"]:focus-visible > rect:first-of-type { stroke: var(--cc-focus-ring); stroke-width: 2; }
 
   /* Bento & \u5361\u7247 */
-  .concerto-bento-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-flow: row dense; gap: var(--cc-space-3); }
+  .concerto-bento-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-flow: row; gap: var(--cc-space-4); }
   .concerto-bento-item { grid-column: span var(--cc-span, 6); min-width: 0; display: flex; }
   .concerto-bento-item[data-size="s"] { grid-column: span var(--cc-span, 4); }
   .concerto-bento-item[data-size="m"] { grid-column: span var(--cc-span, 6); }
@@ -1867,8 +2174,9 @@ var TEAM_CSS = `
   .concerto-stage-group > .concerto-group-label { margin-bottom: var(--cc-space-2); }
 
   .concerto-card {
-    border: 1px solid var(--cc-border-subtle);
-    border-radius: var(--cc-radius-card);
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-lg);
+    corner-shape: var(--cc-corner-shape);
     padding: var(--cc-space-4);
     background: var(--cc-card-bg);
     backdrop-filter: var(--cc-backdrop-blur);
@@ -1876,96 +2184,305 @@ var TEAM_CSS = `
     box-shadow: var(--cc-shadow-soft);
     min-width: 0;
     position: relative;
-    transition: border-color .2s ease;
+    transition: border-color var(--cc-dur) var(--cc-ease), box-shadow var(--cc-dur) var(--cc-ease);
   }
+  .concerto-bento-item > .concerto-card:hover { border-color: var(--cc-border-strong); }
   @keyframes concerto-flash {
     0%, 35% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc-accent) 45%, transparent); }
     100% { box-shadow: 0 0 0 0 transparent; }
   }
   .concerto-card-highlight, .concerto-task-highlight { border-color: var(--cc-accent) !important; animation: concerto-flash 2.4s ease-out; }
-  .concerto-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: nowrap; margin-bottom: var(--cc-space-2); }
+  .concerto-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: nowrap; margin-bottom: var(--cc-space-3); }
   .concerto-card-head-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
-  .concerto-card-title-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  .concerto-card-title-row strong { font-size: var(--cc-fs-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .concerto-card-caption { font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .concerto-hover-tools { display: inline-flex; gap: 4px; align-items: center; flex: none; }
-  .concerto-info-pop { margin-top: 6px; margin-bottom: 8px; padding: var(--cc-space-2) var(--cc-space-3); border-radius: var(--cc-radius-ctrl); background: var(--cc-card-nested-bg); border: 1px solid var(--cc-border-subtle); font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); }
+  .concerto-card-title-row { display: flex; align-items: center; gap: var(--cc-space-2); min-width: 0; }
+  .concerto-card-title-row :is(strong, h3) { font-size: var(--cc-fs-body); font-weight: var(--cc-fw-heading); min-width: 0; overflow-wrap: anywhere; }
+  .concerto-card-caption { font-size: var(--cc-fs-caption); color: var(--cc-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .concerto-hover-tools { display: inline-flex; gap: 2px; align-items: center; flex: none; }
+  .concerto-hover-tools .concerto-btn--icon { color: var(--cc-text-muted); }
+  .concerto-hover-tools .concerto-btn--icon:hover:not(:disabled) { color: var(--cc-text-primary); }
+  .concerto-info-pop { position: absolute; z-index: 40; top: 52px; right: var(--cc-space-4); width: min(420px, calc(100% - 32px)); max-height: 360px; overflow: auto; margin: 0; padding: var(--cc-space-3); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); background: var(--cc-menu-bg); backdrop-filter: var(--cc-menu-blur); -webkit-backdrop-filter: var(--cc-menu-blur); border: 1px solid var(--cc-border); box-shadow: var(--cc-shadow-pop); font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); }
+  .concerto-card:has(.concerto-info-pop) .concerto-stage-tools { opacity: 1; }
+  .concerto-info-pop[data-native-popover="true"], .concerto-attention-popover[data-native-popover="true"] { position: fixed; inset: auto; margin: 0; }
 
-  .concerto-table-wrap { overflow-x: auto; }
+  .concerto-table-wrap { overflow-x: auto; border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); }
   .concerto-table { width: 100%; border-collapse: collapse; font-size: var(--cc-fs-meta); }
-  .concerto-table th, .concerto-table td { border: 1px solid var(--cc-border-subtle); padding: 6px 10px; text-align: left; }
-  .concerto-table th { background: var(--cc-card-nested-bg); color: var(--cc-text-primary); font-weight: 600; }
-  .concerto-checklist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-  .concerto-checklist li { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: var(--cc-radius-ctrl); background: var(--cc-card-nested-bg); border: 1px solid var(--cc-border-subtle); }
+  .concerto-table th, .concerto-table td { border-bottom: 1px solid var(--cc-border-subtle); padding: 8px 12px; text-align: left; }
+  .concerto-table tr:last-child :is(th, td) { border-bottom: 0; }
+  .concerto-table th { background: var(--cc-card-nested-bg); color: var(--cc-text-secondary); font-size: var(--cc-fs-caption); font-weight: var(--cc-fw-strong); }
+  .concerto-table tbody tr { transition: background-color var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-table tbody tr:hover { background: var(--cc-hover); }
+  .concerto-shared-checklist .concerto-table tbody th { background: transparent; color: var(--cc-text-primary); font-weight: var(--cc-fw-strong); }
+  .concerto-shared-cell { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); }
+  .concerto-checklist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+  .concerto-checklist li { display: flex; align-items: flex-start; gap: var(--cc-space-2); padding: 8px 10px; border-radius: var(--cc-radius-ctrl); background: transparent; border: 1px solid transparent; transition: background-color var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-checklist li:hover { background: var(--cc-hover); }
 
   /* \u4EFB\u52A1\u8BE6\u60C5\u6298\u53E0/\u5217\u8868 */
-  .concerto-task-module { border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); padding: var(--cc-space-3) var(--cc-space-4); background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur); box-shadow: var(--cc-shadow-soft); margin-top: var(--cc-space-2); transition: border-color .25s ease; }
+  .concerto-task-module { border: 1px solid var(--cc-border); border-radius: var(--cc-radius-lg); corner-shape: var(--cc-corner-shape); padding: var(--cc-space-4); background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur); box-shadow: var(--cc-shadow-soft); margin-top: var(--cc-space-2); transition: border-color var(--cc-dur-slow) var(--cc-ease); }
   .concerto-task-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .concerto-acc-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cc-space-3); margin-top: 10px; }
-  .concerto-acc-box { padding: var(--cc-space-3); border-radius: var(--cc-radius-ctrl); background: var(--cc-card-nested-bg); border: 1px solid var(--cc-border-subtle); }
+  .concerto-acc-box { padding: var(--cc-space-3); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); background: var(--cc-card-nested-bg); border: 1px solid transparent; }
+  .concerto-review-feedback, .concerto-shared-checklist { margin-block: var(--cc-space-3); display: grid; gap: var(--cc-space-2); overflow-wrap: anywhere; }
+  :is(.concerto-review-feedback, .concerto-shared-checklist) [role="status"]:empty { position: absolute; }
+  .concerto-shared-checklist .concerto-input { display: block; inline-size: 100%; }
+  .concerto-review-threads, .concerto-review-updates { margin-block: var(--cc-space-2); padding-inline-start: var(--cc-space-4); }
+  .concerto-review-thread { padding-block: var(--cc-space-2); border-block-end: 1px solid var(--cc-border-subtle); }
+  .concerto-review-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cc-space-2); }
+  .concerto-review-text { margin-block: var(--cc-space-2); white-space: pre-wrap; }
+  .concerto-review-feedback :is(select, textarea) { display: block; inline-size: 100%; }
+  .concerto-task-workspace { min-width: 0; }
+  .concerto-task-workspace[data-has-inspector="true"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 420px); gap: var(--cc-space-4); align-items: start; }
+  .concerto-task-workspace[data-has-inspector="true"] .concerto-board-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-space-3); }
+  .concerto-task-inspector--inline { position: sticky; top: var(--cc-sticky-height, 16px); max-height: calc(100dvh - var(--cc-sticky-height, 32px) - 16px); overflow: auto; overscroll-behavior: contain; min-width: 0; }
+  .concerto-task-inspector--inline > .concerto-task-module, .concerto-task-inspector-dialog .concerto-task-module { margin-top: 0; }
+  .concerto-task-inspector-body .concerto-acc-cols { grid-template-columns: minmax(0, 1fr); }
+  .concerto-inspector-actions { display: flex; flex-direction: column; align-items: stretch; gap: var(--cc-space-2); margin-top: var(--cc-space-3); padding: var(--cc-space-3); border: 1px solid color-mix(in srgb, var(--cc-state-attention) 30%, transparent); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); background: var(--cc-state-attention-bg); }
+  .concerto-inspector-actions > .concerto-btn { align-self: flex-start; }
+  .concerto-kcard[data-selected="true"] { border-color: var(--cc-accent); box-shadow: 0 0 0 3px var(--cc-accent-soft); transform: none; }
+  @container concerto (min-width: 1400px) {
+    .concerto-task-workspace[data-has-inspector="true"] .concerto-board-cols { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
 
   /* \u753B\u5E03\u3001\u6D6E\u52A8\u5DE5\u5177\u4E0E\u5168\u5C4F\u5F39\u7A97 */
   .concerto-canvas-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: wrap; margin-bottom: var(--cc-space-2); font-size: var(--cc-fs-caption); color: var(--cc-text-muted); }
   .concerto-canvas-btns { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  .concerto-canvas-stage { position: relative; flex: 1; border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-ctrl); background: var(--cc-canvas-bg); overflow: hidden; min-height: 190px; max-height: 320px; cursor: grab; user-select: none; }
+  .concerto-canvas-export { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .concerto-canvas-stage { position: relative; flex: 1; border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); background: var(--cc-canvas-bg); overflow: hidden; min-height: 190px; max-height: 320px; cursor: grab; user-select: none; }
   .concerto-canvas-stage:active { cursor: grabbing; }
+  .concerto-graph-frame { position: relative; display: flex; flex-direction: column; min-width: 0; }
+  .concerto-canvas-stage--readable { overflow: auto; overscroll-behavior: contain; min-height: 0; max-height: none; scrollbar-width: thin; scrollbar-color: var(--cc-border-strong) transparent; }
+  .concerto-graph-content { display: grid; place-items: center; min-width: 100%; min-height: 100%; }
+  .concerto-graph-content > svg { display: block; max-width: none; flex: none; }
+  .concerto-graph-scroll-hint { position: absolute; inset: auto auto var(--cc-space-2) var(--cc-space-2); pointer-events: none; padding: 2px var(--cc-space-2); border-radius: var(--cc-radius-pill); background: var(--cc-menu-bg); backdrop-filter: var(--cc-menu-blur); color: var(--cc-text-secondary); font-size: var(--cc-fs-micro); box-shadow: var(--dsw-elevation-stroke, none); }
+  .concerto-canvas-modal .concerto-canvas-stage--readable { min-height: 0; }
   .concerto-stage-tools {
     position: absolute; right: var(--cc-space-2); bottom: var(--cc-space-2); z-index: 2;
-    display: inline-flex; gap: 2px; padding: 2px;
-    border-radius: var(--cc-radius-ctrl);
-    background: var(--cc-overlay-bg);
-    backdrop-filter: var(--cc-backdrop-blur);
-    -webkit-backdrop-filter: var(--cc-backdrop-blur);
-    box-shadow: var(--cc-shadow-soft);
-    opacity: 0; transition: opacity .15s ease;
+    display: inline-flex; gap: 2px; padding: 2px; flex-wrap: wrap; max-width: calc(100% - 16px);
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-card);
+    corner-shape: var(--cc-corner-shape);
+    background: var(--cc-menu-bg);
+    backdrop-filter: var(--cc-menu-blur);
+    -webkit-backdrop-filter: var(--cc-menu-blur);
+    box-shadow: var(--cc-shadow-panel);
+    opacity: 0; transform: translateY(4px); transition: opacity var(--cc-dur) var(--cc-ease), transform var(--cc-dur) var(--cc-ease);
   }
   .concerto-card:hover .concerto-stage-tools,
-  .concerto-card:focus-within .concerto-stage-tools { opacity: 1; }
+  .concerto-card:focus-within .concerto-stage-tools { opacity: 1; transform: none; }
   @media (pointer: coarse) { .concerto-stage-tools { opacity: 1; } }
   .concerto-canvas-foot { margin-top: var(--cc-space-2); font-size: var(--cc-fs-caption); color: var(--cc-text-muted); display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: wrap; }
+  .concerto-diagram-foot { align-items: flex-start; }
+  .concerto-diagram-status-summary, .concerto-diagram-edge-legend { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cc-space-2); }
+  .concerto-diagram-status-summary > span { display: inline-flex; align-items: center; gap: 4px; }
+  .concerto-diagram-edge-legend > span { display: inline-flex; align-items: center; gap: 4px; }
+  .concerto-diagram-edge-legend > span::before { content: ''; width: 16px; border-top: 2px solid var(--cc-border-strong); }
+  .concerto-diagram-edge-legend > span[data-semantic="critical"]::before { border-top-color: var(--cc-accent); }
+  .concerto-diagram-edge-legend > span:is([data-semantic="waiting"], [data-semantic="blocked"], [data-semantic="unknown"])::before { border-top-style: dashed; }
+  .concerto-diagram-edge-legend > span[data-semantic="waiting"]::before { border-top-color: var(--cc-state-attention); }
+  .concerto-diagram-edge-legend > span[data-semantic="blocked"]::before { border-top-color: var(--cc-state-blocked); }
+  .concerto-diagram-edge-legend > span[data-semantic="unknown"]::before { border-top-color: var(--cc-state-unknown); }
+  .concerto-card .concerto-canvas-stage--readable { border-color: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cc-border-subtle) 45%, transparent); }
+  .concerto-canvas-modal .concerto-canvas-stage--readable { border-color: var(--cc-border-subtle); box-shadow: none; }
+  .concerto-kcard h4, .concerto-briefing-cell, .concerto-hero-goal { text-wrap: pretty; }
+  .concerto-surface :is(h2, h3) { text-wrap: balance; }
   .concerto-html-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 34px; pointer-events: none; background: linear-gradient(transparent, var(--cc-card-nested-bg)); }
 
-  .concerto-modal-backdrop { position: fixed; inset: 0; z-index: 1100; background: var(--dsw-alias-bg-mask-1, var(--cc-fb-mask)); display: flex; align-items: stretch; justify-content: center; padding: 18px; }
+  .concerto-surface:modal { overscroll-behavior: contain; }
+  .concerto-surface::backdrop { background: var(--dsw-alias-bg-mask-1, var(--cc-fb-mask)); overflow: hidden; overscroll-behavior: contain; }
   .concerto-canvas-modal {
-    flex: 1;
-    max-width: 1440px;
-    border: 1px solid var(--cc-border-strong);
-    border-radius: var(--cc-radius-lg);
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: min(1600px, 94vw);
+    height: 86dvh;
+    max-height: 86dvh;
+    max-width: none;
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-xl);
+    corner-shape: var(--cc-corner-shape);
     background: var(--cc-overlay-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
     color: var(--cc-text-primary);
-    padding: var(--cc-space-4);
-    display: flex;
+    padding: var(--cc-space-5);
     flex-direction: column;
     gap: var(--cc-space-3);
     box-shadow: var(--cc-shadow-prominent);
     min-width: 0;
     min-height: 0;
   }
+  .concerto-canvas-modal[open] { display: flex; }
   .concerto-canvas-modal .concerto-canvas-stage { flex: 1; max-height: none; min-height: 320px; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="markmap"], .concerto-canvas-modal > [data-concerto-renderer-root="svg"] { display: grid !important; grid-template-columns: minmax(0, 1fr) 240px; flex: 1; min-height: 0; gap: var(--cc-space-3); }
+  .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > .concerto-canvas-bar, .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-canvas-bar { grid-column: 2; grid-row: 1; flex-direction: column; align-items: stretch; justify-content: flex-start; flex-wrap: nowrap; min-height: 0; margin: 0; overflow: auto; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > .concerto-canvas-bar :is(.concerto-canvas-btns, .concerto-canvas-export), .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-canvas-bar :is(.concerto-canvas-btns, .concerto-canvas-export) { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > .concerto-canvas-bar .concerto-btn, .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-canvas-bar .concerto-btn { width: 100%; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > .concerto-canvas-bar .concerto-canvas-export, .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-canvas-bar .concerto-canvas-export { margin-top: auto; padding-top: var(--cc-space-3); }
+  .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > :is(.concerto-canvas-stage, .concerto-graph-frame), .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-graph-frame { grid-column: 1; grid-row: 1; min-width: 0; min-height: 0; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] { display: block !important; position: relative; flex: 1; min-height: 0; padding-right: 252px; overflow: auto; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] > .concerto-canvas-bar { position: absolute; inset: 0 0 0 auto; width: 240px; height: 100%; flex-direction: column; align-items: stretch; justify-content: flex-start; flex-wrap: nowrap; margin: 0; overflow: auto; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] > .concerto-canvas-bar :is(.concerto-canvas-btns, .concerto-canvas-export) { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] > .concerto-canvas-bar .concerto-btn { width: 100%; }
+  .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] > .concerto-canvas-bar .concerto-canvas-export { margin-top: auto; padding-top: var(--cc-space-3); }
+  @media (max-width: 900px) {
+    .concerto-canvas-modal > [data-concerto-renderer-root="markmap"], .concerto-canvas-modal > [data-concerto-renderer-root="svg"] { display: flex !important; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > .concerto-canvas-bar, .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-canvas-bar { flex-direction: row; flex-wrap: wrap; overflow: visible; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > .concerto-canvas-bar :is(.concerto-canvas-btns, .concerto-canvas-export), .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-canvas-bar :is(.concerto-canvas-btns, .concerto-canvas-export) { flex-direction: row; flex-wrap: wrap; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > .concerto-canvas-bar .concerto-btn, .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-canvas-bar .concerto-btn { width: auto; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="markmap"] > .concerto-canvas-bar .concerto-canvas-export, .concerto-canvas-modal > [data-concerto-renderer-root="svg"] > .concerto-canvas-bar .concerto-canvas-export { margin-top: 0; padding-top: 0; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] { display: flex !important; padding-right: 0; overflow: visible; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] > .concerto-canvas-bar { position: static; width: auto; height: auto; flex-direction: row; flex-wrap: wrap; overflow: visible; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] > .concerto-canvas-bar :is(.concerto-canvas-btns, .concerto-canvas-export) { flex-direction: row; flex-wrap: wrap; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] > .concerto-canvas-bar .concerto-btn { width: auto; }
+    .concerto-canvas-modal > [data-concerto-renderer-root="excalidraw"] > .concerto-canvas-bar .concerto-canvas-export { margin-top: 0; padding-top: 0; }
+  }
 
   /* \u53F3\u4FA7\u6210\u5458\u8BE6\u60C5\u62BD\u5C49 */
-  .concerto-drawer-backdrop { position: fixed; inset: 0; z-index: 1050; background: var(--dsw-alias-bg-mask-1, var(--cc-fb-mask)); display: flex; justify-content: flex-end; }
   .concerto-drawer {
-    width: min(480px, 92vw);
-    height: 100%;
-    display: flex;
+    container: concerto-drawer / inline-size;
+    position: fixed;
+    inset: 0 0 0 auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    width: min(520px, 100%);
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
     flex-direction: column;
     background: var(--cc-overlay-bg);
     backdrop-filter: var(--cc-backdrop-blur);
     -webkit-backdrop-filter: var(--cc-backdrop-blur);
     color: var(--cc-text-primary);
-    border-left: 1px solid var(--cc-border-strong);
+    border-left: 1px solid var(--cc-border);
     box-shadow: var(--cc-shadow-prominent);
   }
-  .concerto-drawer-head { padding: var(--cc-space-4); border-bottom: 1px solid var(--cc-border-subtle); display: flex; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); }
-  .concerto-drawer-tabs { display: flex; gap: var(--cc-space-1); padding: 0 var(--cc-space-4); border-bottom: 1px solid var(--cc-border-subtle); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .concerto-drawer-body { flex: 1; overflow-y: auto; padding: var(--cc-space-4); display: flex; flex-direction: column; gap: var(--cc-space-3); }
-  .concerto-bubble { padding: var(--cc-space-3); border-radius: var(--cc-radius-card); background: var(--cc-card-nested-bg); border: 1px solid var(--cc-border-subtle); display: flex; flex-direction: column; gap: 6px; }
-  .concerto-activity-line { font-size: var(--cc-fs-meta); color: var(--cc-text-secondary); padding: 6px 10px; border-left: 2px solid var(--cc-border-strong); background: var(--cc-card-nested-bg); border-radius: 0 var(--cc-radius-ctrl) var(--cc-radius-ctrl) 0; }
-  .concerto-empty { display: grid; justify-items: center; text-align: center; gap: var(--cc-space-2); padding: var(--cc-space-6) var(--cc-space-4); color: var(--cc-text-muted); font-size: var(--cc-fs-meta); }
+  .concerto-drawer[open] { display: flex; animation: concerto-drawer-in var(--cc-dur-slow) var(--cc-ease); }
+  .concerto-canvas-modal[open] { animation: concerto-pop-in var(--cc-dur) var(--cc-ease); }
+  .concerto-drawer::backdrop, .concerto-canvas-modal::backdrop { animation: concerto-fade-in var(--cc-dur) var(--cc-ease); }
+  .concerto-drawer-head { padding: var(--cc-space-5) var(--cc-space-5) var(--cc-space-4); border-bottom: 1px solid var(--cc-border-subtle); display: flex; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); }
+  .concerto-drawer-tabs { display: flex; gap: var(--cc-space-1); padding: 0 var(--cc-space-4); flex: none; border-bottom: 1px solid var(--cc-border-subtle); flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .concerto-drawer-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--cc-space-4) var(--cc-space-5); display: flex; flex-direction: column; gap: var(--cc-space-3); }
+  .concerto-bubble { padding: var(--cc-space-3) var(--cc-space-4); border-radius: var(--cc-radius-lg); corner-shape: var(--cc-corner-shape); background: var(--cc-card-nested-bg); border: 1px solid transparent; line-height: 1.65; display: flex; flex-direction: column; gap: 6px; }
+  .concerto-activity-line { font-size: var(--cc-fs-meta); color: var(--cc-text-secondary); padding: 6px 12px; border-left: 2px solid var(--cc-border); background: transparent; border-radius: 0; }
+  .concerto-empty { display: grid; justify-items: center; text-align: center; gap: var(--cc-space-2); padding: var(--cc-space-6) var(--cc-space-4); border: 1px dashed var(--cc-border); border-radius: var(--cc-radius-lg); corner-shape: var(--cc-corner-shape); color: var(--cc-text-muted); font-size: var(--cc-fs-meta); }
+  .concerto-empty-icon { font-size: var(--cc-fs-display); line-height: 1; filter: grayscale(.4); opacity: .8; }
 
+  /* ===== \u8BBE\u7F6E\u9875\uFF1A\u88C5\u914D\u56E2\u961F / \u8FD0\u884C\u5B9E\u4F8B / \u5F02\u5E38\u6062\u590D ===== */
+  .concerto-settings { container: concerto-set / inline-size; display: flex; flex-direction: column; gap: var(--cc-space-4); min-width: 0; padding-block: var(--cc-space-1); }
+  .concerto-set-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); flex-wrap: wrap; }
+  .concerto-set-head-main { min-width: 0; display: flex; flex-direction: column; gap: var(--cc-space-1); }
+  .concerto-settings .concerto-set-head h2 { font-size: var(--cc-fs-display); line-height: 1.4; }
+  .concerto-settings .concerto-set-lead { margin: 0; color: var(--cc-text-secondary); font-size: var(--cc-fs-meta); }
+  .concerto-set-status { position: sticky; top: var(--cc-space-2); z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); padding: var(--cc-space-1) var(--cc-space-1) var(--cc-space-1) var(--cc-space-4); border: 1px solid var(--cc-border); border-left: 3px solid var(--cc-accent); border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); background: var(--cc-menu-bg); backdrop-filter: var(--cc-menu-blur); -webkit-backdrop-filter: var(--cc-menu-blur); box-shadow: var(--cc-shadow-panel); font-size: var(--cc-fs-meta); overflow-wrap: anywhere; animation: concerto-rise var(--cc-dur) var(--cc-ease); }
+  .concerto-set-status[data-tone="error"] { border-left-color: var(--cc-state-blocked); }
+  .concerto-set-status[data-tone="busy"] { border-left-color: var(--cc-state-attention); }
+  .concerto-set-card { display: flex; flex-direction: column; gap: var(--cc-space-4); min-width: 0; padding: var(--cc-space-5); border: 1px solid var(--cc-border); border-radius: var(--cc-radius-lg); corner-shape: var(--cc-corner-shape); background: var(--cc-card-bg); backdrop-filter: var(--cc-backdrop-blur); -webkit-backdrop-filter: var(--cc-backdrop-blur); box-shadow: var(--cc-shadow-soft); }
+  .concerto-set-card[data-tone="attention"] { border-color: color-mix(in srgb, var(--cc-state-attention) 40%, var(--cc-border)); }
+  .concerto-set-card-head { display: flex; flex-direction: column; gap: 2px; }
+  .concerto-set-card-head h3 { display: flex; align-items: center; gap: var(--cc-space-2); }
+  .concerto-settings .concerto-set-hint { margin: 0; color: var(--cc-text-muted); font-size: var(--cc-fs-caption); }
+  .concerto-set-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: var(--cc-space-3); }
+  .concerto-set-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .concerto-set-label { font-size: var(--cc-fs-caption); font-weight: var(--cc-fw-strong); color: var(--cc-text-secondary); }
+  .concerto-set-field select.concerto-input { cursor: pointer; }
+  .concerto-set-block { display: flex; flex-direction: column; gap: var(--cc-space-3); padding-top: var(--cc-space-4); border-top: 1px solid var(--cc-border-subtle); }
+  .concerto-set-block-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); flex-wrap: wrap; }
+  .concerto-set-members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--cc-space-2); }
+  .concerto-set-member { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) auto; gap: var(--cc-space-3); align-items: end; padding: var(--cc-space-3) var(--cc-space-4); border: 1px solid transparent; border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); background: var(--cc-card-nested-bg); animation: concerto-rise var(--cc-dur) var(--cc-ease); }
+  .concerto-set-member-remove { justify-self: end; align-self: end; }
+  .concerto-set-member-model { grid-column: 1 / -1; }
+  .concerto-team-delete-dialog { width: min(30rem, calc(100% - 2rem)); }
+  .concerto-set-connection { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: var(--cc-space-2); overflow-wrap: anywhere; }
+  .concerto-settings .concerto-set-empty { margin: 0; padding: var(--cc-space-4); border: 1px dashed var(--cc-border); border-radius: var(--cc-radius-card); color: var(--cc-text-muted); font-size: var(--cc-fs-meta); text-align: center; }
+  .concerto-set-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-3); flex-wrap: wrap; padding-top: var(--cc-space-4); border-top: 1px solid var(--cc-border-subtle); }
+  .concerto-set-actions-hint { display: inline-flex; align-items: center; gap: 6px; font-size: var(--cc-fs-caption); color: var(--cc-text-muted); }
+  .concerto-set-actions-hint .concerto-icon { color: var(--cc-state-done); }
+  .concerto-set-actions-buttons { display: flex; align-items: center; justify-content: flex-end; gap: var(--cc-space-2); flex-wrap: wrap; margin-left: auto; }
+  .concerto-set-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--cc-space-2); }
+  .concerto-set-item { display: flex; flex-direction: column; gap: var(--cc-space-2); min-width: 0; padding: var(--cc-space-3) var(--cc-space-4); border: 1px solid transparent; border-radius: var(--cc-radius-card); corner-shape: var(--cc-corner-shape); background: var(--cc-card-nested-bg); transition: border-color var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-set-list > .concerto-set-item:hover { border-color: var(--cc-border); }
+  .concerto-set-item-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-3); flex-wrap: wrap; }
+  .concerto-set-item-title { display: flex; align-items: center; gap: var(--cc-space-2); flex-wrap: wrap; min-width: 0; }
+  .concerto-set-item-title > strong { font-weight: var(--cc-fw-heading); overflow-wrap: anywhere; }
+  .concerto-set-meta { display: flex; align-items: center; gap: var(--cc-space-1) var(--cc-space-4); flex-wrap: wrap; min-width: 0; font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); }
+  .concerto-set-path { min-width: 0; overflow-wrap: anywhere; font-family: var(--cc-font-mono); font-size: var(--cc-fs-code); color: var(--cc-text-muted); }
+  .concerto-set-caps { display: flex; flex-wrap: wrap; gap: var(--cc-space-1) var(--cc-space-2); }
+  .concerto-set-caps .concerto-chip { cursor: default; background: var(--cc-card-bg); color: var(--cc-text-secondary); border-color: var(--cc-border-subtle); }
+  .concerto-set-caps .concerto-chip[data-tone="ok"] { color: var(--cc-state-done); }
+  .concerto-set-caps .concerto-chip[data-tone="warn"] { color: var(--cc-state-attention); background: var(--cc-state-attention-bg); border-color: transparent; }
+  .concerto-set-caps .concerto-chip[data-tone="danger"] { color: var(--cc-state-blocked); background: var(--cc-state-blocked-bg); border-color: transparent; }
+  .concerto-set-recovery { border-color: color-mix(in srgb, var(--cc-state-attention) 30%, transparent); background: var(--cc-card-bg); }
+  .concerto-set-reason { padding: var(--cc-space-2) var(--cc-space-3); border-radius: var(--cc-radius-ctrl); background: var(--cc-state-blocked-bg); color: var(--cc-state-blocked); font-size: var(--cc-fs-meta); overflow-wrap: anywhere; }
+  .concerto-set-result { padding: var(--cc-space-2) var(--cc-space-3); border-radius: var(--cc-radius-ctrl); background: var(--cc-state-attention-bg); color: var(--cc-state-attention); font-size: var(--cc-fs-caption); overflow-wrap: anywhere; }
+  .concerto-set-result[data-ok="true"] { background: var(--cc-state-done-bg); color: var(--cc-state-done); }
+  .concerto-set-check { display: flex; align-items: flex-start; gap: var(--cc-space-2); font-size: var(--cc-fs-caption); color: var(--cc-text-secondary); cursor: pointer; }
+  .concerto-set-check > input { margin-top: 3px; accent-color: var(--cc-accent); }
+  .concerto-set-fold > summary { cursor: pointer; padding: var(--cc-space-2) 0; color: var(--cc-text-muted); font-size: var(--cc-fs-caption); }
+  .concerto-set-fold[open] > summary { margin-bottom: var(--cc-space-2); }
+  .concerto-set-fold > .concerto-set-item + .concerto-set-item { margin-top: var(--cc-space-2); }
+  /* Orchestra Stage Builder (Team Creator / Editor) */
+  .concerto-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--cc-space-3); padding: var(--cc-space-5) var(--cc-space-4) var(--cc-space-4); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-lg); corner-shape: var(--cc-corner-shape); background: radial-gradient(ellipse 70% 55% at 50% 18%, color-mix(in srgb, var(--cc-accent) 12%, transparent), transparent 72%), var(--cc-card-nested-bg); overflow: hidden; }
+  .concerto-stage-title-wrap { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; max-width: 100%; padding: 4px 12px; border-radius: var(--cc-radius-pill); border: 1px solid transparent; transition: border-color var(--cc-dur-fast) var(--cc-ease), background var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-stage-title-wrap:hover, .concerto-stage-title-wrap:focus-within { border-color: color-mix(in srgb, var(--cc-accent) 45%, var(--cc-border)); background: var(--cc-card-bg); }
+  .concerto-stage-title-input { appearance: none; border: none; background: transparent; color: var(--cc-text-primary); font-size: var(--cc-fs-h2, 1.25rem); font-weight: var(--cc-fw-heading); text-align: center; min-width: 120px; max-width: 320px; padding: 2px 4px; outline: none; }
+  .concerto-stage-title-pen { font-size: var(--cc-fs-caption); color: var(--cc-text-muted); pointer-events: none; transition: color var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-stage-title-wrap:hover .concerto-stage-title-pen, .concerto-stage-title-wrap:focus-within .concerto-stage-title-pen { color: var(--cc-accent); }
+  .concerto-stage-commander-zone { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; }
+  .concerto-stage-svg { width: 100%; max-width: 520px; height: 52px; margin: -6px 0 -8px; pointer-events: none; overflow: visible; }
+  .concerto-stage-arc { fill: none; stroke: color-mix(in srgb, var(--cc-accent) 45%, var(--cc-border)); stroke-width: 2; stroke-dasharray: 5 5; stroke-linecap: round; animation: concerto-stage-flow 1.8s linear infinite; }
+  .concerto-stage-arc[data-active="true"] { stroke: var(--cc-accent); stroke-width: 2.5; }
+  .concerto-stage-lanes { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-space-3); width: 100%; }
+  .concerto-stage-lane { display: flex; flex-direction: column; align-items: center; gap: var(--cc-space-2); padding: var(--cc-space-3); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: color-mix(in srgb, var(--cc-card-bg) 72%, transparent); min-height: 118px; }
+  .concerto-stage-lane-head { display: flex; align-items: center; gap: 6px; font-size: var(--cc-fs-caption); font-weight: var(--cc-fw-strong); color: var(--cc-text-secondary); }
+  .concerto-stage-roster { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center; gap: var(--cc-space-2); width: 100%; }
+  .concerto-stage-node { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 10px; min-width: 84px; max-width: 148px; border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: var(--cc-card-bg); color: var(--cc-text-primary); cursor: pointer; transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color var(--cc-dur-fast) var(--cc-ease), box-shadow 0.22s var(--cc-ease); }
+  .concerto-stage-node:hover { transform: translateY(-4px) scale(1.03); border-color: color-mix(in srgb, var(--cc-accent) 55%, var(--cc-border)); box-shadow: 0 8px 20px color-mix(in srgb, var(--cc-accent) 16%, transparent); }
+  .concerto-stage-node[data-selected="true"] { border-color: var(--cc-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--cc-accent) 32%, transparent), 0 10px 24px color-mix(in srgb, var(--cc-accent) 20%, transparent); transform: translateY(-2px); }
+  .concerto-stage-node--commander { min-width: 148px; padding: 10px 16px; border-radius: var(--cc-radius-lg); }
+  .concerto-stage-node--commander .concerto-pixel { animation: concerto-float 3.2s ease-in-out infinite; }
+  .concerto-stage-node-name { font-size: var(--cc-fs-caption); font-weight: var(--cc-fw-strong); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .concerto-stage-node-sub { font-size: var(--cc-fs-micro); color: var(--cc-text-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .concerto-stage-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; width: 76px; min-height: 86px; padding: 8px; border: 1.5px dashed var(--cc-border); border-radius: var(--cc-radius-card); background: transparent; color: var(--cc-text-muted); font-size: var(--cc-fs-caption); cursor: pointer; transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color var(--cc-dur-fast) var(--cc-ease), color var(--cc-dur-fast) var(--cc-ease), background var(--cc-dur-fast) var(--cc-ease); }
+  .concerto-stage-add:hover { transform: translateY(-3px) scale(1.03); border-color: var(--cc-accent); color: var(--cc-accent); background: color-mix(in srgb, var(--cc-accent) 8%, transparent); }
+  .concerto-stage-add-plus { font-size: var(--cc-fs-h2); line-height: 1; font-weight: 400; }
+  .concerto-stage-inspector { width: 100%; padding: var(--cc-space-4); border: 1px solid color-mix(in srgb, var(--cc-accent) 35%, var(--cc-border)); border-radius: var(--cc-radius-card); background: var(--cc-card-bg); box-shadow: var(--cc-shadow-soft); animation: concerto-stage-expand 0.24s cubic-bezier(0.22, 1, 0.36, 1); display: flex; flex-direction: column; gap: var(--cc-space-3); }
+  .concerto-stage-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: var(--cc-space-2); padding-bottom: var(--cc-space-2); border-bottom: 1px solid var(--cc-border-subtle); }
+  .concerto-stage-inspector-title { display: flex; align-items: center; gap: var(--cc-space-2); font-weight: var(--cc-fw-heading); font-size: var(--cc-fs-meta); }
+  @keyframes concerto-stage-flow { to { stroke-dashoffset: -20; } }
+  @keyframes concerto-stage-expand { from { opacity: 0; transform: translateY(-6px) scale(0.985); } to { opacity: 1; transform: none; } }
+  /* TeamHome Live Orchestra Performance Stage */
+  .concerto-live-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: var(--cc-space-3) var(--cc-space-3) var(--cc-space-2); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: radial-gradient(ellipse 60% 55% at 50% 15%, color-mix(in srgb, var(--cc-accent) 9%, transparent), transparent 72%), var(--cc-card-nested-bg); }
+  .concerto-live-stage-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 1; }
+  .concerto-live-stage-row { position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); width: 100%; }
+  .concerto-live-stage-wings { position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); width: 100%; }
+  .concerto-live-stage-wing { flex: 1 1 180px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); }
+  .concerto-live-node-wrap { display: inline-flex; position: relative; }
+  .concerto-live-node--celebrate { animation: concerto-sprite-hop 0.85s var(--cc-ease) 2; }
+  .concerto-live-node--celebrate .concerto-sprite { box-shadow: 0 0 0 2px var(--cc-state-done), 0 4px 14px color-mix(in srgb, var(--cc-state-done) 35%, transparent); }
+  @keyframes concerto-sprite-hop { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-7px) scale(1.04); } 55% { transform: translateY(0) scale(0.98); } 75% { transform: translateY(-3px) scale(1.01); } }
+  .concerto-stage-arc--idle { fill: none; stroke: color-mix(in srgb, var(--cc-border) 65%, transparent); stroke-width: 1.25; stroke-dasharray: 3 5; }
+  .concerto-stage-arc--dispatch { fill: none; stroke: var(--cc-accent); stroke-width: 2.5; stroke-dasharray: 6 6; stroke-linecap: round; animation: concerto-stage-flow 1.2s linear infinite; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cc-accent) 55%, transparent)); }
+  .concerto-stage-arc--handoff { fill: none; stroke: var(--cc-state-review); stroke-width: 2.5; stroke-dasharray: 6 5; stroke-linecap: round; animation: concerto-stage-flow 1.1s linear infinite; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cc-state-review) 55%, transparent)); }
+  .concerto-stage-pulse-dot { fill: var(--cc-accent); }
+  .concerto-stage-pulse-dot--handoff { fill: var(--cc-state-review); }
+  /* A/B Compare Race Board */
+  .concerto-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-space-3); width: 100%; }
+  .concerto-race-col { display: flex; flex-direction: column; gap: var(--cc-space-2); padding: var(--cc-space-3); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: var(--cc-card-bg); min-width: 0; }
+  .concerto-race-col[data-winner="true"] { border-color: var(--cc-state-done); box-shadow: 0 0 0 2px var(--cc-state-done-bg); }
+  /* Live Battle Map node pulse & point-on-diagram command bar */
+  .concerto-battle-node--running > rect:first-of-type { stroke: var(--cc-state-running); stroke-width: 2; animation: concerto-battle-pulse 1.8s ease-in-out infinite; }
+  .concerto-battle-node--done > rect:first-of-type { stroke: var(--cc-state-done); stroke-width: 1.5; }
+  .concerto-battle-node--blocked > rect:first-of-type { stroke: var(--cc-state-blocked); stroke-width: 1.8; }
+  .concerto-battle-node--interactive { cursor: pointer; }
+  .concerto-battle-node--interactive:hover > rect:first-of-type { stroke: var(--cc-accent); stroke-width: 2; }
+  @keyframes concerto-battle-pulse { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.35; } }
+  .concerto-point-cmd-bar { display: flex; flex-direction: column; gap: 6px; padding: var(--cc-space-2) var(--cc-space-3); margin-bottom: var(--cc-space-2); border: 1px solid color-mix(in srgb, var(--cc-accent) 40%, var(--cc-border)); border-radius: var(--cc-radius-ctrl); background: var(--cc-card-nested-bg); animation: concerto-stage-expand 0.2s var(--cc-ease); }
+  @container concerto-set (max-width: 540px) { .concerto-stage-lanes { grid-template-columns: minmax(0, 1fr); } .concerto-stage-svg { display: none; } }
+  @container concerto-set (max-width: 720px) { .concerto-set-member { grid-template-columns: repeat(2, minmax(0, 1fr)); } .concerto-set-member-remove { grid-column: 1 / -1; justify-self: start; } }
+  @container concerto-set (max-width: 640px) { .concerto-set-card { padding: var(--cc-space-4); } }
+  @container concerto-set (max-width: 440px) { .concerto-set-member { grid-template-columns: minmax(0, 1fr); } .concerto-set-actions-buttons { width: 100%; } .concerto-set-actions-buttons > .concerto-btn { flex: 1 1 0; } }
   /* Host Wallpaper Glass edge highlight parity */
   body[data-we-glass-page="on"] .concerto-surface :is(.concerto-card, .concerto-turn-card, .concerto-tool-card, .concerto-hero, .concerto-attn-card, .concerto-task-module, .concerto-kcard, .concerto-briefing-cell, .concerto-filter-bar, .concerto-sprite),
   body[data-we-glass-page="on"] .concerto-panel,
@@ -1977,24 +2494,61 @@ var TEAM_CSS = `
 
   @keyframes concerto-float { 50% { transform: translateY(-3px); } }
   @keyframes concerto-pulse { 50% { opacity: 0.45; } }
+  @keyframes concerto-breathe { 0%, 100% { box-shadow: 0 0 0 3px var(--cc-state-done-bg); } 50% { box-shadow: 0 0 0 5px transparent; } }
+  @keyframes concerto-rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @keyframes concerto-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes concerto-tab-in { from { transform: scaleX(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes concerto-drawer-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes concerto-pop-in { from { transform: scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+  .concerto-tab-content { animation: concerto-fade-in var(--cc-dur) var(--cc-ease); }
+  .concerto-attention-popover, .concerto-hero-menu-list { animation: concerto-rise var(--cc-dur-fast) var(--cc-ease); }
   @media (prefers-reduced-motion: reduce) {
-    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before { animation: none !important; }
+    .concerto-surface *, .concerto-surface *::before, .concerto-surface *::after { transition: none !important; }
+    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-arc--dispatch, .concerto-stage-arc--handoff, .concerto-live-node--celebrate, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector, .concerto-battle-node--running > rect:first-of-type, .concerto-point-cmd-bar { animation: none !important; }
+    .concerto-live-dot::before, .concerto-tab-btn::after, .concerto-tab-content, .concerto-board-card-list > li, .concerto-jump-banner, .concerto-attention-popover, .concerto-hero-menu-list, .concerto-drawer[open], .concerto-canvas-modal[open], .concerto-drawer::backdrop, .concerto-canvas-modal::backdrop { animation: none !important; }
+    .concerto-kcard:hover, .concerto-btn:active:not(:disabled) { transform: none; }
     .concerto-task-highlight, .concerto-card-highlight { animation: none !important; outline: 2px solid var(--cc-accent); }
   }
-  @media (max-width: 900px) {
-    .concerto-board-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (forced-colors: active) {
+    .concerto-tab-btn[aria-selected="true"] { color: Highlight; }
+    .concerto-tab-btn[aria-selected="true"]::after { border-color: Highlight; }
+    .concerto-surface :is(button, input, textarea, summary, [tabindex], select):focus-visible { outline-color: Highlight; }
+    .concerto-btn--pin[aria-pressed="true"] { border-color: Highlight; }
+  }
+  @container concerto (max-width: 900px) {
+    .concerto-board-cols { display: flex; overflow-x: auto; gap: var(--cc-space-3); scroll-snap-type: inline proximity; overscroll-behavior-inline: contain; padding: 4px 4px 12px; margin-inline: -4px; }
+    .concerto-board-col { flex: 0 0 260px; min-width: 0; scroll-snap-align: start; }
     .concerto-bento-item,
     .concerto-bento-item[data-size="l"],
     .concerto-bento-item[data-size="m"],
     .concerto-bento-item[data-size="s"] { grid-column: span 12 !important; }
+    .concerto-briefing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .concerto-briefing-cell:first-child { grid-column: 1 / -1; }
   }
-  @media (max-width: 720px) {
-    .concerto-team-view { padding: var(--cc-space-3) var(--cc-space-3) 140px; gap: var(--cc-space-5); }
+  @container concerto (max-width: 640px) {
+    .concerto-hero { padding: var(--cc-space-3) var(--cc-space-3) 0; gap: var(--cc-space-2); border-radius: var(--cc-radius-lg); }
+    .concerto-hero .concerto-tabs { gap: 0; }
+    .concerto-hero[data-compact="true"] { padding-inline: var(--cc-space-3); }
+    .concerto-hero-compact { flex-wrap: wrap; row-gap: var(--cc-space-1); }
+    .concerto-hero-compact-title { flex: 1 1 100%; }
+    .concerto-hero-compact-actions { width: 100%; justify-content: space-between; }
+    .concerto-compact-roster, .concerto-hero-compact-title .concerto-live-dot { display: none; }
+    .concerto-hero-top { gap: var(--cc-space-2); }
+    .concerto-hero-title { flex-wrap: nowrap; font-size: var(--cc-fs-title); }
+    .concerto-hero-title h2 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .concerto-hero-title > .concerto-badge { display: none; }
+    .concerto-hero-goal { max-width: 100%; }
+    .concerto-hero .concerto-sprite small { display: none; }
+    .concerto-hero .concerto-sprite { min-height: 34px; }
+    .concerto-hero .concerto-sprite svg { width: 26px; height: 26px; }
+    .concerto-pending-unit { display: none; }
     .concerto-briefing-grid { grid-template-columns: 1fr; }
-    .concerto-board-cols { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }
-    .concerto-board-col { min-width: 240px; scroll-snap-align: start; }
+    .concerto-board-cols { display: flex; overflow: auto; gap: var(--cc-space-3); scroll-snap-type: inline proximity; overscroll-behavior-inline: contain; padding: 4px 4px 12px; margin-inline: -4px; }
+    .concerto-board-col { flex: 0 0 min(260px, 85cqi); min-width: 0; scroll-snap-align: start; }
+    .concerto-board-jump { position: sticky; top: var(--cc-sticky-height, 0); z-index: 4; display: flex; gap: var(--cc-space-1); overflow-x: auto; padding: var(--cc-space-2); border: 1px solid var(--cc-border); border-radius: var(--cc-radius-pill); background: var(--cc-menu-bg); backdrop-filter: var(--cc-menu-blur); -webkit-backdrop-filter: var(--cc-menu-blur); }
+    .concerto-board-jump-btn { flex: none; padding: 4px var(--cc-space-2); border: 1px solid transparent; border-radius: var(--cc-radius-pill); background: transparent; color: var(--cc-text-secondary); font: inherit; font-size: var(--cc-fs-caption); cursor: pointer; }
+    .concerto-board-jump-btn[aria-pressed="true"] { border-color: var(--cc-accent-border); background: var(--cc-accent-soft); color: var(--cc-accent-text); }
     .concerto-acc-cols { grid-template-columns: 1fr; }
-    .concerto-drawer { width: 100vw; }
     .concerto-stage-tools { opacity: 1; }
     .concerto-filter-bar { display: grid; grid-template-columns: 1fr 1fr; }
     .concerto-filter-bar label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -2002,10 +2556,21 @@ var TEAM_CSS = `
     .concerto-filter-bar select { width: 100%; text-overflow: ellipsis; }
     .concerto-tabs { width: 100%; }
     .concerto-tab-btn { flex: 1; justify-content: center; }
-    .concerto-key-task-row { flex-direction: column; align-items: flex-start; }
-    .concerto-modal-backdrop { padding: 0; }
-    .concerto-canvas-modal { border-radius: 0; border: 0; }
+    .concerto-key-task-row { flex-direction: column; align-items: flex-start; gap: var(--cc-space-1); }
+    .concerto-hero-status { gap: var(--cc-space-2); }
     .concerto-sprite-meta { max-width: 150px; }
+  }
+  @container concerto (max-width: 380px) {
+    .concerto-hero-title .concerto-live-dot { font-size: 0; gap: 0; }
+    .concerto-progress-bar { min-width: 70px; }
+  }
+  @container concerto-drawer (max-width: 400px) {
+    .concerto-drawer-head { padding: var(--cc-space-3); }
+    .concerto-drawer-tabs { padding-inline: var(--cc-space-3); }
+    .concerto-card-head { align-items: flex-start; }
+  }
+  @media (max-width: 600px) {
+    .concerto-canvas-modal { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; }
   }
   @media (max-width: 600px) { .concerto-panel { top: 56px; right: 16px; max-height: calc(100dvh - 280px); } }
 `;
@@ -2030,18 +2595,376 @@ function useTeamCss() {
   }, []);
 }
 
-// packages/dsh-concerto/src/client/components/Panels.js
-var CAP_TONE_VAR = {
-  ok: "var(--cc-state-done)",
-  warn: "var(--cc-state-attention)",
-  danger: "var(--cc-state-blocked)",
-  neutral: "var(--cc-text-secondary)"
+// packages/dsh-concerto/src/client/components/UiIcon.js
+var STATUS_ICON = {
+  running: "refresh",
+  in_progress: "refresh",
+  waiting_input: "attention",
+  waiting_approval: "attention",
+  attention: "attention",
+  review: "review",
+  completed: "check",
+  done: "check",
+  blocked: "blocked",
+  failed: "blocked",
+  unknown: "unknown",
+  idle: "idle",
+  pending: "idle",
+  \u534F\u8C03: "music"
 };
+function iconChildren(name, filled) {
+  const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" };
+  switch (name) {
+    case "close":
+      return [h("path", { key: "p", ...stroke, d: "M4 4l8 8M12 4l-8 8" })];
+    case "check":
+      return [h("path", { key: "p", ...stroke, d: "M3 8.5l3 3L13 4.5" })];
+    case "refresh":
+      return [
+        h("path", { key: "a", ...stroke, d: "M13 5V2l-2 2a5.5 5.5 0 1 0 1.4 6" }),
+        h("path", { key: "b", ...stroke, d: "M10.5 2H13v2.5" })
+      ];
+    case "expand":
+      return [h("path", { key: "p", ...stroke, d: "M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4M2 6l4-4M14 6l-4-4M2 10l4 4M14 10l-4 4" })];
+    case "pin":
+      return [h("path", { key: "p", ...stroke, fill: filled ? "currentColor" : "none", d: "M5 2h6l-1 5 2.5 2.5v1h-9v-1L6 7V2zm3 8.5V14" })];
+    case "info":
+      return [
+        h("circle", { key: "c", ...stroke, cx: 8, cy: 8, r: 6 }),
+        h("path", { key: "p", ...stroke, d: "M8 7v4M8 4.5v.5" })
+      ];
+    case "attention":
+      return [h("circle", { key: "c", cx: 8, cy: 8, r: 4, fill: "currentColor" })];
+    case "review":
+      return [
+        h("circle", { key: "c", ...stroke, cx: 8, cy: 8, r: 6 }),
+        h("path", { key: "p", d: "M8 2a6 6 0 0 1 0 12z", fill: "currentColor" })
+      ];
+    case "blocked":
+      return [
+        h("circle", { key: "c", ...stroke, cx: 8, cy: 8, r: 6 }),
+        h("path", { key: "p", ...stroke, d: "M8 4v5M8 11.5v.5" })
+      ];
+    case "unknown":
+      return [
+        h("circle", { key: "c", ...stroke, cx: 8, cy: 8, r: 6 }),
+        h("path", { key: "p", ...stroke, d: "M6 6a2 2 0 0 1 4 0c0 1.5-2 1.5-2 3M8 11v.5" })
+      ];
+    case "idle":
+      return [h("circle", { key: "c", ...stroke, cx: 8, cy: 8, r: 5 })];
+    case "music":
+      return [h("path", { key: "p", ...stroke, d: "M6 11V3l7-1v8M6 6l7-1" }), h("circle", { key: "a", ...stroke, cx: 4.5, cy: 11.5, r: 1.5 }), h("circle", { key: "b", ...stroke, cx: 11.5, cy: 10.5, r: 1.5 })];
+    case "checkbox":
+      return [h("rect", { key: "r", ...stroke, x: 2.5, y: 2.5, width: 11, height: 11, rx: 2 })];
+    case "checkbox-checked":
+    case "checklist":
+      return [h("rect", { key: "r", ...stroke, x: 2.5, y: 2.5, width: 11, height: 11, rx: 2 }), h("path", { key: "p", ...stroke, d: "M5 8l2 2 4-5" })];
+    case "table":
+      return [h("rect", { key: "r", ...stroke, x: 2, y: 3, width: 12, height: 10, rx: 1 }), h("path", { key: "p", ...stroke, d: "M2 7h12M6 3v10M10 3v10" })];
+    case "mindmap":
+      return [h("circle", { key: "a", ...stroke, cx: 4, cy: 8, r: 2 }), h("circle", { key: "b", ...stroke, cx: 12, cy: 4, r: 2 }), h("circle", { key: "c", ...stroke, cx: 12, cy: 12, r: 2 }), h("path", { key: "p", ...stroke, d: "M6 8h2a2 2 0 0 0 2-2M6 8h2a2 2 0 0 1 2 2" })];
+    case "diagram":
+      return [h("path", { key: "p", ...stroke, d: "M2 8h10M9 4l4 4-4 4" })];
+    case "board":
+      return [h("path", { key: "p", ...stroke, d: "M3 11l8-8 2 2-8 8H3v-2zm7-7 2 2M3 14h10" })];
+    case "html":
+      return [h("rect", { key: "r", ...stroke, x: 2, y: 2, width: 12, height: 12, rx: 2 }), h("path", { key: "p", ...stroke, d: "M6 6L4 8l2 2M10 6l2 2-2 2" })];
+    default:
+      return [h("circle", { key: "c", ...stroke, cx: 8, cy: 8, r: 5 })];
+  }
+}
+function UiIcon({ name, size = 16, filled = false, className = "" }) {
+  return h("svg", {
+    className: `concerto-icon ${className}`.trim(),
+    width: size,
+    height: size,
+    viewBox: "0 0 16 16",
+    "aria-hidden": "true",
+    focusable: "false"
+  }, iconChildren(name, filled));
+}
+function StatusIcon({ status, size = 16 }) {
+  return h(UiIcon, { name: STATUS_ICON[status] || "idle", size });
+}
+function StateChip({ status, text, className = "" }) {
+  const meta = STATE_META[status] || STATE_META.idle;
+  return h(
+    "span",
+    { className: `concerto-state-chip ${meta.cls} ${className}`.trim() },
+    h(StatusIcon, { status }),
+    h("span", null, text || meta.label)
+  );
+}
+
+// packages/dsh-concerto/src/client/components/TaskInspectorDialog.js
+var import_react4 = __toESM(require_react(), 1);
+var import_react_dom = __toESM(require_react_dom(), 1);
+
+// packages/dsh-concerto/src/client/components/overlay.js
+var import_react3 = __toESM(require_react(), 1);
+function useModalDialog(dialogRef, onClose, active = true) {
+  const closeRef = import_react3.default.useRef(onClose);
+  closeRef.current = onClose;
+  import_react3.default.useEffect(() => {
+    if (!active) return;
+    const dialog = dialogRef.current;
+    const closed = () => {
+      if (!dialog.open) closeRef.current?.();
+    };
+    dialog.addEventListener("close", closed);
+    const outside = (event) => {
+      const r = dialog.getBoundingClientRect();
+      return event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom;
+    };
+    let pressedOutside = false;
+    const pointerDown = (event) => {
+      pressedOutside = outside(event);
+    };
+    const pointerUp = (event) => {
+      if (pressedOutside && outside(event)) dialog.close();
+    };
+    if (!("closedBy" in dialog)) {
+      dialog.addEventListener("pointerdown", pointerDown);
+      dialog.addEventListener("pointerup", pointerUp);
+    }
+    dialog.showModal();
+    return () => {
+      dialog.removeEventListener("close", closed);
+      dialog.removeEventListener("pointerdown", pointerDown);
+      dialog.removeEventListener("pointerup", pointerUp);
+      dialog.close();
+    };
+  }, [active]);
+}
+
+// packages/dsh-concerto/src/client/components/TaskInspectorDialog.js
+function InspectorDialog({ title, onClose, className = "", dialogProps = {}, children }) {
+  useTeamCss();
+  const hostTheme = useHostTheme();
+  const dialogRef = import_react4.default.useRef(null);
+  useModalDialog(dialogRef, onClose);
+  const dialog = h("dialog", {
+    ref: dialogRef,
+    className: `concerto-drawer concerto-surface ${className}`.trim(),
+    "data-concerto-theme": hostTheme.colorScheme,
+    closedby: "any",
+    ...dialogProps,
+    "aria-label": title,
+    style: hostTheme.cssVars
+  }, children);
+  return typeof document !== "undefined" && document.body ? (0, import_react_dom.createPortal)(dialog, document.body) : dialog;
+}
+function TaskInspectorDialog({ title, onClose, children }) {
+  return h(InspectorDialog, {
+    title: `\u4EFB\u52A1\u8BE6\u60C5\uFF1A${title}`,
+    onClose,
+    className: "concerto-task-inspector-dialog",
+    dialogProps: { "data-concerto-task-inspector-dialog": "true" }
+  }, h("div", { className: "concerto-drawer-body" }, children));
+}
+
+// packages/dsh-concerto/src/client/components/MemberSprite.js
+var MEMBER_PALETTE = [
+  "var(--dsw-static-blue-400, var(--cc-fb-member-1))",
+  "var(--dsw-static-violet-400, var(--cc-fb-member-2))",
+  "var(--dsw-static-green-400, var(--cc-fb-member-3))",
+  "var(--dsw-static-red-400, var(--cc-fb-member-4))",
+  "var(--dsw-static-amber-400, var(--cc-fb-member-5))",
+  "var(--dsw-static-blue-500, var(--cc-fb-member-6))"
+];
+function memberColor(id) {
+  let hash = 0;
+  for (const ch of String(id || "m")) {
+    hash = hash * 31 + ch.codePointAt(0) >>> 0;
+  }
+  return MEMBER_PALETTE[hash % MEMBER_PALETTE.length];
+}
+function stateRingColor(state) {
+  if (state === "running" || state === "\u534F\u8C03") return "var(--cc-state-running)";
+  if (state === "waiting_input" || state === "waiting_approval" || state === "attention") return "var(--cc-state-attention)";
+  if (state === "review") return "var(--cc-state-review)";
+  if (state === "blocked" || state === "failed") return "var(--cc-state-blocked)";
+  if (state === "completed" || state === "done") return "var(--cc-state-done)";
+  if (state === "unknown") return "var(--cc-state-unknown)";
+  return "var(--cc-border)";
+}
+function resolveInstrument(member) {
+  if (member?.instrument) return member.instrument;
+  if (member?.roleKind === "reviewer") return "magnifier";
+  if (member?.roleKind === "writer" || /writer|author|doc/i.test(String(member?.role || member?.id || ""))) return "quill";
+  const hash = Array.from(String(member?.id || "w")).reduce((s, ch) => s + ch.codePointAt(0), 0);
+  const instruments = ["keyboard", "violin", "quill"];
+  return instruments[hash % instruments.length];
+}
+function MemberGlyph({ member, state = "idle", size = 32 }) {
+  const color = member?.roleKind === "commander" ? "var(--cc-accent)" : memberColor(member?.id);
+  const ring = stateRingColor(state);
+  const instrument = resolveInstrument(member);
+  const isRunning = state === "running" || state === "\u534F\u8C03";
+  const CONNECTOR_BADGE = { antigravity: "A", claude: "C", codex: "C", gemini: "G", opencode: "O" };
+  const sourceBadge = member?.connector ? CONNECTOR_BADGE[member.connector] || "W" : member?.source === "hosted" ? "D" : "W";
+  return h(
+    "svg",
+    {
+      className: "concerto-pixel",
+      width: size,
+      height: size,
+      viewBox: "0 0 64 64",
+      "aria-hidden": true,
+      style: { flex: "none" }
+    },
+    h("circle", {
+      cx: 32,
+      cy: 32,
+      r: 28,
+      fill: "none",
+      stroke: ring,
+      strokeWidth: 2.5,
+      className: isRunning ? "concerto-halo-pulse" : void 0,
+      strokeDasharray: state === "unknown" ? "4 3" : void 0
+    }),
+    h("circle", { cx: 32, cy: 34, r: 16, fill: color }),
+    h("circle", { cx: 26.5, cy: 32, r: 2.8, fill: "var(--cc-fb-ink-dark)" }),
+    h("circle", { cx: 27.2, cy: 31.2, r: 1, fill: "var(--cc-fb-ink-light)" }),
+    h("circle", { cx: 37.5, cy: 32, r: 2.8, fill: "var(--cc-fb-ink-dark)" }),
+    h("circle", { cx: 38.2, cy: 31.2, r: 1, fill: "var(--cc-fb-ink-light)" }),
+    h("path", {
+      d: "M28 38.5 Q32 41.5 36 38.5",
+      fill: "none",
+      stroke: "var(--cc-fb-ink-dark)",
+      strokeWidth: 1.8,
+      strokeLinecap: "round"
+    }),
+    member?.roleKind === "commander" ? h(
+      "g",
+      null,
+      h("path", { d: "M21 20 L43 20 L40 12 L24 12 Z", fill: "var(--cc-fb-hat-fill)", stroke: color, strokeWidth: 1.5 }),
+      h("line", { x1: 48, y1: 36, x2: 57, y2: 20, stroke: "var(--cc-fb-gold-highlight)", strokeWidth: 2, strokeLinecap: "round" }),
+      h("circle", { cx: 57.5, cy: 19.5, r: 2, fill: "var(--cc-fb-ink-light)" })
+    ) : instrument === "keyboard" ? h(
+      "g",
+      null,
+      h("rect", { x: 14, y: 45, width: 24, height: 9, rx: 2, fill: "var(--cc-fb-ink-dark)", stroke: "var(--cc-fb-slate-stroke)", strokeWidth: 1.2 }),
+      h("line", { x1: 18, y1: 49.5, x2: 34, y2: 49.5, stroke: "var(--cc-fb-slate-muted)", strokeDasharray: "2 2", strokeWidth: 2 })
+    ) : instrument === "violin" ? h(
+      "g",
+      null,
+      h("ellipse", { cx: 47, cy: 40, rx: 5, ry: 8, transform: "rotate(-20 47 40)", fill: "var(--cc-fb-gold-fill)", stroke: "var(--cc-fb-gold-highlight)", strokeWidth: 1.2 }),
+      h("line", { x1: 42, y1: 30, x2: 54, y2: 46, stroke: "var(--cc-fb-gold-soft)", strokeWidth: 1.4 })
+    ) : instrument === "quill" ? h(
+      "g",
+      null,
+      h("path", { d: "M43 47 C45 36, 52 28, 57 25 C55 33, 50 41, 43 47 Z", fill: "var(--cc-fb-ink-light)", stroke: "var(--cc-fb-sky-stroke)", strokeWidth: 1.3 }),
+      h("line", { x1: 41, y1: 49, x2: 55, y2: 27, stroke: "var(--cc-fb-sky-soft)", strokeWidth: 1.4, strokeLinecap: "round" })
+    ) : h(
+      "g",
+      null,
+      h("circle", { cx: 48, cy: 40, r: 6, fill: "none", stroke: "var(--cc-fb-slate-stroke)", strokeWidth: 1.8 }),
+      h("line", { x1: 52, y1: 45, x2: 57, y2: 50, stroke: "var(--cc-fb-slate-stroke)", strokeWidth: 2, strokeLinecap: "round" })
+    ),
+    h(
+      "g",
+      { transform: "translate(45,45)" },
+      h("circle", { cx: 8, cy: 8, r: 8, fill: "var(--cc-fb-ink-dark)", stroke: ring, strokeWidth: 1.5 }),
+      h("text", { x: 8, y: 11, textAnchor: "middle", fontSize: 9, fontWeight: 700, fill: "var(--cc-fb-ink-light)" }, sourceBadge)
+    )
+  );
+}
+function MemberSprite({ member, state, activityLine, count = 0, selected = false, onClick }) {
+  const subtitle = activityLine || label(state);
+  return h(
+    "button",
+    {
+      type: "button",
+      className: "concerto-sprite",
+      "data-state": state,
+      "data-concerto-member-id": member.id,
+      "aria-pressed": selected,
+      "aria-label": member.id + " \xB7 " + label(state) + (count ? " \xB7 " + count + " \u9879\u5F85\u529E" : ""),
+      onClick
+    },
+    h(MemberGlyph, { member, state, size: 32 }),
+    h(
+      "span",
+      { className: "concerto-sprite-meta" },
+      h("strong", null, member.id + (member.roleKind === "commander" ? " \xB7 \u6307\u6325\u8005" : "")),
+      h("small", { title: subtitle }, subtitle)
+    ),
+    count > 0 && h("span", {
+      className: "concerto-count-pill",
+      style: { background: "var(--cc-state-attention-bg)", color: "var(--cc-state-attention)" }
+    }, count)
+  );
+}
+
+// packages/dsh-concerto/src/client/components/Panels.js
+var ADJUDICATION_NOTES = {
+  confirm_failed: "\u7528\u6237\u9009\u62E9\uFF1A\u786E\u8BA4\u6267\u884C\u5DF2\u505C\u6B62",
+  retry_isolated: "\u7528\u6237\u9009\u62E9\uFF1A\u5728\u9694\u79BB\u5DE5\u4F5C\u533A\u91CD\u8BD5",
+  accept: "\u7528\u6237\u9009\u62E9\uFF1A\u63A5\u6536\u5DF2\u9A8C\u8BC1\u4EA4\u4ED8",
+  force_release: "\u7528\u6237\u786E\u8BA4\u98CE\u9669\u5E76\u5F3A\u5236\u89E3\u9664\u5DE5\u4F5C\u76EE\u5F55\u5360\u7528\uFF08\u672A\u53D6\u5F97\u540E\u7AEF\u505C\u6B62\u8BC1\u636E\uFF09"
+};
+function ForceReleaseDialog({ row, busy, onClose, onConfirm }) {
+  const descriptionId = import_react5.default.useId();
+  const [riskAccepted, setRiskAccepted] = import_react5.default.useState(false);
+  const cancelRef = import_react5.default.useRef(null);
+  import_react5.default.useEffect(() => {
+    cancelRef.current?.focus();
+  }, []);
+  return h(InspectorDialog, {
+    title: `\u5F3A\u5236\u89E3\u9664\u76EE\u5F55\u5360\u7528 \xB7 ${row.executionId}`,
+    onClose: () => {
+      if (!busy) onClose();
+    },
+    className: "concerto-force-release-dialog",
+    dialogProps: { "aria-describedby": descriptionId }
+  }, h(
+    "div",
+    { className: "concerto-drawer-body" },
+    h("h3", null, `\u786E\u8BA4\u5F3A\u5236\u89E3\u9664 ${row.executionId} \u7684\u76EE\u5F55\u5360\u7528\uFF1F`),
+    h(
+      "p",
+      { id: descriptionId },
+      `\u6240\u5C5E\u56E2\u961F\uFF1A${row.teamName || row.teamSessionId}\uFF08${row.teamSessionId}\uFF09`,
+      row.writeScope ? ` \xB7 \u5DE5\u4F5C\u76EE\u5F55\uFF1A${row.writeScope}` : "",
+      "\u3002\u8BE5\u64CD\u4F5C\u4E0D\u4F1A\u7B49\u5F85\u540E\u7AEF\u505C\u6B62\u8BC1\u636E\uFF1B\u5982\u679C\u539F\u6267\u884C\u4ECD\u5728\u8FD0\u884C\uFF0C\u53EF\u80FD\u5BFC\u81F4\u6587\u4EF6\u5E76\u53D1\u5199\u5165\u51B2\u7A81\u3002\u82E5\u6838\u5BF9\u53D1\u73B0\u4EE3\u7406\u4ECD\u5904\u4E8E\u6D3B\u8DC3\u72B6\u6001\uFF0C\u7CFB\u7EDF\u4ECD\u4F1A\u62D2\u7EDD\u91CA\u653E\u3002"
+    ),
+    h(
+      "label",
+      { className: "concerto-set-check" },
+      h("input", {
+        type: "checkbox",
+        checked: riskAccepted,
+        disabled: busy,
+        onChange: (e) => setRiskAccepted(e.target.checked)
+      }),
+      h("span", null, "\u6211\u5DF2\u786E\u8BA4\u539F\u4EFB\u52A1\u4E0D\u518D\u8FD0\u884C\u6216\u81EA\u884C\u627F\u62C5\u5E76\u53D1\u5199\u5165\u98CE\u9669\uFF0C\u5F3A\u5236\u91CA\u653E\u5DE5\u4F5C\u76EE\u5F55\u9501\u5B9A")
+    ),
+    h(
+      "div",
+      { className: "concerto-set-actions-buttons" },
+      h("button", { ref: cancelRef, type: "button", className: "concerto-btn", autoFocus: true, disabled: busy, onClick: onClose }, "\u53D6\u6D88"),
+      h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--danger",
+        disabled: busy || !riskAccepted,
+        onClick: onConfirm
+      }, "\u786E\u8BA4\u98CE\u9669\u5E76\u5F3A\u5236\u91CA\u653E")
+    )
+  ));
+}
+function DeliveryRecoveryNote({ delivery }) {
+  return h(
+    "p",
+    { className: "concerto-field-hint" },
+    `\u5DF2\u9A8C\u8BC1\u4EA4\u4ED8\uFF1A${delivery.artifactRefs.join("\u3001")}\u3002\u63A5\u6536\u540E\u539F\u5DE5\u4F5C\u533A\u7EE7\u7EED\u4FDD\u7559\u5360\u7528\uFF0C\u76F4\u5230\u6838\u5BF9\u5E76\u786E\u8BA4\u539F\u6267\u884C\u5DF2\u505C\u6B62\u3002`,
+    delivery.requiresReview && "\u786E\u8BA4\u505C\u6B62\u540E\u53EF\u7EE7\u7EED\u72EC\u7ACB\u5BA1\u67E5\u3002"
+  );
+}
 function RecoveryExecutionRow({ row, busy, onBusy, onDone, onError }) {
-  const [reason, setReason] = import_react3.default.useState("");
-  const [reviewed, setReviewed] = import_react3.default.useState(false);
-  const [recResult, setRecResult] = import_react3.default.useState(row.lastReconcile || null);
-  const ready = reason.trim().length > 0;
+  const [reviewed, setReviewed] = import_react5.default.useState(false);
+  const [forceOpen, setForceOpen] = import_react5.default.useState(false);
+  const [recResult, setRecResult] = import_react5.default.useState(row.lastReconcile || null);
   const isCrossRestart = row.isCurrentHostBoot === false;
   async function onReconcile() {
     onBusy(true);
@@ -2068,10 +2991,19 @@ function RecoveryExecutionRow({ row, busy, onBusy, onDone, onError }) {
         executionId: row.executionId,
         commandId: `rec-${row.executionId}-${action}-${Date.now()}`,
         action,
-        reason,
-        ...action === "retry_isolated" ? { externalEffectsReviewed: reviewed } : {}
+        reason: ADJUDICATION_NOTES[action],
+        ...action === "retry_isolated" ? { externalEffectsReviewed: reviewed } : {},
+        ...action === "accept" ? { resultId: row.recoverableDelivery.resultId } : {},
+        ...action === "force_release" ? { confirmUnverifiedRelease: true } : {}
       });
-      onDone(action === "retry_isolated" ? `\u5DF2\u5728\u9694\u79BB\u65B0\u76EE\u5F55\u5C31\u7EEA\uFF08\u539F\u5DE5\u4F5C\u533A\u4FDD\u7559\u6807\u8BB0\uFF09\uFF1A${out.retryCwd || ""}` : `\u5DF2\u786E\u8BA4\u540E\u7AEF\u505C\u6B62\u5E76\u91CA\u653E\u4EFB\u52A1 ${row.taskId}\uFF08\u72B6\u6001\uFF1A${out.state || "failed"}\uFF09`);
+      const messages = {
+        retry_isolated: `\u5DF2\u5728\u9694\u79BB\u65B0\u76EE\u5F55\u5C31\u7EEA\uFF08\u539F\u5DE5\u4F5C\u533A\u4FDD\u7559\u6807\u8BB0\uFF09\uFF1A${out.retryCwd || ""}`,
+        confirm_failed: `\u5DF2\u786E\u8BA4\u540E\u7AEF\u505C\u6B62\u5E76\u91CA\u653E\u539F\u5DE5\u4F5C\u533A\uFF08\u4EFB\u52A1\u72B6\u6001\uFF1A${out.state || "failed"}\uFF09`,
+        accept: "\u5DF2\u63A5\u6536\u4EA4\u4ED8\u3002\u8BF7\u5728\u4FDD\u7559\u5360\u7528\u7684\u5217\u8868\u4E2D\u7EE7\u7EED\u6838\u5BF9\u539F\u6267\u884C\u3002",
+        force_release: out.forcedUnverified === false ? `\u5DF2\u53D6\u5F97\u540E\u7AEF\u505C\u6B62\u8BC1\u636E\u5E76\u91CA\u653E\u539F\u5DE5\u4F5C\u533A\uFF08\u4EFB\u52A1\u72B6\u6001\uFF1A${out.state || "failed"}\uFF09` : `\u5DF2\u6309\u7528\u6237\u98CE\u9669\u786E\u8BA4\u5F3A\u5236\u89E3\u9664\u539F\u5DE5\u4F5C\u533A\u5360\u7528\uFF08\u4EFB\u52A1\u72B6\u6001\uFF1A${out.state || "failed"}\uFF09`
+      };
+      if (action === "force_release") setForceOpen(false);
+      onDone(messages[action]);
     } catch (e) {
       onError("\u6062\u590D\u64CD\u4F5C\u88AB\u62D2\u7EDD\uFF1A" + e.message);
     } finally {
@@ -2082,162 +3014,466 @@ function RecoveryExecutionRow({ row, busy, onBusy, onDone, onError }) {
     "div",
     {
       key: row.executionId,
-      className: "concerto-card",
-      style: { marginTop: 8, padding: "10px 12px" },
+      className: "concerto-set-item concerto-set-recovery",
       "data-concerto-recovery-exec": row.executionId
     },
     h(
       "div",
-      { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "space-between" } },
+      { className: "concerto-set-item-head" },
       h(
         "div",
-        { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } },
+        { className: "concerto-set-item-title" },
         h("strong", null, `${row.taskTitle || row.taskId}`),
         h("span", { className: "concerto-badge concerto-id" }, row.executionId),
         row.memberId && h("span", { className: "concerto-chip" }, row.memberId),
         row.connectorId && h("span", { className: "concerto-tag" }, row.connectorId),
-        isCrossRestart && h("span", { className: "concerto-tag", style: { color: "var(--cc-state-attention)" } }, "\u8DE8\u91CD\u542F\u5B64\u513F"),
+        isCrossRestart && h("span", { className: "concerto-state-chip concerto-state-attention" }, "\u8DE8\u91CD\u542F\u5B64\u513F"),
+        row.deliveryAccepted && h("span", { className: "concerto-tag" }, "\u5DF2\u63A5\u6536\u4EA4\u4ED8"),
         row.quarantined && h("span", { className: "concerto-tag" }, "\u539F\u5DE5\u4F5C\u533A\u5DF2\u9694\u79BB\u4FDD\u7559")
       ),
       h("button", { type: "button", className: "concerto-btn", disabled: busy, onClick: onReconcile }, "\u6838\u5BF9\u540E\u7AEF\u72B6\u6001")
     ),
     h(
       "div",
-      { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", marginTop: 4 } },
-      `\u56E2\u961F\u8FD0\u884C\uFF1A${row.teamName || row.teamSessionId} (${row.teamSessionId}) \xB7 \u539F\u6307\u6325\u4F1A\u8BDD\uFF1A${row.originalCommanderSessionAlive ? "\u5728\u7EBF" : "\u672A\u52A0\u8F7D\uFF08\u91CD\u542F/\u5173\u95ED\u540E\u4E0D\u963B\u65AD\u6062\u590D\uFF09"}`
+      { className: "concerto-set-meta" },
+      h("span", null, `\u56E2\u961F\u8FD0\u884C\uFF1A${row.teamName || row.teamSessionId} (${row.teamSessionId})`),
+      h("span", null, `\u539F\u6307\u6325\u4F1A\u8BDD\uFF1A${row.originalCommanderSessionAlive ? "\u5728\u7EBF" : "\u672A\u52A0\u8F7D\uFF08\u91CD\u542F/\u5173\u95ED\u540E\u4E0D\u963B\u65AD\u6062\u590D\uFF09"}`)
     ),
     row.writeScope && h(
       "div",
-      { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", marginTop: 2, overflowWrap: "anywhere" } },
-      `\u5360\u7528\u5DE5\u4F5C\u76EE\u5F55\uFF1A${row.writeScope}${row.sandbox ? ` \xB7 \u6C99\u76D2\uFF1A${row.sandbox}` : ""}`
+      { className: "concerto-set-meta" },
+      h("span", { className: "concerto-set-path" }, `\u5360\u7528\u5DE5\u4F5C\u76EE\u5F55\uFF1A${row.writeScope}${row.sandbox ? ` \xB7 \u6C99\u76D2\uFF1A${row.sandbox}` : ""}`)
     ),
-    row.unknownReason && h(
+    row.retryCwd && h(
       "div",
-      { style: { fontSize: "var(--cc-fs-meta)", marginTop: 4, color: "var(--cc-state-blocked)" } },
-      `\u963B\u585E\u539F\u56E0\uFF1A${row.unknownReason}`
+      { className: "concerto-set-meta" },
+      h("span", { className: "concerto-set-path" }, `\u9694\u79BB\u65B0\u76EE\u5F55\uFF1A${row.retryCwd}`)
     ),
+    row.unknownReason && h("div", { className: "concerto-set-reason" }, `\u963B\u585E\u539F\u56E0\uFF1A${row.unknownReason}`),
     recResult && h("div", {
       role: "status",
-      style: {
-        fontSize: "var(--cc-fs-caption)",
-        marginTop: 6,
-        padding: "4px 8px",
-        borderRadius: "var(--cc-radius-ctrl)",
-        background: "var(--cc-card-nested-bg)",
-        color: recResult.confirmedStopped ? "var(--cc-state-done)" : "var(--cc-state-attention)"
-      }
+      className: "concerto-set-result",
+      "data-ok": recResult.confirmedStopped ? "true" : "false"
     }, `\u6838\u5BF9\u7ED3\u8BBA\uFF1A${recResult.confirmedStopped ? "\u5DF2\u53D6\u5F97\u540E\u7AEF\u505C\u6B62\u8BC1\u636E" : "\u672A\u786E\u8BA4\u540E\u7AEF\u505C\u6B62\uFF08\u4E0D\u53EF\u91CA\u653E\u539F\u5DE5\u4F5C\u533A\uFF09"} \xB7 ${recResult.reason || ""}`),
-    h("textarea", {
-      value: reason,
-      disabled: busy,
-      rows: 2,
-      onChange: (e) => setReason(e.target.value),
-      placeholder: "\u586B\u5199\u672C\u5730\u6062\u590D\u539F\u56E0\uFF08\u5FC5\u586B\uFF09",
-      style: { ...styles.input, width: "100%", boxSizing: "border-box", marginTop: 6 }
-    }),
-    h(
+    row.recoverableDelivery && h(DeliveryRecoveryNote, { delivery: row.recoverableDelivery }),
+    !row.quarantined && h(
       "label",
-      { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 6, fontSize: "var(--cc-fs-caption)" } },
+      { className: "concerto-set-check" },
       h("input", { type: "checkbox", checked: reviewed, disabled: busy, onChange: (e) => setReviewed(e.target.checked) }),
-      "\u5DF2\u6838\u67E5\u5916\u90E8\u526F\u4F5C\u7528\uFF08\u9694\u79BB\u65B0\u76EE\u5F55\u6062\u590D\u5FC5\u586B\uFF1B\u9002\u7528\u4E8E Codex \u53D7\u9650\u6C99\u76D2\u53CA Hosted \u975E\u5371\u9669\u6210\u5458\uFF09"
+      h("span", null, "\u5DF2\u6838\u67E5\u5916\u90E8\u526F\u4F5C\u7528\uFF08\u9694\u79BB\u65B0\u76EE\u5F55\u6062\u590D\u5FC5\u586B\uFF1B\u9002\u7528\u4E8E\u5916\u90E8\u8FDE\u63A5\u5668\u53D7\u9650\u6C99\u76D2\u53CA Hosted \u975E\u5371\u9669\u6210\u5458\uFF09")
     ),
     h(
       "div",
-      { style: { display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "flex-end" } },
+      { className: "concerto-set-actions-buttons" },
       h("button", {
         type: "button",
         className: "concerto-btn concerto-btn--ghost",
-        disabled: busy || !ready,
+        disabled: busy,
         onClick: () => onAdjudicate("confirm_failed")
       }, "\u786E\u8BA4\u5DF2\u505C\u6B62\u5E76\u91CA\u653E"),
-      h("button", {
+      row.recoverableDelivery && h("button", {
+        type: "button",
+        className: "concerto-btn",
+        disabled: busy,
+        onClick: () => onAdjudicate("accept")
+      }, "\u63A5\u6536\u5DF2\u9A8C\u8BC1\u4EA4\u4ED8"),
+      !row.quarantined && h("button", {
         type: "button",
         className: "concerto-btn concerto-btn--primary",
-        disabled: busy || !ready || !reviewed,
+        disabled: busy || !reviewed,
         onClick: () => onAdjudicate("retry_isolated")
-      }, "\u9694\u79BB\u76EE\u5F55\u6062\u590D")
+      }, "\u9694\u79BB\u76EE\u5F55\u6062\u590D"),
+      h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--danger",
+        "data-concerto-force-release": row.executionId,
+        disabled: busy,
+        onClick: () => setForceOpen(true)
+      }, "\u5F3A\u5236\u89E3\u9664\u76EE\u5F55\u5360\u7528\u2026")
+    ),
+    forceOpen && h(ForceReleaseDialog, {
+      row,
+      busy,
+      onClose: () => {
+        if (!busy) setForceOpen(false);
+      },
+      onConfirm: () => onAdjudicate("force_release")
+    })
+  );
+}
+function DispatchLimitFields({ limits, disabled = false }) {
+  const id = import_react5.default.useId();
+  return h(
+    "div",
+    null,
+    h("p", { id, className: "concerto-field-hint" }, "\u6309\u4EFB\u52A1\u8BA1\u7B97\uFF0C\u7559\u7A7A\u65F6\u4E0D\u9650\u3002\u6267\u884C\u6B21\u6570\u5305\u542B\u9996\u6B21\u6267\u884C\u3002"),
+    h(
+      "div",
+      { className: "concerto-set-grid" },
+      [
+        ["maxAttempts", "\u5355\u4EFB\u52A1\u6267\u884C\u4E0A\u9650", 1],
+        ["maxReworks", "\u5355\u4EFB\u52A1\u8FD4\u5DE5\u4E0A\u9650", 0]
+      ].map(([name, label2, min]) => h(
+        "div",
+        { key: name, className: "concerto-field" },
+        h("label", { htmlFor: `${id}-${name}` }, label2),
+        h("input", {
+          id: `${id}-${name}`,
+          name,
+          type: "number",
+          min,
+          max: Number.MAX_SAFE_INTEGER,
+          step: 1,
+          defaultValue: limits?.[name] ?? "",
+          disabled,
+          className: "concerto-input",
+          "aria-describedby": id
+        })
+      ))
     )
   );
+}
+function readDispatchLimitsForm(form) {
+  const data = new FormData(form);
+  const maxAttempts = data.get("maxAttempts");
+  const maxReworks = data.get("maxReworks");
+  return { maxAttempts: maxAttempts ? Number(maxAttempts) : null, maxReworks: maxReworks ? Number(maxReworks) : null };
+}
+var CONNECTION_MESSAGES = {
+  connector_missing: "\u8FDE\u63A5\u5668\u672A\u6CE8\u518C",
+  connector_unavailable: "\u8FDE\u63A5\u5668\u63E1\u624B\u5931\u8D25",
+  version_mismatch: "\u8FDE\u63A5\u5668\u63E1\u624B\u534F\u8BAE\u4E0D\u517C\u5BB9",
+  model_config_missing: "\u8BF7\u586B\u5199 provider \u548C model",
+  provider_missing: "DSH \u672A\u6CE8\u518C\u6B64 provider",
+  model_missing: "DSH \u6A21\u578B\u76EE\u5F55\u6CA1\u6709\u6B64 model",
+  host_catalog_unavailable: "\u6682\u65F6\u65E0\u6CD5\u68C0\u67E5 DSH \u6A21\u578B\u76EE\u5F55"
+};
+function ConnectionCheck({ label: label2, member, disabled }) {
+  const [check, setCheck] = import_react5.default.useState(null);
+  const key = JSON.stringify(member);
+  async function runCheck() {
+    setCheck({ key, pending: true, message: `${label2}\u68C0\u6D4B\u4E2D\u2026` });
+    try {
+      const result = await request2("/connection/check", { method: "POST", body: JSON.stringify({ member }) });
+      const summary = result.state === "reachable" ? "\u63E1\u624B\u6210\u529F" : result.state === "configured" ? "\u6A21\u578B\u5DF2\u767B\u8BB0\uFF0C\u5B9E\u9645\u8C03\u7528\u5F85\u9A8C\u8BC1" : CONNECTION_MESSAGES[result.reason] || "\u65E0\u6CD5\u786E\u8BA4\u8FDE\u63A5";
+      const detail = result.version || result.detail;
+      setCheck({ key, message: `${label2}\uFF1A${detail ? `${summary} \xB7 ${detail}` : summary}` });
+    } catch (error) {
+      setCheck({ key, message: `${label2}\u68C0\u6D4B\u5931\u8D25\uFF1A${error.message}` });
+    }
+  }
+  return h(
+    "div",
+    { className: "concerto-set-connection" },
+    h("button", {
+      type: "button",
+      className: "concerto-btn",
+      disabled: disabled || check?.pending,
+      "aria-label": `\u68C0\u6D4B\u8FDE\u63A5\uFF1A${label2}`,
+      onClick: runCheck
+    }, "\u68C0\u6D4B\u8FDE\u63A5"),
+    h("span", { className: "concerto-field-hint", role: "status", "aria-atomic": "true" }, check?.key === key ? check.message : "")
+  );
+}
+function requiredViewRef(view) {
+  return typeof view === "string" ? view : `${view.type}:${view.id}`;
+}
+function TeamDeleteDialog({ team, onClose, onConfirm }) {
+  const descriptionId = import_react5.default.useId();
+  return h(InspectorDialog, {
+    title: `\u5220\u9664\u56E2\u961F ${team.name}`,
+    onClose,
+    className: "concerto-team-delete-dialog",
+    dialogProps: { "aria-describedby": descriptionId }
+  }, h(
+    "div",
+    { className: "concerto-drawer-body" },
+    h("h3", null, `\u5220\u9664\u56E2\u961F\u300C${team.name}\u300D\uFF1F`),
+    h("p", { id: descriptionId }, "\u8FD0\u884C\u5386\u53F2\u4ECD\u53EF\u67E5\u770B\u3002\u70B9\u51FB\u300C\u91CD\u8F7D\u56E2\u961F\u300D\u540E\u5E94\u7528\u9884\u8BBE\u53D8\u66F4\u3002"),
+    h(
+      "div",
+      { className: "concerto-set-actions-buttons" },
+      h("button", { type: "button", className: "concerto-btn", autoFocus: true, onClick: onClose }, "\u53D6\u6D88"),
+      h("button", { type: "button", className: "concerto-btn concerto-btn--danger", onClick: onConfirm }, "\u786E\u8BA4\u5220\u9664")
+    )
+  ));
 }
 function ConcertoPanel() {
   useTeamCss();
   const hostTheme = useHostTheme();
-  const [teams, setTeams] = import_react3.default.useState([]);
-  const [runs, setRuns] = import_react3.default.useState([]);
-  const [unknowns, setUnknowns] = import_react3.default.useState([]);
-  const [name, setName] = import_react3.default.useState("My Team");
-  const [provider, setProvider] = import_react3.default.useState("x-ds");
-  const [model, setModel] = import_react3.default.useState("deepseek-v4.1-flash");
-  const [requiredViewsInput, setRequiredViewsInput] = import_react3.default.useState("");
-  const [launchCwd, setLaunchCwd] = import_react3.default.useState("");
-  const [membersDraft, setMembersDraft] = import_react3.default.useState([]);
-  const [hash, setHash] = import_react3.default.useState("");
-  const [status, setStatus] = import_react3.default.useState("");
-  const [busy, setBusy] = import_react3.default.useState(false);
-  const refresh = import_react3.default.useCallback(async () => {
+  const [teams, setTeams] = import_react5.default.useState([]);
+  const [connectors, setConnectors] = import_react5.default.useState([]);
+  const [llmProviders, setLlmProviders] = import_react5.default.useState([]);
+  const [runs, setRuns] = import_react5.default.useState([]);
+  const [projects, setProjects] = import_react5.default.useState([]);
+  const [projectId, setProjectId] = import_react5.default.useState("");
+  const [continuationTeamId, setContinuationTeamId] = import_react5.default.useState("");
+  const [unknowns, setUnknowns] = import_react5.default.useState([]);
+  const [editing, setEditing] = import_react5.default.useState(null);
+  const [deleteTarget, setDeleteTarget] = import_react5.default.useState(null);
+  const [draftRevision, setDraftRevision] = import_react5.default.useState(0);
+  const [name, setName] = import_react5.default.useState("My Team");
+  const [description, setDescription] = import_react5.default.useState("");
+  const [commanderSource, setCommanderSource] = import_react5.default.useState("hosted");
+  const [provider, setProvider] = import_react5.default.useState("x-ds");
+  const [model, setModel] = import_react5.default.useState("deepseek-v4.1-flash");
+  const [commanderBaseUrl, setCommanderBaseUrl] = import_react5.default.useState("");
+  const [commanderApiKey, setCommanderApiKey] = import_react5.default.useState("");
+  const [commanderConnector, setCommanderConnector] = import_react5.default.useState("antigravity");
+  const [requiredViewsInput, setRequiredViewsInput] = import_react5.default.useState("");
+  const [verificationCommand, setVerificationCommand] = import_react5.default.useState("");
+  const [launchCwd, setLaunchCwd] = import_react5.default.useState("");
+  const [membersDraft, setMembersDraft] = import_react5.default.useState([]);
+  const [selectedStageNode, setSelectedStageNode] = import_react5.default.useState(null);
+  const [hash, setHash] = import_react5.default.useState("");
+  const [status, setStatus] = import_react5.default.useState("");
+  const [busy, setBusy] = import_react5.default.useState(false);
+  const nameInput = import_react5.default.useRef(null);
+  const focusName = import_react5.default.useRef(false);
+  const unnamedTeamId = import_react5.default.useRef(null);
+  const pendingWrite = import_react5.default.useRef(null);
+  const refresh = import_react5.default.useCallback(async () => {
     try {
-      const [teamsRes, runsRes, unkRes] = await Promise.allSettled([
-        request("/teams"),
+      const [teamsRes, runsRes, unkRes, connRes, llmRes] = await Promise.allSettled([
+        request2("/teams"),
         fetchRuns(),
-        fetchUnknownExecutions()
+        fetchUnknownExecutions(),
+        request2("/connectors"),
+        request2("/llm/catalog")
       ]);
       if (teamsRes.status === "fulfilled") setTeams(teamsRes.value?.teams ?? []);
       else setStatus("\u8BFB\u53D6\u56E2\u961F\u5931\u8D25\uFF1A" + teamsRes.reason?.message);
-      if (runsRes.status === "fulfilled") setRuns(runsRes.value?.runs ?? []);
+      if (runsRes.status === "fulfilled") {
+        setRuns(runsRes.value?.runs ?? []);
+        setProjects(runsRes.value?.projects ?? []);
+      } else if (teamsRes.status === "fulfilled") setStatus("\u8BFB\u53D6\u9879\u76EE\u548C\u8FD0\u884C\u5931\u8D25\uFF1A" + runsRes.reason?.message);
       if (unkRes.status === "fulfilled") setUnknowns(unkRes.value?.runs ?? []);
+      if (connRes.status === "fulfilled" && Array.isArray(connRes.value?.connectors)) {
+        setConnectors(connRes.value.connectors);
+        request2("/connectors?probe=1").then((probed) => {
+          if (Array.isArray(probed?.connectors)) setConnectors(probed.connectors);
+        }).catch(() => {
+        });
+      }
+      if (llmRes.status === "fulfilled" && Array.isArray(llmRes.value?.providers)) {
+        setLlmProviders(llmRes.value.providers);
+      }
     } catch (e) {
       setStatus("\u8BFB\u53D6\u5931\u8D25\uFF1A" + e.message);
     }
   }, []);
-  import_react3.default.useEffect(() => {
+  import_react5.default.useEffect(() => {
     refresh();
   }, [refresh]);
-  function addMemberDraft() {
-    const idx = membersDraft.length + 1;
+  import_react5.default.useEffect(() => {
+    if (!busy && focusName.current) {
+      focusName.current = false;
+      nameInput.current?.focus();
+    }
+  }, [busy, draftRevision]);
+  function loadDraft(record) {
+    const team = record?.team;
+    const cmd = team?.commander;
+    setEditing(record);
+    setName(team?.name ?? "My Team");
+    setDescription(team?.description ?? "");
+    setCommanderSource(cmd?.source || "hosted");
+    setProvider(cmd ? cmd.provider ?? "" : "x-ds");
+    setModel(cmd ? cmd.model ?? "" : "deepseek-v4.1-flash");
+    setCommanderBaseUrl(cmd?.baseUrl ?? "");
+    setCommanderApiKey(cmd?.apiKey ?? "");
+    setCommanderConnector(cmd?.connector || connectors[0]?.id || "antigravity");
+    setMembersDraft(team?.members ?? []);
+    setSelectedStageNode(null);
+    setRequiredViewsInput((team?.requiredViews ?? []).map(requiredViewRef).join(", "));
+    setVerificationCommand(team?.verificationCommand ?? "");
+    setDraftRevision((version) => version + 1);
+    unnamedTeamId.current = null;
+    pendingWrite.current = null;
+  }
+  async function onEditTeam(teamId) {
+    setBusy(true);
+    setStatus("\u8BFB\u53D6\u56E2\u961F\u914D\u7F6E\u4E2D\u2026");
+    try {
+      const params = new URLSearchParams({ teamId });
+      const record = await request2(`/teams?${params}`);
+      focusName.current = true;
+      loadDraft(record);
+      setStatus("");
+    } catch (error) {
+      setStatus("\u8BFB\u53D6\u56E2\u961F\u914D\u7F6E\u5931\u8D25\uFF1A" + error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function writeTeam(method, payload) {
+    const key = JSON.stringify([method, payload]);
+    if (pendingWrite.current?.key !== key) pendingWrite.current = { key, id: crypto.randomUUID() };
+    const response = await request2("/teams", {
+      method,
+      body: JSON.stringify({ ...payload, requestId: pendingWrite.current.id })
+    });
+    pendingWrite.current = null;
+    return response;
+  }
+  function showWriteResult(result, message) {
+    setHash(result.generatedHash || result.expectedHash || "");
+    if (result.generationError?.length) {
+      const detail = result.generationError.map((error) => error.detail || error.code).join("\uFF1B");
+      setStatus(`${message}\uFF0C\u9884\u8BBE\u751F\u6210\u5931\u8D25\uFF1A${detail}${result.expectedHash ? "\u3002\u53EF\u70B9\u51FB\u300C\u91CD\u8F7D\u56E2\u961F\u300D\u91CD\u8BD5\u3002" : ""}`);
+    } else {
+      setStatus(result.generatedHash ? `${message}\uFF0C\u70B9\u51FB\u300C\u91CD\u8F7D\u56E2\u961F\u300D\u5E94\u7528\u9884\u8BBE\u53D8\u66F4` : message);
+    }
+  }
+  async function onWriteError(error, message) {
+    if (error.status === 409 || error.status === 404) {
+      setStatus(`${message}\uFF1A\u56E2\u961F\u914D\u7F6E\u5DF2\u53D8\u5316\u3002\u8349\u7A3F\u5DF2\u4FDD\u7559\uFF0C\u8BF7\u4ECE\u5217\u8868\u91CD\u65B0\u8BFB\u53D6\u6700\u65B0\u914D\u7F6E\u3002`);
+      await refresh();
+    } else {
+      setStatus(`${message}\uFF1A${error.message}`);
+    }
+  }
+  import_react5.default.useEffect(() => {
+    if (!selectedStageNode) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setSelectedStageNode(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedStageNode]);
+  function applyStageTemplate(kind) {
+    const readyExternal = connectors.find((c) => c.protocol !== "web" && c.probe?.ok)?.id || connectors[0]?.id || "antigravity";
+    if (kind === "solo") {
+      setName((cur) => cur && cur !== "My Team" ? cur : "Solo Strike");
+      setMembersDraft([
+        { id: "worker-1", source: "external", connector: readyExternal, roleKind: "worker", toolProfile: "coding", provider, model }
+      ]);
+      setSelectedStageNode("member:0");
+    } else if (kind === "duo") {
+      setName((cur) => cur && cur !== "My Team" ? cur : "Dual Core Team");
+      setMembersDraft([
+        { id: "worker-1", source: "hosted", connector: readyExternal, roleKind: "worker", toolProfile: "coding", provider, model },
+        { id: "worker-2", source: "external", connector: readyExternal, roleKind: "worker", toolProfile: "coding", provider, model },
+        { id: "reviewer-1", source: "hosted", connector: readyExternal, roleKind: "reviewer", toolProfile: "readonly", provider, model }
+      ]);
+      setSelectedStageNode("commander");
+    } else if (kind === "hetero") {
+      setName((cur) => cur && cur !== "My Team" ? cur : "Heterogeneous Orchestra");
+      setMembersDraft([
+        { id: "worker-agy", source: "external", connector: "antigravity", roleKind: "worker", toolProfile: "coding", provider, model },
+        { id: "worker-claude", source: "external", connector: "claude", roleKind: "worker", toolProfile: "coding", provider, model },
+        { id: "reviewer-1", source: "hosted", connector: readyExternal, roleKind: "reviewer", toolProfile: "readonly", provider, model }
+      ]);
+      setSelectedStageNode("commander");
+    }
+  }
+  function addMemberDraft(roleKind = "worker") {
+    const prefix = roleKind === "reviewer" ? "reviewer" : "worker";
+    const ids = new Set(membersDraft.map((member) => member.id));
+    let idx = membersDraft.filter((m) => m.roleKind === roleKind).length + 1;
+    while (ids.has(`${prefix}-${idx}`)) idx++;
+    const defaultConnector = connectors[0]?.id || "antigravity";
+    const nextIdx = membersDraft.length;
     setMembersDraft([
       ...membersDraft,
-      { id: `worker-${idx}`, source: "hosted", connector: "codex", roleKind: "worker", toolProfile: "coding", provider, model }
+      {
+        id: `${prefix}-${idx}`,
+        source: "hosted",
+        connector: defaultConnector,
+        roleKind,
+        toolProfile: roleKind === "reviewer" ? "readonly" : "coding",
+        provider,
+        model
+      }
     ]);
+    setSelectedStageNode(`member:${nextIdx}`);
   }
   function updateMemberDraft(index, patch) {
     setMembersDraft(membersDraft.map((m, i) => i === index ? { ...m, ...patch } : m));
   }
   function removeMemberDraft(index) {
     setMembersDraft(membersDraft.filter((_, i) => i !== index));
+    setSelectedStageNode(null);
   }
-  async function onSave() {
+  function cloneMemberDraft(index) {
+    const src = membersDraft[index];
+    if (!src) return;
+    const prefix = src.roleKind === "reviewer" ? "reviewer" : "worker";
+    const ids = new Set(membersDraft.map((m) => m.id));
+    let n = membersDraft.filter((m) => m.roleKind === src.roleKind).length + 1;
+    while (ids.has(`${prefix}-${n}`)) n++;
+    const copy = { ...src, id: `${prefix}-${n}` };
+    const next = [...membersDraft];
+    next.splice(index + 1, 0, copy);
+    setMembersDraft(next);
+    setSelectedStageNode(`member:${index + 1}`);
+  }
+  async function onSave(event) {
+    event.preventDefault();
+    const dispatchLimits = readDispatchLimitsForm(event.currentTarget);
     setBusy(true);
     setStatus("\u4FDD\u5B58\u4E2D\u2026");
     try {
-      const teamId = toTeamId(name);
-      const parsedRequiredViews = requiredViewsInput.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean);
-      const normalizedMembers = membersDraft.filter((m) => typeof m.id === "string" && m.id.trim() !== "").map((m) => ({
-        id: m.id.trim(),
-        source: m.source === "external" ? "external" : "hosted",
-        roleKind: m.roleKind === "reviewer" ? "reviewer" : "worker",
-        ...m.source === "external" ? { connector: (m.connector || "codex").trim() } : {
-          provider: (m.provider || provider).trim(),
-          model: (m.model || model).trim(),
-          toolProfile: ["coding", "readonly", "none"].includes(m.toolProfile) ? m.toolProfile : "coding"
-        }
+      const previous = editing?.team;
+      const draftId = toTeamId(name).slice(0, 64).replace(/-$/, "");
+      const teamId = previous?.id || draftId || (unnamedTeamId.current ??= `team-${crypto.randomUUID()}`);
+      const savedViews = new Map((previous?.requiredViews ?? []).map((view) => [requiredViewRef(view), view]));
+      const parsedRequiredViews = requiredViewsInput.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean).map((ref) => savedViews.get(ref) ?? ref);
+      const normalizedMembers = membersDraft.filter((m) => typeof m.id === "string" && m.id.trim() !== "").map(({ provider: workerProvider, model: workerModel, connector, toolProfile, baseUrl, apiKey, ...member }) => ({
+        ...member,
+        id: member.id.trim(),
+        ...member.source === "hosted" ? { provider: workerProvider?.trim() || void 0, model: workerModel?.trim() || void 0, toolProfile } : member.source === "api" ? { baseUrl: (baseUrl || "").trim(), apiKey: (apiKey || "").trim() || void 0, model: (workerModel || "").trim() } : { connector: (connector || "antigravity").trim() }
       }));
-      const body = await request("/teams", {
-        method: "POST",
-        body: JSON.stringify({
-          team: {
-            id: teamId,
-            name,
-            commander: { id: "commander", source: "hosted", provider, model },
-            members: normalizedMembers,
-            ...parsedRequiredViews.length > 0 ? { requiredViews: parsedRequiredViews } : {}
-          }
-        })
-      });
-      setHash(body.generatedHash || "");
-      setStatus("\u5DF2\u4FDD\u5B58 v" + body.configVersion + "\uFF0C\u751F\u6210\u5B8C\u6210\uFF1B\u70B9\u300C\u91CD\u8F7D\u56E2\u961F\u300D\u4F7F\u5176\u751F\u6548");
+      const commanderConfig = commanderSource === "api" ? {
+        id: previous?.commander?.id || "commander",
+        source: "api",
+        baseUrl: commanderBaseUrl.trim(),
+        apiKey: commanderApiKey.trim() || void 0,
+        model: model.trim()
+      } : commanderSource === "external" ? {
+        id: previous?.commander?.id || "commander",
+        source: "external",
+        connector: (commanderConnector || connectors[0]?.id || "antigravity").trim()
+      } : {
+        id: "commander",
+        ...previous?.commander,
+        source: "hosted",
+        provider: provider.trim() || void 0,
+        model: model.trim() || void 0
+      };
+      const team = {
+        ...previous,
+        id: teamId,
+        name: name.trim(),
+        description: description.trim() || void 0,
+        commander: commanderConfig,
+        members: normalizedMembers,
+        requiredViews: parsedRequiredViews.length > 0 ? parsedRequiredViews : void 0,
+        dispatchLimits: dispatchLimits.maxAttempts !== null || dispatchLimits.maxReworks !== null ? dispatchLimits : void 0,
+        verificationCommand: verificationCommand.trim() || void 0
+      };
+      const body = await writeTeam("POST", { team, expectedConfigVersion: editing?.configVersion ?? 0 });
+      loadDraft({ team, configVersion: body.configVersion });
+      showWriteResult(body, `\u5DF2\u4FDD\u5B58 ${team.name} v${body.configVersion}`);
       await refresh();
-    } catch (e) {
-      setStatus("\u4FDD\u5B58\u5931\u8D25\uFF1A" + e.message);
+    } catch (error) {
+      await onWriteError(error, "\u4FDD\u5B58\u5931\u8D25");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function onDeleteTeam(target) {
+    setDeleteTarget(null);
+    setBusy(true);
+    setStatus("\u5220\u9664\u56E2\u961F\u914D\u7F6E\u4E2D\u2026");
+    try {
+      const body = await writeTeam("DELETE", { teamId: target.id, expectedConfigVersion: target.configVersion });
+      if (editing?.team.id === target.id) loadDraft(null);
+      showWriteResult(body, `\u5DF2\u5220\u9664\u56E2\u961F\u914D\u7F6E ${target.name}`);
+      await refresh();
+      focusName.current = true;
+    } catch (error) {
+      await onWriteError(error, "\u5220\u9664\u5931\u8D25");
     } finally {
       setBusy(false);
     }
@@ -2250,7 +3486,7 @@ function ConcertoPanel() {
     setBusy(true);
     setStatus("\u91CD\u8F7D\u4E2D\u2026");
     try {
-      const body = await request("/teams/reload", {
+      const body = await request2("/teams/reload", {
         method: "POST",
         body: JSON.stringify({ expectedHash: hash })
       });
@@ -2262,19 +3498,20 @@ function ConcertoPanel() {
       setBusy(false);
     }
   }
-  async function onLaunchTeam(teamId) {
+  async function onLaunchTeam(teamId, selectedProjectId) {
     setBusy(true);
-    setStatus("\u6B63\u5728\u5DE5\u4F5C\u533A\u521B\u5EFA\u56E2\u961F\u4F1A\u8BDD\u5E76\u6253\u5F00\u2026");
+    setStatus(selectedProjectId ? "\u6B63\u5728\u6253\u5F00\u9879\u76EE\u2026" : "\u6B63\u5728\u542F\u52A8\u65B0\u9879\u76EE\u2026");
     try {
       const launched = await launchTeamSession({
         teamId,
+        ...selectedProjectId ? { projectId: selectedProjectId } : {},
         ...launchCwd.trim() ? { cwd: launchCwd.trim() } : {}
       });
       const opened = await openHostSession(launched.sessionId, {
         teamSessionId: launched.teamSessionId,
         openTeamTab: true
       });
-      setStatus(opened.navigated ? `\u5DF2\u6253\u5F00\u56E2\u961F\u4F1A\u8BDD ${launched.sessionId}\uFF08\u5DE5\u4F5C\u76EE\u5F55\uFF1A${launched.cwd || "\u9ED8\u8BA4\u5DE5\u4F5C\u533A"}\uFF09` : `\u5DF2\u521B\u5EFA\u5DE5\u4F5C\u533A\u56E2\u961F\u4F1A\u8BDD ${launched.sessionId}\uFF08\u8FD0\u884C ${launched.teamSessionId}\uFF09\uFF0C\u8BF7\u5728\u4FA7\u680F\u5DE5\u4F5C\u533A\u4E2D\u6253\u5F00`);
+      setStatus(opened.navigated ? `\u5DF2\u6253\u5F00\u56E2\u961F\u4F1A\u8BDD ${launched.sessionId}\uFF08\u5DE5\u4F5C\u76EE\u5F55\uFF1A${launched.cwd || "\u9ED8\u8BA4\u5DE5\u4F5C\u533A"}\uFF09` : `\u56E2\u961F\u4F1A\u8BDD ${launched.sessionId}\uFF08\u8FD0\u884C ${launched.teamSessionId}\uFF09\u53EF\u4ECE\u4FA7\u680F\u5DE5\u4F5C\u533A\u6253\u5F00`);
       await refresh();
     } catch (e) {
       setStatus("\u542F\u52A8\u56E2\u961F\u4F1A\u8BDD\u5931\u8D25\uFF1A" + e.message);
@@ -2301,209 +3538,1116 @@ function ConcertoPanel() {
       setBusy(false);
     }
   }
+  const pendingUnknowns = unknowns.filter((r) => !r.quarantined);
+  const quarantinedUnknowns = unknowns.filter((r) => r.quarantined);
+  const recoveryRow = (row) => h(RecoveryExecutionRow, {
+    key: row.executionId,
+    row,
+    busy,
+    onBusy: setBusy,
+    onDone: async (msg) => {
+      setStatus(msg);
+      await refresh();
+    },
+    onError: setStatus
+  });
+  const statusTone = /失败|被拒绝|错误|缺少/.test(status) ? "error" : /中…$/.test(status) ? "busy" : "info";
+  const visibleRuns = runs.slice().reverse().slice(0, 8);
+  const selectedProject = projects.find((project) => project.projectId === projectId);
+  const needsTeam = selectedProject?.completed && !teams.some((team) => team.id === selectedProject.teamId);
+  const teamForContinuation = needsTeam ? teams.find((team) => team.id === continuationTeamId)?.id : selectedProject?.teamId;
   return h(
     "div",
-    { className: "concerto-surface", "data-concerto-theme": hostTheme.colorScheme, style: { ...styles.wrap, ...hostTheme.cssVars || {} } },
+    {
+      className: "concerto-surface concerto-settings",
+      "data-concerto-theme": hostTheme.colorScheme,
+      style: hostTheme.cssVars || void 0
+    },
     h(
-      "div",
-      { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
-      h("div", { style: styles.title }, "Concerto \u56E2\u961F"),
-      h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", disabled: busy, onClick: refresh }, "\u5237\u65B0\u72B6\u6001")
-    ),
-    h(
-      "div",
-      { style: styles.row },
-      h("input", { style: styles.input, value: name, onChange: (e) => setName(e.target.value), placeholder: "\u56E2\u961F\u540D" }),
-      h("input", { style: styles.input, value: provider, onChange: (e) => setProvider(e.target.value), placeholder: "provider" }),
-      h("input", { style: styles.input, value: model, onChange: (e) => setModel(e.target.value), placeholder: "model" }),
-      h("input", { style: styles.input, value: requiredViewsInput, onChange: (e) => setRequiredViewsInput(e.target.value), placeholder: "\u56FA\u5B9A\u89C6\u56FE\u8981\u6C42\uFF08\u53EF\u9009\uFF0C\u5982 mindmap:plan, checklist:accept\uFF09" }),
-      h("button", { className: "concerto-btn", disabled: busy, onClick: addMemberDraft }, "+ \u6DFB\u52A0\u6210\u5458"),
-      h("button", { className: "concerto-btn concerto-btn--primary", disabled: busy, onClick: onSave }, "\u4FDD\u5B58\u914D\u7F6E"),
-      h("button", { className: "concerto-btn", disabled: busy || !hash, onClick: onReload }, "\u91CD\u8F7D\u56E2\u961F")
-    ),
-    membersDraft.length > 0 && h(
-      "div",
-      { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 6, marginBottom: 6 } },
-      membersDraft.map((m, idx) => h(
+      "header",
+      { className: "concerto-set-head" },
+      h(
         "div",
-        { key: idx, style: { ...styles.row, alignItems: "center" } },
-        h("input", { style: styles.input, value: m.id, placeholder: "\u6210\u5458 id", onChange: (e) => updateMemberDraft(idx, { id: e.target.value }) }),
-        h(
-          "select",
-          { style: styles.input, value: m.source, onChange: (e) => updateMemberDraft(idx, { source: e.target.value }) },
-          h("option", { value: "hosted" }, "DSH Hosted"),
-          h("option", { value: "external" }, "External Connector")
-        ),
-        h(
-          "select",
-          { style: styles.input, value: m.roleKind, onChange: (e) => updateMemberDraft(idx, { roleKind: e.target.value }) },
-          h("option", { value: "worker" }, "\u6267\u884C\u8005 worker"),
-          h("option", { value: "reviewer" }, "\u5BA1\u67E5\u8005 reviewer")
-        ),
-        m.source === "hosted" ? h(
-          "select",
-          { style: styles.input, value: m.toolProfile || "coding", onChange: (e) => updateMemberDraft(idx, { toolProfile: e.target.value }) },
-          h("option", { value: "coding" }, "\u7F16\u7801+Shell (coding)"),
-          h("option", { value: "readonly" }, "\u53EA\u8BFB\u6587\u4EF6 (readonly)"),
-          h("option", { value: "none" }, "\u4EC5\u534F\u8C03 (none)")
-        ) : h("input", { style: styles.input, value: m.connector || "codex", placeholder: "connector (\u5982 codex)", onChange: (e) => updateMemberDraft(idx, { connector: e.target.value }) }),
-        h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => removeMemberDraft(idx) }, "\u79FB\u9664")
-      ))
+        { className: "concerto-set-head-main" },
+        h("h2", null, "Concerto \u56E2\u961F"),
+        h("p", { className: "concerto-set-lead" }, "\u914D\u7F6E\u6307\u6325\u8005\u4E0E\u6210\u5458\uFF0C\u4FDD\u5B58\u540E\u91CD\u8F7D\u4F7F\u5176\u751F\u6548\uFF0C\u518D\u4ECE\u4E0B\u65B9\u542F\u52A8\u684C\u9762\u4F1A\u8BDD\u3002")
+      ),
+      h(
+        "button",
+        { type: "button", className: "concerto-btn concerto-btn--ghost", disabled: busy, onClick: refresh },
+        h(UiIcon, { name: "refresh" }),
+        "\u5237\u65B0\u72B6\u6001"
+      )
     ),
-    status !== "" ? h("div", { role: "status", style: styles.muted }, status) : null,
-    h(
+    deleteTarget && h(TeamDeleteDialog, {
+      team: deleteTarget,
+      onClose: () => setDeleteTarget(null),
+      onConfirm: () => onDeleteTeam(deleteTarget)
+    }),
+    status !== "" && h(
       "div",
-      { style: { ...styles.row, marginTop: 6, alignItems: "center" } },
-      h("input", {
-        style: { ...styles.input, minWidth: 260, flex: "1 1 260px" },
-        value: launchCwd,
-        onChange: (e) => setLaunchCwd(e.target.value),
-        placeholder: "\u684C\u9762\u542F\u52A8\u76EE\u5F55\uFF08\u53EF\u9009\uFF0C\u7559\u7A7A\u6CBF\u7528\u5BBF\u4E3B\u5DE5\u4F5C\u533A\uFF09"
-      })
+      { className: "concerto-set-status", role: "status", "data-tone": statusTone },
+      h("span", null, status),
+      h(
+        "button",
+        { type: "button", className: "concerto-btn concerto-btn--ghost concerto-btn--icon", "aria-label": "\u5173\u95ED\u63D0\u793A", onClick: () => setStatus("") },
+        h(UiIcon, { name: "close" })
+      )
     ),
+    // ① 乐团编排舞台（新建 / 编辑团队）
     h(
-      "div",
-      null,
-      teams.length === 0 ? h("div", { style: styles.muted }, "\u8FD8\u6CA1\u6709\u56E2\u961F") : teams.map((t) => {
-        const caps = Array.isArray(t.memberCapabilities) ? t.memberCapabilities : [];
-        return h(
-          "div",
-          { key: t.id, style: styles.item, "data-concerto-team-row": t.id },
-          h(
-            "div",
-            { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" } },
-            h(
-              "div",
-              { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } },
-              h("strong", null, t.name),
-              h("span", { className: "concerto-badge concerto-id" }, t.id)
-            ),
-            h("button", {
-              type: "button",
-              className: "concerto-btn concerto-btn--primary",
-              disabled: busy,
-              "data-concerto-launch-team": t.id,
-              onClick: () => onLaunchTeam(t.id)
-            }, "\u542F\u52A8\u684C\u9762\u4F1A\u8BDD")
-          ),
-          h("div", { style: styles.muted }, "configVersion " + t.configVersion + " \xB7 \u6210\u5458 " + t.memberCount),
-          caps.length > 0 && h(
-            "div",
-            { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 } },
-            caps.map((cap) => {
-              const cs = formatCapabilitySummary(cap);
-              return h("span", {
-                key: cap.memberId,
-                className: "concerto-chip",
-                title: `${cs.summary}${cs.tools.length ? ` \xB7 \u5DE5\u5177\uFF1A${cs.tools.join(", ")}` : ""}`,
-                style: { color: CAP_TONE_VAR[cs.tone] || CAP_TONE_VAR.neutral }
-              }, `${cap.memberId} \xB7 ${cs.badge}`);
-            })
-          )
-        );
-      })
-    ),
-    h(
-      "div",
-      { style: { marginTop: 14 } },
-      h("div", { style: { ...styles.title, fontSize: "var(--cc-fs-body)" } }, "\u56E2\u961F\u8FD0\u884C\u5B9E\u4F8B\uFF08\u5DE5\u4F5C\u533A\u4F1A\u8BDD\u5165\u53E3\uFF09"),
-      runs.length === 0 ? h("div", { style: styles.muted }, "\u6682\u65E0\u56E2\u961F\u8FD0\u884C\u8BB0\u5F55") : runs.slice().reverse().slice(0, 8).map((run) => h(
-        "div",
-        {
-          key: run.teamSessionId,
-          style: styles.item,
-          "data-concerto-run-row": run.teamSessionId
-        },
-        h(
-          "div",
-          { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" } },
-          h(
-            "div",
-            { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } },
-            h("strong", null, run.teamName || run.teamId || run.teamSessionId),
-            h("span", { className: "concerto-badge concerto-id" }, run.teamSessionId),
-            run.unknownCount > 0 && h("span", { className: "concerto-tag", style: { color: "var(--cc-state-blocked)" } }, `\u963B\u585E ${run.unknownCount}`)
-          ),
-          run.commanderSessionId && h("button", {
-            type: "button",
-            className: "concerto-btn",
-            disabled: busy,
-            "data-concerto-open-run": run.teamSessionId,
-            onClick: () => onOpenRun(run)
-          }, "\u6253\u5F00\u684C\u9762\u4F1A\u8BDD")
-        ),
-        h(
-          "div",
-          { style: styles.muted },
-          `\u4EFB\u52A1 ${run.taskCount} \xB7 \u6307\u6325\u4F1A\u8BDD ${run.commanderSessionId || "\u672A\u77E5"}\uFF08${run.commanderSessionAlive ? "\u5DF2\u52A0\u8F7D" : "\u672A\u52A0\u8F7D"}\uFF09${run.cwd ? ` \xB7 \u76EE\u5F55 ${run.cwd}` : ""}`
-        )
-      ))
-    ),
-    h(
-      "div",
-      { style: { marginTop: 14 }, "data-concerto-recovery-section": "true" },
-      h("div", { style: { ...styles.title, fontSize: "var(--cc-fs-body)" } }, "\u5B64\u513F / \u963B\u585E\u6267\u884C\u6062\u590D\uFF08\u4E0D\u4F9D\u8D56\u539F\u6307\u6325\u4F1A\u8BDD\uFF09"),
+      SettingsSection,
+      {
+        as: "form",
+        onSubmit: onSave,
+        method: "post",
+        action: "/concerto/teams",
+        title: editing ? "\u7F16\u8F91\u56E2\u961F" : "\u65B0\u5EFA\u56E2\u961F",
+        hint: editing ? `\u914D\u7F6E\u7248\u672C v${editing.configVersion} \xB7 ${editing.team.id}` : "\u70B9\u51FB\u5C0F\u7CBE\u7075\u5C55\u5F00\u914D\u7F6E\uFF0C\u70B9\u51FB\u300C+\u300D\u6DFB\u52A0\u6267\u884C\u8005\u6216\u5BA1\u67E5\u8005\u3002"
+      },
       (() => {
-        const pendingUnknowns = unknowns.filter((r) => !r.quarantined);
-        const quarantinedUnknowns = unknowns.filter((r) => r.quarantined);
+        const connectorOptions = connectors.length > 0 ? connectors : [
+          { id: "antigravity", displayName: "Antigravity (agy)", protocol: "acp" },
+          { id: "claude", displayName: "Claude Code", protocol: "stream-json" },
+          { id: "codex", displayName: "Codex", protocol: "native" },
+          { id: "gemini", displayName: "Gemini CLI", protocol: "acp" },
+          { id: "opencode", displayName: "OpenCode", protocol: "acp" }
+        ];
+        const formatConnOption = (c) => {
+          const proto = c.protocol && c.protocol !== "native" ? ` (${c.protocol.toUpperCase()})` : "";
+          const badge = c.probe ? c.probe.ok ? " \xB7 \u2713 \u5DF2\u5C31\u7EEA" : " \xB7 \u25CB \u672A\u5B89\u88C5" : "";
+          return `${c.displayName || c.id}${proto}${badge}`;
+        };
+        const connStatusMark = (id) => {
+          const c = connectorOptions.find((x) => x.id === id);
+          if (!c?.probe) return "";
+          return c.probe.ok ? " \u2713" : " \u25CB";
+        };
+        const commanderPreview = {
+          id: "commander",
+          roleKind: "commander",
+          source: commanderSource,
+          connector: commanderSource === "external" ? commanderConnector || connectorOptions[0]?.id || "antigravity" : null
+        };
+        const commanderSub = commanderSource === "api" ? `API \xB7 ${model || "\u672A\u586B\u6A21\u578B"}` : commanderSource === "external" ? `${connectorOptions.find((c) => c.id === commanderConnector)?.displayName || commanderConnector || "\u5916\u90E8 Agent"}${connStatusMark(commanderConnector)}` : model || provider || "DSH \u6258\u7BA1";
+        const workerEntries = membersDraft.map((m, idx) => ({ m, idx })).filter(({ m }) => m.roleKind !== "reviewer");
+        const reviewerEntries = membersDraft.map((m, idx) => ({ m, idx })).filter(({ m }) => m.roleKind === "reviewer");
+        const selectedMemberIdx = typeof selectedStageNode === "string" && selectedStageNode.startsWith("member:") ? Number(selectedStageNode.slice(7)) : -1;
+        const selectedMember = selectedMemberIdx >= 0 ? membersDraft[selectedMemberIdx] : null;
+        const memberSub = (m) => m.source === "hosted" ? m.model || m.provider || "DSH \u6258\u7BA1" : m.source === "api" ? `API \xB7 ${m.model || "\u672A\u586B\u6A21\u578B"}` : `${connectorOptions.find((c) => c.id === m.connector)?.displayName || m.connector || "\u5916\u90E8"}${connStatusMark(m.connector)}`;
+        const toggleNode = (key) => setSelectedStageNode((cur) => cur === key ? null : key);
         return h(
-          import_react3.default.Fragment,
+          import_react5.default.Fragment,
           null,
-          pendingUnknowns.length === 0 ? h("div", { style: styles.muted }, "\u5F53\u524D\u6CA1\u6709\u9700\u8981\u6062\u590D\u7684 unknown \u6267\u884C\u3002") : pendingUnknowns.map((row) => h(RecoveryExecutionRow, {
-            key: row.executionId,
-            row,
-            busy,
-            onBusy: setBusy,
-            onDone: async (msg) => {
-              setStatus(msg);
-              await refresh();
-            },
-            onError: (msg) => setStatus(msg)
-          })),
-          quarantinedUnknowns.length > 0 && h(
-            "details",
-            { style: { marginTop: 8 } },
+          // 一键预设编排模板条
+          !editing && h(
+            "div",
+            { style: { display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }, "data-concerto-stage-templates": "true" },
+            h("span", { className: "concerto-field-hint" }, "\u4E00\u952E\u6A21\u677F\uFF1A"),
+            h("button", { type: "button", className: "concerto-btn", disabled: busy, onClick: () => applyStageTemplate("solo") }, "\u26A1 \u5355\u5175\u7A81\u51FB\uFF081+1\uFF09"),
+            h("button", { type: "button", className: "concerto-btn", disabled: busy, onClick: () => applyStageTemplate("duo") }, "\u{1F3B8} \u53CC\u6838\u5F00\u53D1\uFF081+2+1\u5BA1\uFF09"),
+            h("button", { type: "button", className: "concerto-btn", disabled: busy, onClick: () => applyStageTemplate("hetero") }, "\u{1F310} \u5F02\u6784\u8054\u519B\uFF08Agy + Claude\uFF09")
+          ),
+          h(
+            "div",
+            { className: "concerto-stage", "data-concerto-orchestra-stage": "true" },
+            // 最顶部：可替换团队名
             h(
-              "summary",
-              { style: { ...styles.muted, cursor: "pointer", fontSize: "var(--cc-fs-caption)" } },
-              `\u5DF2\u9694\u79BB\u5E76\u4FDD\u7559\u539F\u5DE5\u4F5C\u533A\u5360\u7528\uFF08${quarantinedUnknowns.length} \u6761\uFF1B\u4EFB\u52A1\u5DF2\u8FC1\u79FB\u81F3\u65B0\u76EE\u5F55\u7EE7\u7EED\uFF09`
-            ),
-            quarantinedUnknowns.map((row) => h(
               "div",
-              {
-                key: "q-" + row.executionId,
-                className: "concerto-card",
-                style: { marginTop: 6, padding: "8px 10px" }
-              },
+              { className: "concerto-stage-title-wrap" },
+              h("input", {
+                ref: nameInput,
+                required: true,
+                disabled: busy,
+                "aria-label": "\u56E2\u961F\u540D",
+                className: "concerto-stage-title-input",
+                value: name,
+                onChange: (e) => setName(e.target.value),
+                placeholder: "\u8F93\u5165\u56E2\u961F\u540D"
+              }),
+              h("span", { className: "concerto-stage-title-pen", "aria-hidden": true }, "\u270E")
+            ),
+            // 居中：指挥者小精灵
+            h(
+              "div",
+              { className: "concerto-stage-commander-zone" },
+              h(
+                "button",
+                {
+                  type: "button",
+                  className: "concerto-stage-node concerto-stage-node--commander",
+                  "data-selected": selectedStageNode === "commander" ? "true" : void 0,
+                  "aria-expanded": selectedStageNode === "commander",
+                  onClick: () => toggleNode("commander")
+                },
+                h(MemberGlyph, { member: commanderPreview, state: selectedStageNode === "commander" ? "\u534F\u8C03" : "idle", size: 64 }),
+                h("span", { className: "concerto-stage-node-name" }, "\u6307\u6325\u8005 \xB7 Commander"),
+                h("span", { className: "concerto-stage-node-sub" }, commanderSub)
+              )
+            ),
+            // 发光弧形连线（指挥者 → 左下执行者 / 右下审查者）
+            h(
+              "svg",
+              { className: "concerto-stage-svg", viewBox: "0 0 400 52", preserveAspectRatio: "none", "aria-hidden": true },
+              h("path", {
+                className: "concerto-stage-arc",
+                "data-active": selectedStageNode === "commander" || selectedMember && selectedMember.roleKind !== "reviewer" ? "true" : void 0,
+                d: "M 200 2 C 200 28, 100 22, 100 50"
+              }),
+              h("path", {
+                className: "concerto-stage-arc",
+                "data-active": selectedStageNode === "commander" || selectedMember && selectedMember.roleKind === "reviewer" ? "true" : void 0,
+                d: "M 200 2 C 200 28, 300 22, 300 50"
+              })
+            ),
+            // 左下 Worker / 右下 Reviewer 双区
+            h(
+              "div",
+              { className: "concerto-stage-lanes" },
+              // 左下：执行者 Worker
               h(
                 "div",
-                { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" } },
-                h("strong", null, row.taskTitle || row.taskId),
-                h("span", { className: "concerto-badge concerto-id" }, row.executionId),
-                h("span", { className: "concerto-tag" }, "\u539F\u5DE5\u4F5C\u533A\u5DF2\u9694\u79BB\u4FDD\u7559")
+                { className: "concerto-stage-lane", "data-stage-lane": "worker" },
+                h(
+                  "div",
+                  { className: "concerto-stage-lane-head" },
+                  h("span", null, "\u6267\u884C\u8005 \xB7 Worker"),
+                  h("span", { className: "concerto-count-pill concerto-num" }, String(workerEntries.length))
+                ),
+                h(
+                  "div",
+                  { className: "concerto-stage-roster" },
+                  workerEntries.map(({ m, idx }) => h(
+                    "button",
+                    {
+                      key: idx,
+                      type: "button",
+                      className: "concerto-stage-node",
+                      "data-selected": selectedStageNode === `member:${idx}` ? "true" : void 0,
+                      "aria-expanded": selectedStageNode === `member:${idx}`,
+                      onClick: () => toggleNode(`member:${idx}`)
+                    },
+                    h(MemberGlyph, { member: m, state: selectedStageNode === `member:${idx}` ? "running" : "idle", size: 46 }),
+                    h("span", { className: "concerto-stage-node-name" }, m.id || `worker-${idx + 1}`),
+                    h("span", { className: "concerto-stage-node-sub" }, memberSub(m))
+                  )),
+                  h(
+                    "button",
+                    {
+                      type: "button",
+                      className: "concerto-stage-add",
+                      disabled: busy,
+                      onClick: () => addMemberDraft("worker")
+                    },
+                    h("span", { className: "concerto-stage-add-plus", "aria-hidden": true }, "+"),
+                    h("span", null, "\u6DFB\u52A0\u6267\u884C\u8005")
+                  )
+                )
+              ),
+              // 右下：审查者 Reviewer
+              h(
+                "div",
+                { className: "concerto-stage-lane", "data-stage-lane": "reviewer" },
+                h(
+                  "div",
+                  { className: "concerto-stage-lane-head" },
+                  h("span", null, "\u5BA1\u67E5\u8005 \xB7 Reviewer"),
+                  h("span", { className: "concerto-count-pill concerto-num" }, String(reviewerEntries.length))
+                ),
+                h(
+                  "div",
+                  { className: "concerto-stage-roster" },
+                  reviewerEntries.map(({ m, idx }) => h(
+                    "button",
+                    {
+                      key: idx,
+                      type: "button",
+                      className: "concerto-stage-node",
+                      "data-selected": selectedStageNode === `member:${idx}` ? "true" : void 0,
+                      "aria-expanded": selectedStageNode === `member:${idx}`,
+                      onClick: () => toggleNode(`member:${idx}`)
+                    },
+                    h(MemberGlyph, { member: m, state: selectedStageNode === `member:${idx}` ? "review" : "idle", size: 46 }),
+                    h("span", { className: "concerto-stage-node-name" }, m.id || `reviewer-${idx + 1}`),
+                    h("span", { className: "concerto-stage-node-sub" }, memberSub(m))
+                  )),
+                  h(
+                    "button",
+                    {
+                      type: "button",
+                      className: "concerto-stage-add",
+                      disabled: busy,
+                      onClick: () => addMemberDraft("reviewer")
+                    },
+                    h("span", { className: "concerto-stage-add-plus", "aria-hidden": true }, "+"),
+                    h("span", null, "\u6DFB\u52A0\u5BA1\u67E5\u8005")
+                  )
+                )
+              )
+            )
+          ),
+          // 点击小精灵后平滑展开的配置面板：指挥者
+          selectedStageNode === "commander" && h(
+            "div",
+            { key: "insp-commander", className: "concerto-stage-inspector" },
+            h(
+              "div",
+              { className: "concerto-stage-inspector-head" },
+              h(
+                "div",
+                { className: "concerto-stage-inspector-title" },
+                h(MemberGlyph, { member: commanderPreview, state: "\u534F\u8C03", size: 28 }),
+                h("span", null, "\u6307\u6325\u8005\u914D\u7F6E")
+              ),
+              h(
+                "button",
+                { type: "button", className: "concerto-btn concerto-btn--ghost concerto-btn--icon", "aria-label": "\u6536\u8D77\u914D\u7F6E", onClick: () => setSelectedStageNode(null) },
+                h(UiIcon, { name: "close" })
+              )
+            ),
+            h(
+              "div",
+              { className: "concerto-set-grid" },
+              h(
+                SettingsField,
+                { label: "\u6307\u6325\u8005\u6765\u6E90" },
+                h(
+                  "select",
+                  {
+                    disabled: busy,
+                    className: "concerto-input",
+                    value: commanderSource,
+                    onChange: (e) => setCommanderSource(e.target.value)
+                  },
+                  h("option", { value: "hosted" }, "DSH \u6258\u7BA1\u6A21\u578B"),
+                  h("option", { value: "api" }, "\u81EA\u5B9A\u4E49 API\uFF08OpenAI \u517C\u5BB9\uFF09"),
+                  h("option", { value: "external" }, "\u5916\u90E8 Agent\uFF08Connector\uFF09")
+                )
+              ),
+              commanderSource === "hosted" && h(ProviderModelFields, {
+                disabled: busy,
+                providers: llmProviders,
+                provider,
+                model,
+                providerLabel: "\u6307\u6325\u8005 provider",
+                modelLabel: "\u6307\u6325\u8005 model",
+                onChangeProvider: setProvider,
+                onChangeModel: setModel
+              }),
+              commanderSource === "api" && h(ApiEndpointFields, {
+                disabled: busy,
+                baseUrl: commanderBaseUrl,
+                apiKey: commanderApiKey,
+                model,
+                onChangeBaseUrl: setCommanderBaseUrl,
+                onChangeApiKey: setCommanderApiKey,
+                onChangeModel: setModel
+              }),
+              commanderSource === "external" && h(
+                SettingsField,
+                { label: "\u6307\u6325\u8005 Connector" },
+                (() => {
+                  const currentVal = commanderConnector || connectorOptions[0]?.id || "antigravity";
+                  const hasCurrent = connectorOptions.some((c) => c.id === currentVal);
+                  return h(
+                    "select",
+                    {
+                      disabled: busy,
+                      className: "concerto-input concerto-id",
+                      value: currentVal,
+                      onChange: (e) => setCommanderConnector(e.target.value)
+                    },
+                    connectorOptions.map((c) => h("option", { key: c.id, value: c.id }, formatConnOption(c))),
+                    !hasCurrent && h("option", { value: currentVal }, `${currentVal} (\u81EA\u5B9A\u4E49)`)
+                  );
+                })()
+              )
+            ),
+            h(ConnectionCheck, {
+              label: "\u6307\u6325\u8005",
+              member: commanderSource === "api" ? { source: "api", baseUrl: commanderBaseUrl, apiKey: commanderApiKey, model } : commanderSource === "external" ? { source: "external", connector: commanderConnector || connectorOptions[0]?.id || "antigravity" } : { source: "hosted", provider, model },
+              disabled: busy
+            })
+          ),
+          // 点击小精灵后平滑展开的配置面板：执行者 / 审查者
+          selectedMember && h(
+            "div",
+            { key: `insp-member-${selectedMemberIdx}`, className: "concerto-stage-inspector" },
+            h(
+              "div",
+              { className: "concerto-stage-inspector-head" },
+              h(
+                "div",
+                { className: "concerto-stage-inspector-title" },
+                h(MemberGlyph, { member: selectedMember, state: "idle", size: 28 }),
+                h("span", null, `${selectedMember.id || "\u6210\u5458"} \xB7 ${selectedMember.roleKind === "reviewer" ? "\u5BA1\u67E5\u8005\u914D\u7F6E" : "\u6267\u884C\u8005\u914D\u7F6E"}`)
               ),
               h(
                 "div",
-                { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", marginTop: 4, overflowWrap: "anywhere" } },
-                `\u539F\u76EE\u5F55\uFF1A${row.writeScope || "\u672A\u77E5"}${row.retryCwd ? ` \u2192 \u9694\u79BB\u65B0\u76EE\u5F55\uFF1A${row.retryCwd}` : ""}`
+                { style: { display: "flex", gap: 6, alignItems: "center" } },
+                h("button", {
+                  type: "button",
+                  className: "concerto-btn",
+                  disabled: busy,
+                  onClick: () => cloneMemberDraft(selectedMemberIdx)
+                }, "\u590D\u5236\u6210\u5458"),
+                h("button", {
+                  type: "button",
+                  className: "concerto-btn concerto-btn--danger",
+                  disabled: busy,
+                  "aria-label": `\u79FB\u9664\u6210\u5458 ${selectedMember.id || selectedMemberIdx + 1}`,
+                  onClick: () => removeMemberDraft(selectedMemberIdx)
+                }, "\u79FB\u9664"),
+                h(
+                  "button",
+                  { type: "button", className: "concerto-btn concerto-btn--ghost concerto-btn--icon", "aria-label": "\u6536\u8D77\u914D\u7F6E", onClick: () => setSelectedStageNode(null) },
+                  h(UiIcon, { name: "close" })
+                )
               )
-            ))
+            ),
+            h(
+              "div",
+              { className: "concerto-set-grid" },
+              h(
+                SettingsField,
+                { label: "\u6210\u5458 ID" },
+                h("input", { disabled: busy, className: "concerto-input concerto-id", value: selectedMember.id, placeholder: "worker-1", onChange: (e) => updateMemberDraft(selectedMemberIdx, { id: e.target.value }) })
+              ),
+              h(
+                SettingsField,
+                { label: "\u6765\u6E90" },
+                h(
+                  "select",
+                  { disabled: busy, className: "concerto-input", value: selectedMember.source, onChange: (e) => updateMemberDraft(selectedMemberIdx, { source: e.target.value }) },
+                  h("option", { value: "hosted" }, "DSH Hosted"),
+                  h("option", { value: "api" }, "\u81EA\u5B9A\u4E49 API\uFF08OpenAI \u517C\u5BB9\uFF09"),
+                  h("option", { value: "external" }, "External Connector"),
+                  h("option", { value: "web" }, "Web Connector\uFF08\u7F51\u9875\u7248 Agent\uFF09")
+                )
+              ),
+              h(
+                SettingsField,
+                { label: "\u89D2\u8272" },
+                h(
+                  "select",
+                  { disabled: busy, className: "concerto-input", value: selectedMember.roleKind, onChange: (e) => updateMemberDraft(selectedMemberIdx, { roleKind: e.target.value }) },
+                  h("option", { value: "worker" }, "\u6267\u884C\u8005 worker"),
+                  h("option", { value: "reviewer" }, "\u5BA1\u67E5\u8005 reviewer")
+                )
+              ),
+              selectedMember.source === "hosted" ? h(
+                SettingsField,
+                { label: "\u5DE5\u5177\u6743\u9650" },
+                h(
+                  "select",
+                  { disabled: busy, className: "concerto-input", value: selectedMember.toolProfile ?? (selectedMember.roleKind === "reviewer" ? "readonly" : "coding"), onChange: (e) => updateMemberDraft(selectedMemberIdx, { toolProfile: e.target.value }) },
+                  h("option", { value: "coding" }, "\u7F16\u7801+Shell (coding)"),
+                  h("option", { value: "readonly" }, "\u53EA\u8BFB\u6587\u4EF6 (readonly)"),
+                  h("option", { value: "none" }, "\u4EC5\u534F\u8C03 (none)")
+                )
+              ) : selectedMember.source === "api" ? h(ApiEndpointFields, {
+                disabled: busy,
+                baseUrl: selectedMember.baseUrl ?? "",
+                apiKey: selectedMember.apiKey ?? "",
+                model: selectedMember.model ?? "",
+                onChangeBaseUrl: (val) => updateMemberDraft(selectedMemberIdx, { baseUrl: val }),
+                onChangeApiKey: (val) => updateMemberDraft(selectedMemberIdx, { apiKey: val }),
+                onChangeModel: (val) => updateMemberDraft(selectedMemberIdx, { model: val })
+              }) : h(
+                SettingsField,
+                { label: "Connector" },
+                (() => {
+                  const filtered = selectedMember.source === "web" ? connectorOptions.filter((c) => c.protocol === "web" || String(c.id).startsWith("web-")) : connectorOptions.filter((c) => c.protocol !== "web" && !String(c.id).startsWith("web-"));
+                  const list = filtered.length > 0 ? filtered : connectorOptions;
+                  const currentVal = selectedMember.connector || list[0]?.id || (selectedMember.source === "web" ? "web-chatgpt" : "antigravity");
+                  const hasCurrent = list.some((c) => c.id === currentVal);
+                  return h(
+                    "select",
+                    {
+                      disabled: busy,
+                      className: "concerto-input concerto-id",
+                      value: currentVal,
+                      onChange: (e) => updateMemberDraft(selectedMemberIdx, { connector: e.target.value })
+                    },
+                    list.map((c) => h("option", { key: c.id, value: c.id }, formatConnOption(c))),
+                    !hasCurrent && h("option", { value: currentVal }, `${currentVal} (\u81EA\u5B9A\u4E49)`)
+                  );
+                })()
+              ),
+              selectedMember.source === "hosted" && h(ProviderModelFields, {
+                disabled: busy,
+                providers: llmProviders,
+                provider: selectedMember.provider ?? "",
+                model: selectedMember.model ?? "",
+                providerLabel: "\u6210\u5458 provider",
+                modelLabel: "\u6210\u5458 model",
+                allowEmpty: true,
+                onChangeProvider: (val) => updateMemberDraft(selectedMemberIdx, { provider: val }),
+                onChangeModel: (val) => updateMemberDraft(selectedMemberIdx, { model: val })
+              })
+            ),
+            h(
+              SettingsField,
+              { label: "\u4E13\u957F / \u4EBA\u8BBE\uFF08\u4F9B\u6307\u6325\u8005\u667A\u80FD\u5206\u5DE5\uFF09" },
+              h("input", {
+                disabled: busy,
+                className: "concerto-input",
+                value: selectedMember.persona ?? "",
+                placeholder: "\u4F8B\u5982\uFF1A\u524D\u7AEF UI \u4E13\u5BB6\u3001\u4E25\u683C\u5355\u6D4B\u5BA1\u67E5\u5458\u3001\u53EA\u8D1F\u8D23\u6587\u6863\u6574\u7406",
+                onChange: (e) => updateMemberDraft(selectedMemberIdx, { persona: e.target.value })
+              }),
+              h(
+                "div",
+                { style: { display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 } },
+                ["\u524D\u7AEF UI \u4E13\u5BB6", "\u540E\u7AEF\u903B\u8F91\u5F00\u53D1", "\u4E25\u683C\u6D4B\u8BD5\u9A8C\u6536", "\u67B6\u6784\u4E0E\u4EE3\u7801\u5BA1\u67E5", "\u6587\u6863\u4E0E\u603B\u7ED3"].map((tag) => h("button", {
+                  key: tag,
+                  type: "button",
+                  className: "concerto-chip",
+                  disabled: busy,
+                  onClick: () => updateMemberDraft(selectedMemberIdx, { persona: tag })
+                }, tag))
+              )
+            ),
+            h(ConnectionCheck, {
+              label: selectedMember.id || `\u6210\u5458 ${selectedMemberIdx + 1}`,
+              disabled: busy,
+              member: selectedMember.source === "hosted" ? { source: "hosted", provider: selectedMember.provider ?? "", model: selectedMember.model ?? "" } : selectedMember.source === "api" ? { source: "api", baseUrl: selectedMember.baseUrl ?? "", apiKey: selectedMember.apiKey ?? "", model: selectedMember.model ?? "" } : { source: selectedMember.source, connector: selectedMember.connector || connectorOptions[0]?.id || "antigravity" }
+            })
+          ),
+          // 折叠的高级团队选项，让舞台成为视觉主角
+          h(
+            "details",
+            { className: "concerto-set-fold" },
+            h("summary", null, "\u66F4\u591A\u56E2\u961F\u9009\u9879\uFF08\u7B80\u4ECB\u3001\u56FA\u5B9A\u89C6\u56FE\u3001\u81EA\u52A8\u9A8C\u8BC1\u95E8\u7981\u3001\u6D3E\u53D1\u4E0A\u9650\uFF09"),
+            h(
+              "div",
+              { style: { display: "flex", flexDirection: "column", gap: "var(--cc-space-3)", marginTop: 6 } },
+              h(
+                SettingsField,
+                { label: "\u56E2\u961F\u7B80\u4ECB" },
+                h("input", { disabled: busy, className: "concerto-input", value: description, onChange: (e) => setDescription(e.target.value) })
+              ),
+              h(SettingsField, {
+                label: "\u81EA\u52A8\u9A8C\u8BC1\u95E8\u7981\uFF08Verification Gate\uFF09",
+                hint: "\u53EF\u9009\u3002Worker \u4EA4\u4ED8\u540E Runtime \u81EA\u52A8\u5728\u5176 Worktree \u91CC\u8DD1\u4E00\u904D\uFF0C\u901A\u8FC7\u624D\u81EA\u52A8\u9A8C\u6536\uFF0C\u5931\u8D25\u5219\u628A\u771F\u5B9E\u62A5\u9519\u6253\u56DE\u8FD4\u5DE5\u3002"
+              }, h("input", { disabled: busy, className: "concerto-input concerto-id", value: verificationCommand, onChange: (e) => setVerificationCommand(e.target.value), placeholder: "\u4F8B\u5982\uFF1Anpm test / pytest / tsc --noEmit" })),
+              h(SettingsField, {
+                label: "\u56FA\u5B9A\u89C6\u56FE\u8981\u6C42",
+                hint: "\u53EF\u9009\u3002\u5199\u6CD5\u4E3A\u300C\u7C7B\u578B:ID\u300D\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u9694\uFF0C\u4F8B\u5982 mindmap:plan, checklist:accept"
+              }, h("input", { disabled: busy, className: "concerto-input concerto-id", value: requiredViewsInput, onChange: (e) => setRequiredViewsInput(e.target.value), placeholder: "mindmap:plan, checklist:accept" })),
+              h(DispatchLimitFields, { key: draftRevision, limits: editing?.team.dispatchLimits, disabled: busy })
+            )
           )
         );
-      })()
+      })(),
+      h(
+        "footer",
+        { className: "concerto-set-actions" },
+        h("span", { className: "concerto-set-actions-hint" }, hash ? "\u9884\u8BBE\u53D8\u66F4\u53EF\u901A\u8FC7\u300C\u91CD\u8F7D\u56E2\u961F\u300D\u5E94\u7528\u3002" : ""),
+        h(
+          "div",
+          { className: "concerto-set-actions-buttons" },
+          editing && h("button", { type: "button", className: "concerto-btn", disabled: busy, onClick: () => {
+            focusName.current = true;
+            loadDraft(null);
+            setStatus("");
+          } }, "\u65B0\u5EFA\u56E2\u961F"),
+          h("button", { type: "button", className: "concerto-btn", disabled: busy || !hash, onClick: onReload }, "\u91CD\u8F7D\u56E2\u961F"),
+          h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled: busy }, "\u4FDD\u5B58\u914D\u7F6E")
+        )
+      )
+    ),
+    // ② 已保存的团队
+    h(
+      SettingsSection,
+      { title: "\u5DF2\u4FDD\u5B58\u7684\u56E2\u961F", count: teams.length },
+      h(
+        SettingsField,
+        { label: "\u684C\u9762\u542F\u52A8\u76EE\u5F55", hint: "\u7EED\u5F00\u4E00\u8F6E\u65F6\u7559\u7A7A\u6CBF\u7528\u9879\u76EE\u6700\u8FD1\u76EE\u5F55\u3002" },
+        h("input", { className: "concerto-input", value: launchCwd, onChange: (e) => setLaunchCwd(e.target.value), placeholder: "\u4F8B\u5982 D:\\projects\\my-app" })
+      ),
+      projects.length > 0 && h(
+        "div",
+        { className: "concerto-set-actions" },
+        h(
+          SettingsField,
+          { label: "\u7EE7\u7EED\u5DF2\u6709\u9879\u76EE" },
+          h(
+            "select",
+            {
+              className: "concerto-input",
+              value: selectedProject ? projectId : "",
+              disabled: busy,
+              onChange: (e) => {
+                setProjectId(e.target.value);
+                setContinuationTeamId("");
+              }
+            },
+            h("option", { value: "", disabled: true }, "\u8BF7\u9009\u62E9\u9879\u76EE"),
+            projects.map((project) => h(
+              "option",
+              { key: project.projectId, value: project.projectId },
+              `${project.objective || project.teamName} \xB7 ${project.projectId.slice(-8)} \xB7 ${project.completed ? "\u5DF2\u6536\u5C3E" : "\u8FDB\u884C\u4E2D"}`
+            ))
+          )
+        ),
+        needsTeam && h(
+          SettingsField,
+          { label: "\u7EED\u5F00\u4F7F\u7528\u7684\u56E2\u961F", hint: teams.length === 0 ? "\u8BF7\u5148\u4FDD\u5B58\u4E00\u4E2A\u56E2\u961F\u3002" : "\u539F\u56E2\u961F\u914D\u7F6E\u5DF2\u79FB\u9664\u3002" },
+          h(
+            "select",
+            {
+              className: "concerto-input",
+              value: teamForContinuation ?? "",
+              disabled: busy || teams.length === 0,
+              onChange: (e) => setContinuationTeamId(e.target.value)
+            },
+            h("option", { value: "", disabled: true }, "\u8BF7\u9009\u62E9\u56E2\u961F"),
+            teams.map((team) => h("option", { key: team.id, value: team.id }, team.name))
+          )
+        ),
+        h("button", {
+          type: "button",
+          className: "concerto-btn",
+          disabled: busy || !teamForContinuation,
+          onClick: () => onLaunchTeam(teamForContinuation, projectId)
+        }, "\u7EE7\u7EED\u9879\u76EE")
+      ),
+      teams.length === 0 ? h("p", { className: "concerto-set-empty" }, "\u8FD8\u6CA1\u6709\u56E2\u961F\u3002\u5728\u4E0A\u65B9\u914D\u7F6E\u5E76\u4FDD\u5B58\u540E\uFF0C\u56E2\u961F\u4F1A\u51FA\u73B0\u5728\u8FD9\u91CC\u3002") : h("ul", { className: "concerto-set-list" }, teams.map((t) => {
+        const caps = Array.isArray(t.memberCapabilities) ? t.memberCapabilities : [];
+        return h(
+          "li",
+          { key: t.id, className: "concerto-set-item", "data-concerto-team-row": t.id },
+          h(
+            "div",
+            { className: "concerto-set-item-head" },
+            h(
+              "div",
+              { className: "concerto-set-item-title" },
+              h("strong", null, t.name),
+              h("span", { className: "concerto-badge concerto-id" }, t.id),
+              h("span", { className: "concerto-quiet concerto-num" }, `v${t.configVersion} \xB7 ${t.memberCount} \u540D\u6210\u5458`)
+            ),
+            h(
+              "div",
+              { className: "concerto-set-actions-buttons" },
+              h("button", {
+                type: "button",
+                className: "concerto-btn",
+                disabled: busy,
+                "aria-label": `\u7F16\u8F91\u56E2\u961F ${t.name}`,
+                onClick: () => onEditTeam(t.id)
+              }, "\u7F16\u8F91"),
+              h("button", {
+                type: "button",
+                className: "concerto-btn concerto-btn--danger",
+                disabled: busy,
+                "aria-label": `\u5220\u9664\u56E2\u961F ${t.name}`,
+                onClick: () => setDeleteTarget(t)
+              }, "\u5220\u9664"),
+              h("button", {
+                type: "button",
+                className: "concerto-btn concerto-btn--primary",
+                disabled: busy,
+                "data-concerto-launch-team": t.id,
+                onClick: () => onLaunchTeam(t.id)
+              }, "\u65B0\u5EFA\u9879\u76EE")
+            )
+          ),
+          caps.length > 0 && h("div", { className: "concerto-set-caps", "aria-label": "\u6210\u5458\u80FD\u529B" }, caps.map((cap) => {
+            const cs = formatCapabilitySummary(cap);
+            return h("span", {
+              key: cap.memberId,
+              className: "concerto-chip",
+              "data-tone": cs.tone || "neutral",
+              title: `${cs.summary}${cs.tools.length ? ` \xB7 \u5DE5\u5177\uFF1A${cs.tools.join(", ")}` : ""}`
+            }, `${cap.memberId} \xB7 ${cs.badge}`);
+          }))
+        );
+      }))
+    ),
+    // ②½ 自定义外部 Agent（极简 3 字段 + 一键测试，保存即刻生效）
+    h(CustomConnectorsSection, {
+      connectors,
+      disabled: busy,
+      onChange: (nextList) => setConnectors(Array.isArray(nextList) ? nextList : connectors)
+    }),
+    // ④ 孤儿 / 阻塞执行恢复
+    h(
+      SettingsSection,
+      {
+        title: "\u5F02\u5E38\u6267\u884C\u6062\u590D",
+        count: pendingUnknowns.length,
+        tone: pendingUnknowns.length > 0 ? "attention" : void 0,
+        hint: "\u5B64\u513F\u6216\u72B6\u6001\u672A\u77E5\u7684\u6267\u884C\uFF0C\u4E0D\u4F9D\u8D56\u539F\u6307\u6325\u4F1A\u8BDD\u5373\u53EF\u6838\u5BF9\u4E0E\u5904\u7406\u3002",
+        "data-concerto-recovery-section": "true"
+      },
+      pendingUnknowns.length === 0 ? h("p", { className: "concerto-set-empty" }, "\u5F53\u524D\u6CA1\u6709\u9700\u8981\u6062\u590D\u7684 unknown \u6267\u884C\u3002") : pendingUnknowns.map(recoveryRow),
+      quarantinedUnknowns.length > 0 && h(
+        "details",
+        { className: "concerto-set-fold" },
+        h("summary", null, `\u539F\u5DE5\u4F5C\u533A\u4ECD\u4FDD\u7559\u5360\u7528\uFF08${quarantinedUnknowns.length} \u6761\uFF09`),
+        quarantinedUnknowns.map(recoveryRow)
+      )
     )
+  );
+}
+function ApiEndpointFields({
+  disabled = false,
+  baseUrl = "",
+  apiKey = "",
+  model = "",
+  onChangeBaseUrl,
+  onChangeApiKey,
+  onChangeModel
+}) {
+  const listId = import_react5.default.useId();
+  const [models, setModels] = import_react5.default.useState([]);
+  const [loading, setLoading] = import_react5.default.useState(false);
+  const [hint, setHint] = import_react5.default.useState("");
+  async function fetchModels() {
+    if (!baseUrl.trim() || loading) return;
+    setLoading(true);
+    setHint("");
+    try {
+      const res = await request2("/api/models", {
+        method: "POST",
+        body: JSON.stringify({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() })
+      });
+      const list = Array.isArray(res?.models) ? res.models : [];
+      setModels(list);
+      if (list.length > 0 && !model.trim()) onChangeModel?.(list[0]);
+      setHint(list.length > 0 ? `\u5DF2\u62C9\u53D6 ${list.length} \u4E2A\u6A21\u578B` : "\u7AEF\u70B9\u672A\u8FD4\u56DE\u6A21\u578B\u5217\u8868\uFF0C\u53EF\u624B\u52A8\u8F93\u5165");
+    } catch (error) {
+      setHint(error.message || "\u62C9\u53D6\u5931\u8D25");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return h(
+    import_react5.default.Fragment,
+    null,
+    h(
+      SettingsField,
+      { label: "API Base URL" },
+      h("input", {
+        disabled,
+        className: "concerto-input concerto-id",
+        value: baseUrl,
+        placeholder: "https://api.deepseek.com/v1",
+        onChange: (e) => onChangeBaseUrl?.(e.target.value)
+      })
+    ),
+    h(
+      SettingsField,
+      { label: "API Key" },
+      h("input", {
+        type: "password",
+        disabled,
+        className: "concerto-input concerto-id",
+        value: apiKey,
+        placeholder: "sk-...\uFF08\u672C\u5730 Ollama \u53EF\u7559\u7A7A\uFF09",
+        onChange: (e) => onChangeApiKey?.(e.target.value)
+      })
+    ),
+    h(
+      SettingsField,
+      { label: "Model", hint: hint || void 0 },
+      h(
+        "div",
+        { style: { display: "flex", gap: 6, alignItems: "center" } },
+        h("input", {
+          disabled,
+          list: models.length > 0 ? listId : void 0,
+          className: "concerto-input concerto-id",
+          style: { flex: 1, minWidth: 0 },
+          value: model,
+          placeholder: "deepseek-chat / gpt-4o",
+          onChange: (e) => onChangeModel?.(e.target.value)
+        }),
+        h("button", {
+          type: "button",
+          className: "concerto-btn",
+          disabled: disabled || loading || !baseUrl.trim(),
+          onClick: fetchModels
+        }, loading ? "\u62C9\u53D6\u4E2D\u2026" : "\u62C9\u53D6\u6A21\u578B")
+      ),
+      models.length > 0 && h(
+        "datalist",
+        { id: listId },
+        models.map((m) => h("option", { key: m, value: m }))
+      )
+    )
+  );
+}
+function ProviderModelFields({
+  disabled = false,
+  providers = [],
+  provider = "",
+  model = "",
+  providerLabel = "provider",
+  modelLabel = "model",
+  allowEmpty = false,
+  onChangeProvider,
+  onChangeModel
+}) {
+  const hasCatalog = Array.isArray(providers) && providers.length > 0;
+  const selectedProvider = hasCatalog ? providers.find((p) => p.id === provider) : null;
+  const models = selectedProvider?.models ?? [];
+  const hasModelList = models.length > 0;
+  function handleProviderChange(nextProvider) {
+    onChangeProvider?.(nextProvider);
+    if (hasCatalog && nextProvider) {
+      const target = providers.find((p) => p.id === nextProvider);
+      if (target?.models?.length > 0 && !target.models.some((m) => m.id === model)) {
+        onChangeModel?.(target.models[0].id);
+      }
+    }
+  }
+  return h(
+    import_react5.default.Fragment,
+    null,
+    h(
+      SettingsField,
+      { label: providerLabel },
+      hasCatalog ? h(
+        "select",
+        {
+          disabled,
+          className: "concerto-input concerto-id",
+          value: provider,
+          onChange: (e) => handleProviderChange(e.target.value)
+        },
+        allowEmpty && h("option", { value: "" }, "DSH \u9ED8\u8BA4"),
+        providers.map((p) => h("option", { key: p.id, value: p.id }, p.name && p.name !== p.id ? `${p.name} (${p.id})` : p.id)),
+        provider && !providers.some((p) => p.id === provider) && h("option", { value: provider }, `${provider} (\u5F53\u524D)`)
+      ) : h("input", {
+        disabled,
+        className: "concerto-input concerto-id",
+        value: provider,
+        placeholder: allowEmpty ? "DSH \u9ED8\u8BA4" : "x-ds",
+        onChange: (e) => onChangeProvider?.(e.target.value)
+      })
+    ),
+    h(
+      SettingsField,
+      { label: modelLabel },
+      hasModelList ? h(
+        "select",
+        {
+          disabled,
+          className: "concerto-input concerto-id",
+          value: model,
+          onChange: (e) => onChangeModel?.(e.target.value)
+        },
+        allowEmpty && h("option", { value: "" }, "DSH \u9ED8\u8BA4"),
+        models.map((m) => h("option", { key: m.id, value: m.id }, m.name && m.name !== m.id ? `${m.name} (${m.id})` : m.id)),
+        model && !models.some((m) => m.id === model) && h("option", { value: model }, `${model} (\u5F53\u524D)`)
+      ) : h("input", {
+        disabled,
+        className: "concerto-input concerto-id",
+        value: model,
+        placeholder: allowEmpty ? "DSH \u9ED8\u8BA4" : "deepseek-v4.1-flash",
+        onChange: (e) => onChangeModel?.(e.target.value)
+      })
+    )
+  );
+}
+function CustomConnectorsSection({ connectors = [], disabled = false, onChange }) {
+  const [displayName, setDisplayName] = import_react5.default.useState("");
+  const [mode, setMode] = import_react5.default.useState("acp");
+  const [command, setCommand] = import_react5.default.useState("");
+  const [probeState, setProbeState] = import_react5.default.useState(null);
+  const [saving, setSaving] = import_react5.default.useState(false);
+  const [testingId, setTestingId] = import_react5.default.useState("");
+  const [rowProbes, setRowProbes] = import_react5.default.useState({});
+  const customList = connectors.filter((c) => c.custom);
+  const busy = disabled || saving;
+  async function onTestDraft() {
+    if (!command.trim()) {
+      setProbeState({ ok: false, text: "\u8BF7\u5148\u586B\u5199\u542F\u52A8\u547D\u4EE4" });
+      return;
+    }
+    setProbeState({ pending: true, text: "\u6D4B\u8BD5\u8FDE\u63A5\u4E2D\u2026" });
+    try {
+      const res = await request2("/connectors/probe", {
+        method: "POST",
+        body: JSON.stringify({ displayName: displayName.trim() || "\u6D4B\u8BD5 Agent", mode, command: command.trim() })
+      });
+      setProbeState({ ok: Boolean(res?.ok), text: res?.ok ? `\u5DF2\u5C31\u7EEA\uFF1A${res.userAgent || res.bin || "OK"}` : `\u672A\u8FDE\u901A\uFF1A${res?.detail || res?.code || "\u5931\u8D25"}` });
+    } catch (error) {
+      setProbeState({ ok: false, text: `\u672A\u8FDE\u901A\uFF1A${error.message}` });
+    }
+  }
+  async function onAdd(event) {
+    event?.preventDefault?.();
+    if (!displayName.trim() || !command.trim()) {
+      setProbeState({ ok: false, text: "\u8BF7\u586B\u5199\u540D\u79F0\u548C\u542F\u52A8\u547D\u4EE4" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await request2("/connectors/custom", {
+        method: "POST",
+        body: JSON.stringify({ displayName: displayName.trim(), mode, command: command.trim() })
+      });
+      if (res?.connectors) onChange?.(res.connectors);
+      setDisplayName("");
+      setCommand("");
+      setProbeState({ ok: true, text: `\u5DF2\u6DFB\u52A0\u300C${res?.connector?.displayName || displayName}\u300D\uFF0C\u73B0\u5728\u53EF\u4EE5\u76F4\u63A5\u5728\u4E0A\u65B9\u6210\u5458\u5217\u8868\u9009\u7528` });
+    } catch (error) {
+      setProbeState({ ok: false, text: `\u4FDD\u5B58\u5931\u8D25\uFF1A${error.message}` });
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function onTestSaved(id) {
+    setTestingId(id);
+    try {
+      const res = await request2("/connectors/probe", {
+        method: "POST",
+        body: JSON.stringify({ connector: id })
+      });
+      setRowProbes((prev) => ({
+        ...prev,
+        [id]: { ok: Boolean(res?.ok), text: res?.ok ? `\u5DF2\u5C31\u7EEA \xB7 ${res.userAgent || "OK"}` : `\u672A\u8FDE\u901A \xB7 ${res?.detail || res?.code || "\u5931\u8D25"}` }
+      }));
+    } catch (error) {
+      setRowProbes((prev) => ({ ...prev, [id]: { ok: false, text: `\u672A\u8FDE\u901A \xB7 ${error.message}` } }));
+    } finally {
+      setTestingId("");
+    }
+  }
+  async function onDelete(id) {
+    setSaving(true);
+    try {
+      const res = await request2(`/connectors/custom?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (res?.connectors) onChange?.(res.connectors);
+      setRowProbes((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    } catch (error) {
+      setProbeState({ ok: false, text: `\u5220\u9664\u5931\u8D25\uFF1A${error.message}` });
+    } finally {
+      setSaving(false);
+    }
+  }
+  return h(
+    SettingsSection,
+    {
+      title: "\u81EA\u5B9A\u4E49\u5916\u90E8 Agent",
+      count: customList.length,
+      hint: "\u586B\u540D\u79F0\u548C\u542F\u52A8\u547D\u4EE4\u5373\u53EF\u63A5\u5165\u4EFB\u610F CLI Agent\uFF0C\u4FDD\u5B58\u540E\u7ACB\u5373\u751F\u6548\u3001\u65E0\u9700\u91CD\u542F DSH\u3002",
+      "data-concerto-custom-connectors": "true"
+    },
+    h(
+      "div",
+      { className: "concerto-set-grid" },
+      h(
+        SettingsField,
+        { label: "\u540D\u79F0" },
+        h("input", {
+          className: "concerto-input",
+          disabled: busy,
+          value: displayName,
+          placeholder: mode === "acp" ? "\u4F8B\u5982\uFF1AMy ACP Agent" : "\u4F8B\u5982\uFF1AAider",
+          onChange: (e) => setDisplayName(e.target.value)
+        })
+      ),
+      h(
+        SettingsField,
+        { label: "\u63A5\u5165\u65B9\u5F0F" },
+        h(
+          "select",
+          {
+            className: "concerto-input",
+            disabled: busy,
+            value: mode,
+            onChange: (e) => {
+              setMode(e.target.value);
+              setProbeState(null);
+            }
+          },
+          h("option", { value: "acp" }, "ACP \u534F\u8BAE\uFF08\u63A8\u8350\uFF0C\u652F\u6301\u56E2\u961F\u5DE5\u5177\u4E0E\u5BA1\u6279\uFF09"),
+          h("option", { value: "cli" }, "\u666E\u901A\u547D\u4EE4\u884C\uFF08\u901A\u7528\u515C\u5E95\uFF09")
+        )
+      )
+    ),
+    h(
+      SettingsField,
+      {
+        label: "\u542F\u52A8\u547D\u4EE4",
+        hint: mode === "acp" ? '\u4F8B\u5982\uFF1Amy-agent acp \u6216 "C:\\path\\to\\agent.exe" acp' : "\u4F8B\u5982\uFF1Aaider --yes --message {{prompt}}\uFF08\u4E0D\u5199 {{prompt}} \u65F6\u81EA\u52A8\u901A\u8FC7\u6807\u51C6\u8F93\u5165\u4F20\u5165\u4EFB\u52A1\uFF09"
+      },
+      h("input", {
+        className: "concerto-input concerto-id",
+        disabled: busy,
+        value: command,
+        placeholder: mode === "acp" ? "my-agent acp" : "aider --yes --message {{prompt}}",
+        onChange: (e) => {
+          setCommand(e.target.value);
+          setProbeState(null);
+        }
+      })
+    ),
+    h(
+      "div",
+      { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 } },
+      h("button", {
+        type: "button",
+        className: "concerto-btn",
+        disabled: busy || !command.trim(),
+        onClick: onTestDraft
+      }, probeState?.pending ? "\u6D4B\u8BD5\u4E2D\u2026" : "\u6D4B\u8BD5\u8FDE\u63A5"),
+      h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--primary",
+        disabled: busy || !displayName.trim() || !command.trim(),
+        onClick: onAdd
+      }, "\u6DFB\u52A0\u8FDE\u63A5\u5668"),
+      probeState && h("span", {
+        className: "concerto-field-hint",
+        style: { color: probeState.pending ? "var(--cc-text-secondary)" : probeState.ok ? "var(--cc-ok)" : "var(--cc-danger)" }
+      }, probeState.text)
+    ),
+    customList.length > 0 && h(
+      "ul",
+      { className: "concerto-set-list", style: { marginTop: 10 } },
+      customList.map((item) => {
+        const rowProbe = rowProbes[item.id];
+        return h(
+          "li",
+          { key: item.id, className: "concerto-set-item" },
+          h(
+            "div",
+            { className: "concerto-set-item-head" },
+            h(
+              "div",
+              { className: "concerto-set-item-title" },
+              h("strong", null, item.displayName || item.id),
+              h("span", { className: "concerto-badge concerto-id" }, item.id),
+              h("span", { className: "concerto-tag" }, (item.protocol || item.mode || "cli").toUpperCase())
+            ),
+            h(
+              "div",
+              { style: { display: "flex", gap: 6 } },
+              h("button", {
+                type: "button",
+                className: "concerto-btn",
+                disabled: busy || testingId === item.id,
+                onClick: () => onTestSaved(item.id)
+              }, testingId === item.id ? "\u6D4B\u8BD5\u4E2D\u2026" : "\u6D4B\u8BD5"),
+              h("button", {
+                type: "button",
+                className: "concerto-btn concerto-btn--danger",
+                disabled: busy,
+                onClick: () => onDelete(item.id)
+              }, "\u5220\u9664")
+            )
+          ),
+          h(
+            "div",
+            { className: "concerto-set-meta" },
+            h("span", { className: "concerto-id" }, item.command || ""),
+            rowProbe && h("span", {
+              style: { color: rowProbe.ok ? "var(--cc-ok)" : "var(--cc-danger)" }
+            }, rowProbe.text)
+          )
+        );
+      })
+    )
+  );
+}
+function SettingsSection({ as = "section", title, hint, count, tone, children, ...rest }) {
+  return h(
+    as,
+    { className: "concerto-set-card", "data-tone": tone, ...rest },
+    h(
+      "div",
+      { className: "concerto-set-card-head" },
+      h("h3", null, title, count != null && h("span", { className: "concerto-count-pill concerto-num" }, String(count))),
+      hint && h("p", { className: "concerto-set-hint" }, hint)
+    ),
+    children
+  );
+}
+function SettingsField({ label: fieldLabel, hint, children }) {
+  return h(
+    "label",
+    { className: "concerto-set-field" },
+    h("span", { className: "concerto-set-label" }, fieldLabel),
+    children,
+    hint && h("span", { className: "concerto-field-hint" }, hint)
   );
 }
 var APPROVAL_METHOD_LABEL = {
   "item/commandExecution/requestApproval": "\u547D\u4EE4\u6267\u884C\u5BA1\u6279",
   "item/fileChange/requestApproval": "\u6587\u4EF6\u4FEE\u6539\u5BA1\u6279"
 };
+function RequiredReasonField({ label: fieldLabel, value, onChange, disabled, hint, maxLength }) {
+  const id = import_react5.default.useId();
+  const [invalid, setInvalid] = import_react5.default.useState(false);
+  return h(
+    "div",
+    { className: "concerto-field" },
+    h("label", { htmlFor: id }, fieldLabel, h("span", { className: "concerto-quiet" }, " \xB7 \u5FC5\u586B")),
+    hint && h("p", { id: `${id}-hint`, className: "concerto-field-hint" }, hint),
+    h("textarea", {
+      id,
+      value,
+      disabled,
+      required: true,
+      rows: 2,
+      maxLength,
+      "aria-invalid": invalid || void 0,
+      "aria-describedby": [hint && `${id}-hint`, invalid && `${id}-error`].filter(Boolean).join(" ") || void 0,
+      onInvalid: () => setInvalid(true),
+      onChange: (event) => {
+        const text = event.target.value;
+        event.target.setCustomValidity(text.trim() ? "" : `\u8BF7\u586B\u5199${fieldLabel}\u3002`);
+        if (text.trim()) setInvalid(false);
+        onChange(text);
+      },
+      className: "concerto-textarea"
+    }),
+    invalid && h("p", { id: `${id}-error`, className: "concerto-field-error" }, `\u8BF7\u586B\u5199${fieldLabel}\u3002`)
+  );
+}
+function UnblockTaskForm({ task, disabled, onSubmit }) {
+  const [reason, setReason] = import_react5.default.useState("");
+  const [expectedUpdatedAt] = import_react5.default.useState(task.updatedAt);
+  const stale = task.updatedAt !== expectedUpdatedAt;
+  return h(
+    "form",
+    {
+      "aria-label": "\u89E3\u9664\u4EFB\u52A1\u963B\u585E",
+      onSubmit: (event) => {
+        event.preventDefault();
+        if (disabled || stale || !reason.trim()) return;
+        onSubmit({ taskId: task.taskId, expectedUpdatedAt, reason: reason.trim() });
+      }
+    },
+    h(RequiredReasonField, {
+      label: "\u963B\u585E\u89E3\u9664\u4F9D\u636E",
+      value: reason,
+      onChange: setReason,
+      disabled,
+      maxLength: 1200,
+      hint: "\u8BF4\u660E\u963B\u585E\u5982\u4F55\u89E3\u9664\u3002\u63D0\u4EA4\u540E\u4EFB\u52A1\u56DE\u5230\u5F85\u6D3E\u53D1\u3002"
+    }),
+    stale && h("p", { role: "status" }, "\u4EFB\u52A1\u5DF2\u66F4\u65B0\u3002\u91CD\u65B0\u6253\u5F00\u8BE6\u60C5\u540E\u518D\u63D0\u4EA4\u3002"),
+    h("button", { type: "submit", className: "concerto-btn", disabled: disabled || stale }, "\u89E3\u9664\u963B\u585E")
+  );
+}
 function RequestCard({ item, disabled, onAnswer, bare = false }) {
-  const [draft, setDraft] = import_react3.default.useState({});
+  const [draft, setDraft] = import_react5.default.useState({});
+  const inputId = import_react5.default.useId();
+  const [invalidQuestions, setInvalidQuestions] = import_react5.default.useState({});
   const questions = item.payload?.questions || [];
   const answerOf = (q2) => draft[q2.id] ?? "";
   const set = (id, value) => setDraft({ ...draft, [id]: value });
-  const ready = questions.length > 0 && questions.every((q2) => answerOf(q2).trim());
   const rawSeq = item.sequenceIndex ?? item.payload?.sequenceIndex;
   const seq = Number.isInteger(rawSeq) ? rawSeq : null;
   const methodLabel = APPROVAL_METHOD_LABEL[item.payload?.method] || item.payload?.method || "";
@@ -2511,6 +4655,7 @@ function RequestCard({ item, disabled, onAnswer, bare = false }) {
   const rawDiff = item.diffFromPrevious ?? item.payload?.diffFromPrevious;
   const diffText = Array.isArray(rawDiff) ? rawDiff.join(" \xB7 ") : rawDiff ? String(rawDiff) : "";
   const isDuplicate = Boolean(item.duplicateOfRequestId ?? item.payload?.duplicateOfRequestId);
+  const questionMode = item.responseMode === "next_turn" ? "\u672C\u8F6E\u7ED3\u675F\u540E\uFF0C\u6210\u5458\u5C06\u5728\u4E0B\u4E00\u8F6E\u6536\u5230\u7B54\u590D\u3002" : item.responseMode === "same_turn" ? "\u7B54\u590D\u5C06\u9001\u56DE\u6210\u5458\u5F53\u524D\u8F6E\u3002" : "";
   return h(
     "div",
     { style: bare ? void 0 : cardStyle },
@@ -2565,12 +4710,21 @@ function RequestCard({ item, disabled, onAnswer, bare = false }) {
       }, "\u6279\u51C6\u8FD9\u6B21")
     ),
     item.kind === "question" && h(
-      "div",
-      null,
-      questions.map((q2) => h(
+      "form",
+      {
+        "aria-label": `\u56DE\u7B54 ${item.memberId || "\u6210\u5458"} \u7684\u95EE\u9898`,
+        "aria-describedby": questionMode ? `${inputId}-mode` : void 0,
+        onSubmit: (event) => {
+          event.preventDefault();
+          if (disabled || item.status !== "pending") return;
+          onAnswer(item, { answers: Object.fromEntries(questions.map((q2) => [q2.id, { answers: [answerOf(q2).trim()] }])) });
+        }
+      },
+      questionMode && h("p", { id: `${inputId}-mode`, className: "concerto-field-hint" }, questionMode),
+      questions.map((q2, index) => h(
         "div",
-        { key: q2.id, style: { marginTop: 8 } },
-        h("p", null, q2.question),
+        { key: q2.id, className: "concerto-field" },
+        h("label", { htmlFor: `${inputId}-${index}` }, q2.question, h("span", { className: "concerto-quiet" }, " \xB7 \u5FC5\u586B")),
         q2.options?.length > 0 && h(
           "div",
           { style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 } },
@@ -2578,94 +4732,186 @@ function RequestCard({ item, disabled, onAnswer, bare = false }) {
             key: opt.label,
             type: "button",
             className: "concerto-btn",
+            "aria-pressed": answerOf(q2) === opt.label,
             disabled: disabled || item.status !== "pending",
             onClick: () => set(q2.id, opt.label)
           }, opt.label))
         ),
         h("input", {
+          id: `${inputId}-${index}`,
           value: answerOf(q2),
           disabled: disabled || item.status !== "pending",
+          required: true,
+          pattern: ".*\\S.*",
+          "aria-invalid": invalidQuestions[q2.id] && !answerOf(q2).trim() || void 0,
+          "aria-describedby": invalidQuestions[q2.id] && !answerOf(q2).trim() ? `${inputId}-${index}-error` : void 0,
+          onInvalid: () => setInvalidQuestions((prev) => ({ ...prev, [q2.id]: true })),
           onChange: (event) => set(q2.id, event.target.value),
-          placeholder: "\u8F93\u5165\u7ED9\u6210\u5458\u7684\u56DE\u7B54",
-          style: { ...styles.input, width: "100%", boxSizing: "border-box" }
-        })
+          placeholder: "\u9009\u62E9\u4E0A\u65B9\u9009\u9879\uFF0C\u6216\u8F93\u5165\u56DE\u7B54",
+          className: "concerto-input"
+        }),
+        invalidQuestions[q2.id] && !answerOf(q2).trim() && h("p", { id: `${inputId}-${index}-error`, className: "concerto-field-error" }, "\u8BF7\u586B\u5199\u56DE\u7B54\u6216\u9009\u62E9\u4E00\u4E2A\u9009\u9879\u3002")
       )),
       h(
         "div",
         { style: { display: "flex", justifyContent: "flex-end", marginTop: 8 } },
-        h("button", {
-          type: "button",
-          className: "concerto-btn concerto-btn--primary",
-          disabled: disabled || item.status !== "pending" || !ready,
-          onClick: () => onAnswer(item, { answers: Object.fromEntries(questions.map((q2) => [q2.id, { answers: [answerOf(q2)] }])) })
-        }, "\u63D0\u4EA4\u56DE\u7B54")
+        h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled: disabled || item.status !== "pending" || questions.length === 0 }, "\u63D0\u4EA4\u56DE\u7B54")
       )
     )
   );
 }
 function ReviewCard({ task, disabled, onReview, bare = false }) {
-  const [reason, setReason] = import_react3.default.useState("");
-  const ready = reason.trim().length > 0;
+  const [reason, setReason] = import_react5.default.useState("");
+  const [failError, setFailError] = import_react5.default.useState("");
+  const reasonRef = import_react5.default.useRef(null);
+  const inputId = import_react5.default.useId();
   return h(
-    "div",
-    { style: { marginTop: bare ? 4 : 8 } },
-    h("textarea", {
-      value: reason,
-      disabled,
-      rows: 2,
-      onChange: (e) => setReason(e.target.value),
-      placeholder: "\u9A8C\u6536\u4F9D\u636E\uFF0C\u4F8B\u5982\u68C0\u67E5\u4E86\u4EC0\u4E48\u8F93\u51FA\u6216\u8FD0\u884C\u7ED3\u679C",
-      style: { ...styles.input, width: "100%", boxSizing: "border-box" }
-    }),
+    "form",
+    {
+      style: { marginTop: bare ? 4 : 8 },
+      "aria-label": `\u9A8C\u6536 ${task.title || task.taskId}`,
+      onSubmit: (event) => {
+        event.preventDefault();
+        if (disabled) return;
+        const verdict = event.nativeEvent.submitter?.value;
+        if (!["pass", "fail"].includes(verdict)) return;
+        const trimmed = reason.trim();
+        if (verdict === "fail" && !trimmed) {
+          setFailError("\u9000\u56DE\u91CD\u505A\u65F6\u8BF7\u586B\u5199\u4FEE\u6539\u539F\u56E0\u3002");
+          reasonRef.current?.focus();
+          return;
+        }
+        setFailError("");
+        onReview(task, verdict, trimmed || "\u7528\u6237\u786E\u8BA4\u9A8C\u6536\u901A\u8FC7");
+      }
+    },
+    h(
+      "div",
+      { className: "concerto-field" },
+      h("label", { htmlFor: inputId }, "\u9A8C\u6536\u8BF4\u660E", h("span", { className: "concerto-quiet" }, " \xB7 \u901A\u8FC7\u9009\u586B\uFF0C\u9000\u56DE\u91CD\u505A\u5FC5\u586B")),
+      h("textarea", {
+        ref: reasonRef,
+        id: inputId,
+        className: "concerto-input",
+        rows: 2,
+        value: reason,
+        disabled,
+        placeholder: "\u76F4\u63A5\u70B9\u51FB\u201C\u9A8C\u6536\u901A\u8FC7\u201D\u5373\u53EF\uFF1B\u5982\u9700\u9000\u56DE\u91CD\u505A\uFF0C\u8BF7\u8BF4\u660E\u539F\u56E0\u3002",
+        "aria-invalid": Boolean(failError) || void 0,
+        "aria-describedby": failError ? `${inputId}-error` : void 0,
+        onChange: (event) => {
+          setReason(event.target.value);
+          if (failError && event.target.value.trim()) setFailError("");
+        }
+      }),
+      failError && h("p", { id: `${inputId}-error`, className: "concerto-field-error", role: "alert" }, failError)
+    ),
     h(
       "div",
       { style: { display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap", justifyContent: "flex-end" } },
-      h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", disabled: disabled || !ready, onClick: () => onReview(task, "fail", reason) }, "\u9000\u56DE\u91CD\u505A"),
-      h("button", { type: "button", className: "concerto-btn concerto-btn--primary", disabled: disabled || !ready, onClick: () => onReview(task, "pass", reason) }, "\u9A8C\u6536\u901A\u8FC7")
+      h("button", { type: "submit", value: "fail", className: "concerto-btn concerto-btn--ghost", disabled }, "\u9000\u56DE\u91CD\u505A"),
+      h("button", { type: "submit", value: "pass", className: "concerto-btn concerto-btn--primary", disabled }, "\u9A8C\u6536\u901A\u8FC7")
     )
   );
 }
 function AdjudicationCard({ execution, disabled, onSubmit, bare = false }) {
-  const [reason, setReason] = import_react3.default.useState("");
-  const [reviewed, setReviewed] = import_react3.default.useState(false);
-  const ready = reason.trim().length > 0;
-  const act = (action, extra = {}) => onSubmit({ taskId: execution.taskId, executionId: execution.executionId, action, reason, ...extra });
+  const [reviewed, setReviewed] = import_react5.default.useState(false);
+  const delivery = execution.recoverableDelivery;
   return h(
-    "div",
-    { style: bare ? void 0 : cardStyle },
+    "form",
+    {
+      style: bare ? void 0 : cardStyle,
+      "aria-label": `\u88C1\u51B3 ${execution.taskId}`,
+      onSubmit: (event) => {
+        event.preventDefault();
+        if (disabled) return;
+        const action = event.nativeEvent.submitter?.value;
+        if (!action || action === "retry_isolated" && !reviewed || action === "accept" && !delivery) return;
+        onSubmit({
+          taskId: execution.taskId,
+          executionId: execution.executionId,
+          action,
+          reason: ADJUDICATION_NOTES[action],
+          ...action === "retry_isolated" ? { externalEffectsReviewed: true } : {},
+          ...action === "accept" ? { resultId: delivery.resultId } : {}
+        });
+      }
+    },
     !bare && h("strong", null, "\u9700\u8981\u4F60\u88C1\u51B3 \xB7 " + execution.taskId),
     h("div", { style: { ...styles.muted, fontSize: "var(--cc-fs-meta)" } }, (execution.memberId || "") + " \xB7 \u72B6\u6001\u672A\u77E5\uFF08\u4E0A\u6B21\u8FD0\u884C\u7ED3\u679C\u5C1A\u672A\u786E\u8BA4\uFF09"),
     execution.writeScope && h("p", { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", overflowWrap: "anywhere" } }, "\u5DE5\u4F5C\u76EE\u5F55\u88AB\u4E0A\u6B21\u672A\u786E\u8BA4\u7684\u8FD0\u884C\u5360\u7528\uFF1A" + execution.writeScope),
-    h("textarea", {
-      value: reason,
-      disabled,
-      rows: 2,
-      onChange: (e) => setReason(e.target.value),
-      placeholder: "\u8BF4\u660E\u88C1\u51B3\u539F\u56E0\uFF08\u5FC5\u586B\uFF09",
-      style: { ...styles.input, width: "100%", boxSizing: "border-box", marginTop: 6 }
-    }),
+    delivery && h(DeliveryRecoveryNote, { delivery }),
     h(
       "label",
       { style: { display: "flex", gap: 6, alignItems: "center", marginTop: 6, fontSize: "var(--cc-fs-meta)" } },
       h("input", { type: "checkbox", checked: reviewed, disabled, onChange: (e) => setReviewed(e.target.checked) }),
-      "\u5DF2\u786E\u8BA4\u5916\u90E8\u6539\u52A8\uFF08Codex \u53D7\u9650\u6C99\u76D2 / Hosted \u975E\u5371\u9669\u6210\u5458\u9694\u79BB\u91CD\u8BD5\u5747\u9700\u786E\u8BA4\uFF09"
+      "\u5DF2\u6838\u67E5\u4E0A\u6B21\u8FD0\u884C\u7684\u5916\u90E8\u6539\u52A8\uFF0C\u5141\u8BB8\u5728\u9694\u79BB\u5DE5\u4F5C\u533A\u91CD\u8BD5"
     ),
     h(
       "div",
       { style: { display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "flex-end" } },
-      h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", disabled: disabled || !ready, onClick: () => act("confirm_failed") }, "\u786E\u8BA4\u5DF2\u505C\u6B62\u5E76\u6539\u6D3E"),
-      h("button", {
-        type: "button",
-        className: "concerto-btn concerto-btn--primary",
-        disabled: disabled || !ready || !reviewed,
-        onClick: () => act("retry_isolated", { externalEffectsReviewed: true })
-      }, "\u5E26\u9694\u79BB\u91CD\u8BD5")
+      h("button", { type: "submit", value: "confirm_failed", className: "concerto-btn concerto-btn--ghost", disabled }, "\u786E\u8BA4\u5DF2\u505C\u6B62\u5E76\u6539\u6D3E"),
+      delivery && h("button", { type: "submit", value: "accept", className: "concerto-btn", disabled }, "\u63A5\u6536\u5DF2\u9A8C\u8BC1\u4EA4\u4ED8"),
+      h("button", { type: "submit", value: "retry_isolated", className: "concerto-btn concerto-btn--primary", disabled: disabled || !reviewed }, "\u5E26\u9694\u79BB\u91CD\u8BD5")
     )
   );
 }
 
 // packages/dsh-concerto/src/client/components/TeamHome.js
-var import_react11 = __toESM(require_react(), 1);
+var import_react20 = __toESM(require_react(), 1);
+
+// packages/dsh-concerto/src/client/components/ExcalidrawImport.js
+var import_react6 = __toESM(require_react(), 1);
+
+// packages/dsh-concerto/lib/domain/excalidraw_import.mjs
+var EXCALIDRAW_IMPORT_MAX_BYTES = 1024 * 1024;
+var SHAPES = ["rectangle", "ellipse", "diamond"];
+var LINES = ["arrow", "line"];
+var SUPPORTED = [...SHAPES, "text", ...LINES];
+
+// packages/dsh-concerto/src/client/components/ExcalidrawImport.js
+function ExcalidrawImport({ sessionId, disabled, viewObjects, refresh, onLocate }) {
+  const picker = import_react6.default.useRef(null);
+  const [status, setStatus] = import_react6.default.useState(null);
+  const busy = status?.kind === "busy";
+  const imported = status?.id && viewObjects.find((object) => object.id === status.id);
+  async function handleFile(event) {
+    const input = event.currentTarget;
+    const file = input.files[0];
+    if (!file) return;
+    input.value = "";
+    if (file.size > EXCALIDRAW_IMPORT_MAX_BYTES) {
+      setStatus({ kind: "error", message: "\u8BF7\u9009\u62E9\u4E0D\u8D85\u8FC7 1 MiB \u7684 .excalidraw \u6587\u4EF6\u3002" });
+      return;
+    }
+    setStatus({ kind: "busy", message: "\u6B63\u5728\u5BFC\u5165\u767D\u677F\u2026" });
+    try {
+      const result = await importExcalidrawBoard(sessionId, file);
+      const omitted = result.omittedCount ? `\uFF0C\u5DF2\u8DF3\u8FC7 ${result.omittedCount} \u4E2A\u4E0D\u652F\u6301\u7684\u5143\u7D20` : "";
+      setStatus({ kind: "success", id: result.id, message: `\u5DF2\u5BFC\u5165\u300C${result.title}\u300D${omitted}\u3002` });
+      refresh();
+    } catch (error) {
+      setStatus({ kind: "error", message: `\u5BFC\u5165\u5931\u8D25\uFF1A${error.message}` });
+    }
+  }
+  return h(
+    "div",
+    { className: "concerto-import-actions" },
+    h("button", {
+      type: "button",
+      className: "concerto-btn",
+      disabled: disabled || busy,
+      onClick: () => picker.current.click()
+    }, "\u5BFC\u5165 .excalidraw"),
+    h("input", { ref: picker, type: "file", accept: ".excalidraw", hidden: true, onChange: handleFile }),
+    h("span", { role: "status", className: "concerto-quiet", style: { overflowWrap: "anywhere" } }, status?.message),
+    imported && h("button", {
+      type: "button",
+      className: "concerto-link",
+      onClick: () => onLocate(imported)
+    }, "\u67E5\u770B\u767D\u677F")
+  );
+}
 
 // packages/dsh-concerto/node_modules/@dagrejs/dagre/dist/dagre.esm.js
 var Te = Object.defineProperty;
@@ -4698,6 +6944,44 @@ function defaultPreviewCollapsedIds(root, thresholdNodes = 8, maxOpenDepth = 1) 
   walk(norm, 0);
   return folded;
 }
+function defaultPreviewCollapsedIdsWithinBudget(root, options = {}) {
+  const norm = normalizeMindmapTree(root);
+  if (!norm) return [];
+  const fontSize = Number.isFinite(options.fontSize) && options.fontSize > 0 ? options.fontSize : 12.5;
+  const maxHeight = Number.isFinite(options.maxHeight) && options.maxHeight > 0 ? options.maxHeight : 356;
+  const collapsed = /* @__PURE__ */ new Set();
+  function foldDeepBranches(node, depth) {
+    const children = Array.isArray(node.children) ? node.children : [];
+    if (depth >= 2 && children.length > 0) {
+      collapsed.add(node.id);
+      return;
+    }
+    for (const child of children) foldDeepBranches(child, depth + 1);
+  }
+  foldDeepBranches(norm, 0);
+  const fits = () => layoutMindmapTree(norm, collapsed, { fontSize }).height <= maxHeight;
+  if (fits()) return [...collapsed];
+  while (true) {
+    let collect = function(node, depth) {
+      if (collapsed.has(node.id)) return;
+      const children = Array.isArray(node.children) ? node.children : [];
+      if (depth > 0 && children.length > 0) {
+        candidates.push({ id: node.id, depth, descendants: countSubtreeDescendants(node) });
+      }
+      for (const child of children) collect(child, depth + 1);
+    };
+    const candidates = [];
+    collect(norm, 0);
+    if (candidates.length === 0 && !collapsed.has(norm.id) && Array.isArray(norm.children) && norm.children.length > 0) {
+      candidates.push({ id: norm.id, depth: 0, descendants: countSubtreeDescendants(norm) });
+    }
+    if (candidates.length === 0) break;
+    candidates.sort((a, b) => b.descendants - a.descendants || b.depth - a.depth || a.id.localeCompare(b.id));
+    collapsed.add(candidates[0].id);
+    if (fits()) break;
+  }
+  return [...collapsed];
+}
 function parseMarkdownToMindmap(markdown) {
   const lines = String(markdown ?? "").split(/\r?\n/).map((l) => l.replace(/\t/g, "  ")).filter((l) => l.trim() !== "");
   if (lines.length === 0) return null;
@@ -4754,27 +7038,31 @@ function layoutMindmapTree(root, collapsedIds = /* @__PURE__ */ new Set(), optio
   const normRoot = normalizeMindmapTree(root);
   if (!normRoot) return { nodes: [], edges: [], width: 0, height: 0, hiddenDescendantTotal: 0 };
   const fontSize = Number.isFinite(options.fontSize) && options.fontSize > 0 ? options.fontSize : 12.5;
-  const lineHeight = Math.round(fontSize * 1.4);
-  const maxChars = fontSize >= 15 ? 15 : 18;
-  const X_GAP = 62;
-  const Y_GAP = 14;
+  const lineHeight = Math.round(fontSize * 1.5);
+  const X_GAP = 80;
+  const Y_GAP = 24;
+  const depthWidths = [];
   const nodes = [];
   const edges = [];
   let hiddenDescendantTotal = 0;
   function measure(node, depth, branchHueIdx) {
     const id = node.id;
     const fullLabel = String(node.label ?? id);
-    const lines = wrapLabel(fullLabel, maxChars, 3);
-    const textW = Math.max(48, ...lines.map((l) => approxLineWidth(l, depth === 0 ? fontSize + 0.5 : fontSize)));
     const rawChildren = Array.isArray(node.children) ? node.children : [];
+    const isLeaf = depth > 0 && rawChildren.length === 0;
     const collapsed = rawChildren.length > 0 && collapsedIds.has(id);
     const hiddenCount = collapsed ? countSubtreeDescendants(node) : 0;
     if (collapsed) hiddenDescendantTotal += hiddenCount;
     const badgeSpace = collapsed ? 36 : 0;
-    const width = Math.max(96, Math.min(280, Math.round(textW + 32 + badgeSpace)));
-    const height = Math.max(34, lines.length * lineHeight + 14);
+    const maxChars = Math.max(1, Math.min(18, Math.floor((320 - 40 - badgeSpace) / ((fontSize + 0.5) * 1.04))));
+    const lines = wrapLabel(fullLabel, maxChars, 3);
+    const textW = Math.max(48, ...lines.map((l) => approxLineWidth(l, depth === 0 ? fontSize + 0.5 : fontSize)));
+    const width = Math.max(136, Math.min(320, Math.round(textW + 40 + badgeSpace)));
+    depthWidths[depth] = Math.max(depthWidths[depth] || 0, width);
+    const height = isLeaf ? Math.max(28, lines.length * lineHeight + 8) : Math.max(54, lines.length * lineHeight + 26);
     const children = collapsed ? [] : rawChildren.map((c, idx) => measure(c, depth + 1, depth === 0 ? idx : branchHueIdx));
-    const childrenHeight = children.reduce((sum, c) => sum + c.subtreeHeight, 0) + Math.max(0, children.length - 1) * Y_GAP;
+    const childGap = children.length > 0 && children.every((child) => child.isLeaf) ? 8 : Y_GAP;
+    const childrenHeight = children.reduce((sum, c) => sum + c.subtreeHeight, 0) + Math.max(0, children.length - 1) * childGap;
     const subtreeHeight = Math.max(height, childrenHeight);
     return {
       id,
@@ -4782,6 +7070,7 @@ function layoutMindmapTree(root, collapsedIds = /* @__PURE__ */ new Set(), optio
       fullLabel,
       lines,
       depth,
+      isLeaf,
       branchIndex: depth === 0 ? 0 : branchHueIdx,
       width,
       height,
@@ -4799,6 +7088,7 @@ function layoutMindmapTree(root, collapsedIds = /* @__PURE__ */ new Set(), optio
   }
   const measured = measure(normRoot, 0, 0);
   function place(item, x, topY) {
+    const width = depthWidths[item.depth];
     const centerY = topY + item.subtreeHeight / 2;
     const y = centerY - item.height / 2;
     nodes.push({
@@ -4807,10 +7097,11 @@ function layoutMindmapTree(root, collapsedIds = /* @__PURE__ */ new Set(), optio
       fullLabel: item.fullLabel,
       lines: item.lines,
       depth: item.depth,
+      isLeaf: item.isLeaf,
       branchIndex: item.branchIndex,
       x,
       y,
-      width: item.width,
+      width,
       height: item.height,
       centerY,
       collapsed: item.collapsed,
@@ -4823,15 +7114,16 @@ function layoutMindmapTree(root, collapsedIds = /* @__PURE__ */ new Set(), optio
       memberId: item.memberId
     });
     if (item.children.length > 0) {
-      const childX = x + item.width + X_GAP;
-      const totalH = item.children.reduce((s, c) => s + c.subtreeHeight, 0) + (item.children.length - 1) * Y_GAP;
+      const childX = x + width + X_GAP;
+      const childGap = item.children.every((child) => child.isLeaf) ? 8 : Y_GAP;
+      const totalH = item.children.reduce((s, c) => s + c.subtreeHeight, 0) + (item.children.length - 1) * childGap;
       let childTop = centerY - totalH / 2;
       for (const child of item.children) {
         const childCenterY = childTop + child.subtreeHeight / 2;
         edges.push({
           from: item.id,
           to: child.id,
-          x1: x + item.width,
+          x1: x + width,
           y1: centerY,
           x2: childX,
           y2: childCenterY,
@@ -4840,11 +7132,11 @@ function layoutMindmapTree(root, collapsedIds = /* @__PURE__ */ new Set(), optio
           status: child.status
         });
         place(child, childX, childTop);
-        childTop += child.subtreeHeight + Y_GAP;
+        childTop += child.subtreeHeight + childGap;
       }
     }
   }
-  place(measured, 20, 20);
+  place(measured, 28, 28);
   const maxX = Math.max(280, ...nodes.map((n) => n.x + n.width + 32));
   const maxY = Math.max(140, ...nodes.map((n) => n.y + n.height + 24));
   return { nodes, edges, width: maxX, height: maxY, hiddenDescendantTotal, lineHeight, fontSize };
@@ -4888,33 +7180,6 @@ function buildRoundedOrthogonalPath(x1, y1, x2, y2, direction = "LR") {
     `L ${x2} ${y2}`
   ].join(" ");
 }
-function pointsToRoundedPath(points) {
-  if (!Array.isArray(points) || points.length < 2) return "";
-  if (points.length === 2) {
-    return buildRoundedOrthogonalPath(points[0].x, points[0].y, points[1].x, points[1].y, "LR");
-  }
-  let d = `M ${Math.round(points[0].x)} ${Math.round(points[0].y)}`;
-  for (let i = 1; i < points.length - 1; i += 1) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const next = points[i + 1];
-    const v1x = curr.x - prev.x;
-    const v1y = curr.y - prev.y;
-    const v2x = next.x - curr.x;
-    const v2y = next.y - curr.y;
-    const l1 = Math.hypot(v1x, v1y) || 1;
-    const l2 = Math.hypot(v2x, v2y) || 1;
-    const r = Math.min(8, l1 / 3, l2 / 3);
-    const p1x = curr.x - v1x / l1 * r;
-    const p1y = curr.y - v1y / l1 * r;
-    const p2x = curr.x + v2x / l2 * r;
-    const p2y = curr.y + v2y / l2 * r;
-    d += ` L ${p1x.toFixed(1)} ${p1y.toFixed(1)} Q ${curr.x.toFixed(1)} ${curr.y.toFixed(1)} ${p2x.toFixed(1)} ${p2y.toFixed(1)}`;
-  }
-  const last = points[points.length - 1];
-  d += ` L ${Math.round(last.x)} ${Math.round(last.y)}`;
-  return d;
-}
 function topologicalLayers(nodeSpecs, rawEdges) {
   const inDeg = new Map(nodeSpecs.map((n) => [n.id, 0]));
   const adj = new Map(nodeSpecs.map((n) => [n.id, []]));
@@ -4939,15 +7204,20 @@ function topologicalLayers(nodeSpecs, rawEdges) {
   }
   return layerOf;
 }
-function classifyEdgeSemantic(edge, fromNode, toNode, isCrit) {
+function classifyEdgeSemantic(edge, fromNode, toNode, isCrit, semanticKind) {
   const errStates = /* @__PURE__ */ new Set(["blocked", "failed", "error"]);
-  if (edge.kind === "error" || errStates.has(edge.status) || errStates.has(fromNode?.status) || errStates.has(toNode?.status)) {
+  const waitingStates = /* @__PURE__ */ new Set(["waiting_approval", "waiting_input", "attention"]);
+  const useModelKind = semanticKind !== "live_execution";
+  if (useModelKind && edge.kind === "error" || errStates.has(edge.status) || errStates.has(fromNode?.status) || errStates.has(toNode?.status)) {
     return "blocked";
   }
-  if (edge.kind === "unknown" || edge.status === "unknown" || toNode?.status === "unknown") {
+  if (useModelKind && edge.kind === "unknown" || edge.status === "unknown" || toNode?.status === "unknown") {
     return "unknown";
   }
-  if (isCrit || edge.kind === "critical" || toNode?.status === "running" || toNode?.status === "in_progress") {
+  if (useModelKind && edge.kind === "waiting" || waitingStates.has(edge.status) || waitingStates.has(toNode?.status)) {
+    return "waiting";
+  }
+  if (isCrit || useModelKind && edge.kind === "critical" || toNode?.status === "running" || toNode?.status === "in_progress") {
     return "critical";
   }
   return "default";
@@ -4960,18 +7230,20 @@ function layoutDiagram(data, options = {}) {
   const userOffsets = options.userOffsets && typeof options.userOffsets === "object" ? options.userOffsets : {};
   const criticalNodes = new Set(Array.isArray(options.criticalPath) ? options.criticalPath : []);
   const fontSize = Number.isFinite(options.fontSize) && options.fontSize > 0 ? options.fontSize : 12.5;
-  const lineHeight = Math.round(fontSize * 1.38);
-  const maxChars = fontSize >= 15 ? 14 : 16;
+  const lineHeight = Math.round(fontSize * 1.5);
+  const maxChars = Math.max(1, Math.min(16, Math.floor(248 / (fontSize * 1.04))));
+  const labelFontSize = Math.max(11, Math.round(fontSize * 0.85));
+  const labelHeight = Math.ceil(labelFontSize * 1.6);
   if (rawNodes.length === 0) return { nodes: [], edges: [], lanes: [], width: 320, height: 180, direction, fontSize, lineHeight };
   const hasEdgeLabels = rawEdges.some((e) => typeof e?.label === "string" && e.label.trim() !== "");
-  const maxEdgeLabelW = hasEdgeLabels ? Math.max(0, ...rawEdges.map((e) => e?.label ? approxLineWidth(e.label, Math.max(10, fontSize - 2)) + 20 : 0)) : 0;
+  const maxEdgeLabelW = hasEdgeLabels ? Math.max(0, ...rawEdges.map((e) => e?.label ? approxLineWidth(e.label, labelFontSize) + 20 : 0)) : 0;
   const nodeSpecs = rawNodes.map((n) => {
     const fullLabel = String(n.label ?? n.id);
     const lines = wrapLabel(fullLabel, maxChars, 3);
     const maxW = Math.max(52, ...lines.map((l) => approxLineWidth(l, fontSize)));
     const statusSpace = n.status ? 46 : 10;
-    const width2 = Math.max(114, Math.min(264, Math.round(Math.max(maxW + 32, maxW + statusSpace * 0.5 + 24))));
-    const height2 = Math.max(44, lines.length * lineHeight + (n.status ? 26 : 18));
+    const width2 = Math.max(164, Math.min(300, Math.round(Math.max(maxW + 40, maxW + statusSpace * 0.5 + 28))));
+    const height2 = Math.max(60, lines.length * lineHeight + (n.status ? 50 : 28));
     return {
       ...n,
       fullLabel,
@@ -4983,7 +7255,6 @@ function layoutDiagram(data, options = {}) {
   });
   const positioned = /* @__PURE__ */ new Map();
   const lanes = [];
-  let dagreEdgePoints = /* @__PURE__ */ new Map();
   if (layout === "timeline") {
     let cursorX = 28;
     const yBase = 48;
@@ -5073,7 +7344,7 @@ function layoutDiagram(data, options = {}) {
         }
         for (const e of rawEdges) {
           if (positioned.has(e.from) || nodeSpecs.some((n) => n.id === e.from)) {
-            if (nodeSpecs.some((n) => n.id === e.to)) g.setEdge(e.from, e.to);
+            if (nodeSpecs.some((n) => n.id === e.to)) g.setEdge(e.from, e.to, e.label ? { width: approxLineWidth(e.label, labelFontSize) + 20, height: labelHeight, labelpos: "c" } : {});
           }
         }
         Uo.layout(g);
@@ -5085,12 +7356,6 @@ function layoutDiagram(data, options = {}) {
               x: Math.round(layoutNode.x - n.width / 2),
               y: Math.round(layoutNode.y - n.height / 2)
             });
-          }
-        }
-        for (const e of rawEdges) {
-          const edgeObj = g.edge(e.from, e.to);
-          if (edgeObj && Array.isArray(edgeObj.points)) {
-            dagreEdgePoints.set(`${e.from}->${e.to}`, edgeObj.points);
           }
         }
         usedDagre = positioned.size === nodeSpecs.length;
@@ -5137,7 +7402,6 @@ function layoutDiagram(data, options = {}) {
     }
     for (const lane of lanes) lane.y -= minY;
   }
-  const hasUserOffsets = Object.keys(userOffsets).length > 0;
   const edges = rawEdges.map((e) => {
     const from = positioned.get(e.from);
     const to = positioned.get(e.to);
@@ -5161,11 +7425,11 @@ function layoutDiagram(data, options = {}) {
       x2 = to.x + to.width / 2;
       y2 = to.y;
     }
-    const dagPoints = !hasUserOffsets && layout === "dag" ? dagreEdgePoints.get(`${e.from}->${e.to}`) : null;
-    const path = dagPoints && dagPoints.length >= 2 ? pointsToRoundedPath([{ x: x1, y: y1 }, ...dagPoints.slice(1, -1), { x: x2, y: y2 }]) : buildRoundedOrthogonalPath(x1, y1, x2, y2, downFlow ? "TB" : "LR");
+    const path = buildRoundedOrthogonalPath(x1, y1, x2, y2, downFlow ? "TB" : "LR");
+    const channelX = (x1 + x2) / 2;
     const isCrit = Boolean(e.critical) || Boolean(from.critical) && Boolean(to.critical);
-    const semantic = classifyEdgeSemantic(e, from, to, isCrit);
-    const labelWidth = e.label ? Math.round(approxLineWidth(e.label, Math.max(10, fontSize - 2)) + 16) : 0;
+    const semantic = classifyEdgeSemantic(e, from, to, isCrit, options.semanticKind);
+    const labelWidth = e.label ? Math.ceil(approxLineWidth(e.label, labelFontSize) + 20) : 0;
     return {
       ...e,
       x1: Math.round(x1),
@@ -5173,11 +7437,13 @@ function layoutDiagram(data, options = {}) {
       x2: Math.round(x2),
       y2: Math.round(y2),
       path,
-      midX: Math.round((x1 + x2) / 2),
-      midY: Math.round((y1 + y2) / 2),
+      midX: Math.round(downFlow ? channelX : (channelX + x2) / 2),
+      midY: Math.round(downFlow ? (y1 + y2) / 2 : y2),
       critical: isCrit,
       semantic,
-      labelWidth
+      labelWidth,
+      labelHeight,
+      labelFontSize
     };
   }).filter(Boolean);
   const width = Math.max(340, ...nodes.map((n) => n.x + n.width + 32), ...lanes.map((l) => l.width));
@@ -5352,6 +7618,31 @@ var ALLOWED_RENDERERS = Object.freeze({
   html: Object.freeze(["sandbox-iframe"])
 });
 var CONCERTO_HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:;";
+var ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/;
+var isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+var isNonEmptyString = (v) => typeof v === "string" && v.trim() !== "";
+function fail(code, detail) {
+  return { ok: false, code, detail };
+}
+function hasLiveTaskLinksInMindmap(node) {
+  if (!node || typeof node !== "object") return false;
+  if (isNonEmptyString(node.taskId) || isNonEmptyString(node.executionId)) return true;
+  return Array.isArray(node.children) && node.children.some((c) => hasLiveTaskLinksInMindmap(c));
+}
+function resolveSemanticKind(input, normalizedData = null) {
+  const explicit = input?.semanticKind ?? normalizedData?.semanticKind ?? input?.data?.semanticKind;
+  if (explicit !== void 0) {
+    if (!VIEW_SEMANTIC_KINDS.includes(explicit)) {
+      return fail("invalid", `semanticKind must be ${VIEW_SEMANTIC_KINDS.join(" | ")}`);
+    }
+    return { ok: true, semanticKind: explicit };
+  }
+  const d = normalizedData || input?.data || {};
+  const hasLinks = Array.isArray(d.nodes) && d.nodes.some((n) => isNonEmptyString(n?.taskId) || isNonEmptyString(n?.executionId)) || Array.isArray(d.items) && d.items.some((it2) => isNonEmptyString(it2?.taskId)) || hasLiveTaskLinksInMindmap(d.root);
+  if (hasLinks) return { ok: true, semanticKind: "live_execution" };
+  if (input?.snapshotAt) return { ok: true, semanticKind: "snapshot" };
+  return { ok: true, semanticKind: "blueprint" };
+}
 function normalizePublicView(publicView) {
   const summary = typeof publicView?.summary === "string" ? publicView.summary : "";
   const pinnedRefs = Array.isArray(publicView?.pinnedRefs) ? publicView.pinnedRefs : [];
@@ -5364,6 +7655,49 @@ function normalizePublicView(publicView) {
     updatedAt: publicView?.updatedAt ?? null,
     updatedBy: publicView?.updatedBy ?? null
   };
+}
+function normalizeRequiredViewEntry(entry, defaults = {}) {
+  if (typeof entry === "string") {
+    const m = /^(table|checklist|mindmap|diagram|board|html):([a-zA-Z0-9][a-zA-Z0-9._-]{0,63})$/.exec(entry.trim());
+    if (!m) return null;
+    return {
+      type: m[1],
+      id: m[2],
+      title: `${m[1]}:${m[2]}`,
+      taskId: defaults.taskId ?? null,
+      requiredForAcceptance: Boolean(defaults.requiredForAcceptance),
+      source: defaults.source || "template"
+    };
+  }
+  if (!isPlainObject(entry) || !VIEW_OBJECT_TYPES.includes(entry.type) || typeof entry.id !== "string" || !ID_PATTERN.test(entry.id)) {
+    return null;
+  }
+  return {
+    type: entry.type,
+    id: entry.id,
+    title: isNonEmptyString(entry.title) ? entry.title.trim() : `${entry.type}:${entry.id}`,
+    taskId: entry.taskId ?? defaults.taskId ?? null,
+    requiredForAcceptance: Boolean(entry.requiredForAcceptance ?? defaults.requiredForAcceptance),
+    source: defaults.source || entry.source || (entry.taskId || defaults.taskId ? "task" : "template")
+  };
+}
+function extractRequiredViewsFromTask(task) {
+  const specs = [];
+  if (Array.isArray(task?.requiredViews)) {
+    for (const raw of task.requiredViews) {
+      const norm = normalizeRequiredViewEntry(raw, {
+        taskId: task.taskId,
+        requiredForAcceptance: raw?.requiredForAcceptance === true,
+        source: "task"
+      });
+      if (norm) specs.push(norm);
+    }
+  }
+  return specs;
+}
+var SHARED_TASK_ARTIFACT_TYPES = Object.freeze(["checklist", "table", "diagram", "mindmap"]);
+function isSharedTaskArtifact(task, object) {
+  return SHARED_TASK_ARTIFACT_TYPES.includes(object?.type) && (object.semanticKind ?? resolveSemanticKind(object, object.data).semanticKind) === "blueprint" && object.taskId === task?.taskId && object.layer !== "review" && object.roleKind !== "reviewer" && extractRequiredViewsFromTask(task).some((view) => view.type === object.type && view.id === object.id);
 }
 function parseViewObjectReferences(text) {
   const source = String(text ?? "");
@@ -5466,200 +7800,89 @@ function resolveViewObjectRef(viewObjects, ref, context = {}) {
   }
   return { ok: true, ambiguous: true, object: typed[0] };
 }
-
-// packages/dsh-concerto/src/client/components/MemberSprite.js
-var MEMBER_PALETTE = [
-  "var(--dsw-static-blue-400, var(--cc-fb-member-1))",
-  "var(--dsw-static-violet-400, var(--cc-fb-member-2))",
-  "var(--dsw-static-green-400, var(--cc-fb-member-3))",
-  "var(--dsw-static-red-400, var(--cc-fb-member-4))",
-  "var(--dsw-static-amber-400, var(--cc-fb-member-5))",
-  "var(--dsw-static-blue-500, var(--cc-fb-member-6))"
-];
-function memberColor(id) {
-  let hash = 0;
-  for (const ch of String(id || "m")) {
-    hash = hash * 31 + ch.codePointAt(0) >>> 0;
+function reviewTargetItems({ type, data }) {
+  if (type === "table") {
+    return (data.rows ?? []).map((row, index) => ({
+      id: `row-${index + 1}`,
+      label: `\u7B2C ${index + 1} \u884C \xB7 ${row.map((cell) => String(cell ?? "")).join(" / ").slice(0, 100)}`
+    }));
   }
-  return MEMBER_PALETTE[hash % MEMBER_PALETTE.length];
-}
-function stateRingColor(state) {
-  if (state === "running" || state === "\u534F\u8C03") return "var(--cc-state-running)";
-  if (state === "waiting_input" || state === "waiting_approval" || state === "attention") return "var(--cc-state-attention)";
-  if (state === "review") return "var(--cc-state-review)";
-  if (state === "blocked" || state === "failed") return "var(--cc-state-blocked)";
-  if (state === "completed" || state === "done") return "var(--cc-state-done)";
-  if (state === "unknown") return "var(--cc-state-unknown)";
-  return "var(--cc-border)";
-}
-function resolveInstrument(member) {
-  if (member?.instrument) return member.instrument;
-  if (member?.roleKind === "reviewer") return "magnifier";
-  if (member?.roleKind === "writer" || /writer|author|doc/i.test(String(member?.role || member?.id || ""))) return "quill";
-  const hash = Array.from(String(member?.id || "w")).reduce((s, ch) => s + ch.codePointAt(0), 0);
-  const instruments = ["keyboard", "violin", "quill"];
-  return instruments[hash % instruments.length];
-}
-function MemberGlyph({ member, state = "idle", size = 32 }) {
-  const color = member?.roleKind === "commander" ? "var(--cc-accent)" : memberColor(member?.id);
-  const ring = stateRingColor(state);
-  const instrument = resolveInstrument(member);
-  const isRunning = state === "running" || state === "\u534F\u8C03";
-  const sourceBadge = member?.connector === "codex" ? "C" : member?.source === "hosted" ? "D" : "W";
-  return h(
-    "svg",
-    {
-      className: "concerto-pixel",
-      width: size,
-      height: size,
-      viewBox: "0 0 64 64",
-      "aria-hidden": true,
-      style: { flex: "none" }
-    },
-    h("circle", {
-      cx: 32,
-      cy: 32,
-      r: 28,
-      fill: "none",
-      stroke: ring,
-      strokeWidth: 2.5,
-      className: isRunning ? "concerto-halo-pulse" : void 0,
-      strokeDasharray: state === "unknown" ? "4 3" : void 0
-    }),
-    h("circle", { cx: 32, cy: 34, r: 16, fill: color }),
-    h("circle", { cx: 26.5, cy: 32, r: 2.8, fill: "var(--cc-fb-ink-dark)" }),
-    h("circle", { cx: 27.2, cy: 31.2, r: 1, fill: "var(--cc-fb-ink-light)" }),
-    h("circle", { cx: 37.5, cy: 32, r: 2.8, fill: "var(--cc-fb-ink-dark)" }),
-    h("circle", { cx: 38.2, cy: 31.2, r: 1, fill: "var(--cc-fb-ink-light)" }),
-    h("path", {
-      d: "M28 38.5 Q32 41.5 36 38.5",
-      fill: "none",
-      stroke: "var(--cc-fb-ink-dark)",
-      strokeWidth: 1.8,
-      strokeLinecap: "round"
-    }),
-    member?.roleKind === "commander" ? h(
-      "g",
-      null,
-      h("path", { d: "M21 20 L43 20 L40 12 L24 12 Z", fill: "var(--cc-fb-hat-fill)", stroke: color, strokeWidth: 1.5 }),
-      h("line", { x1: 48, y1: 36, x2: 57, y2: 20, stroke: "var(--cc-fb-gold-highlight)", strokeWidth: 2, strokeLinecap: "round" }),
-      h("circle", { cx: 57.5, cy: 19.5, r: 2, fill: "var(--cc-fb-ink-light)" })
-    ) : instrument === "keyboard" ? h(
-      "g",
-      null,
-      h("rect", { x: 14, y: 45, width: 24, height: 9, rx: 2, fill: "var(--cc-fb-ink-dark)", stroke: "var(--cc-fb-slate-stroke)", strokeWidth: 1.2 }),
-      h("line", { x1: 18, y1: 49.5, x2: 34, y2: 49.5, stroke: "var(--cc-fb-slate-muted)", strokeDasharray: "2 2", strokeWidth: 2 })
-    ) : instrument === "violin" ? h(
-      "g",
-      null,
-      h("ellipse", { cx: 47, cy: 40, rx: 5, ry: 8, transform: "rotate(-20 47 40)", fill: "var(--cc-fb-gold-fill)", stroke: "var(--cc-fb-gold-highlight)", strokeWidth: 1.2 }),
-      h("line", { x1: 42, y1: 30, x2: 54, y2: 46, stroke: "var(--cc-fb-gold-soft)", strokeWidth: 1.4 })
-    ) : instrument === "quill" ? h(
-      "g",
-      null,
-      h("path", { d: "M43 47 C45 36, 52 28, 57 25 C55 33, 50 41, 43 47 Z", fill: "var(--cc-fb-ink-light)", stroke: "var(--cc-fb-sky-stroke)", strokeWidth: 1.3 }),
-      h("line", { x1: 41, y1: 49, x2: 55, y2: 27, stroke: "var(--cc-fb-sky-soft)", strokeWidth: 1.4, strokeLinecap: "round" })
-    ) : h(
-      "g",
-      null,
-      h("circle", { cx: 48, cy: 40, r: 6, fill: "none", stroke: "var(--cc-fb-slate-stroke)", strokeWidth: 1.8 }),
-      h("line", { x1: 52, y1: 45, x2: 57, y2: 50, stroke: "var(--cc-fb-slate-stroke)", strokeWidth: 2, strokeLinecap: "round" })
-    ),
-    h(
-      "g",
-      { transform: "translate(45,45)" },
-      h("circle", { cx: 8, cy: 8, r: 8, fill: "var(--cc-fb-ink-dark)", stroke: ring, strokeWidth: 1.5 }),
-      h("text", { x: 8, y: 11, textAnchor: "middle", fontSize: 9, fontWeight: 700, fill: "var(--cc-fb-ink-light)" }, sourceBadge)
-    )
-  );
-}
-function MemberSprite({ member, state, activityLine, count = 0, selected = false, onClick }) {
-  const subtitle = activityLine || label(state);
-  return h(
-    "button",
-    {
-      type: "button",
-      className: "concerto-sprite",
-      "data-state": state,
-      "data-concerto-member-id": member.id,
-      "aria-pressed": selected,
-      "aria-label": member.id + " \xB7 " + label(state) + (count ? " \xB7 " + count + " \u9879\u5F85\u529E" : ""),
-      onClick
-    },
-    h(MemberGlyph, { member, state, size: 32 }),
-    h(
-      "span",
-      { className: "concerto-sprite-meta" },
-      h("strong", null, member.id + (member.roleKind === "commander" ? " \xB7 \u6307\u6325\u8005" : "")),
-      h("small", { title: subtitle }, subtitle)
-    ),
-    count > 0 && h("span", {
-      className: "concerto-count-pill",
-      style: { background: "var(--cc-state-attention-bg)", color: "var(--cc-state-attention)" }
-    }, count)
-  );
+  const items = [];
+  const addItem = (item) => {
+    if (item.id) items.push({ id: item.id, label: item.label || item.text || item.id });
+  };
+  if (type === "mindmap" && data.root) {
+    const walk = (node) => {
+      addItem(node);
+      for (const child of node.children ?? []) walk(child);
+    };
+    walk(data.root);
+  } else if (type === "checklist") {
+    for (const item of data.items) addItem(item);
+  } else if (type === "diagram" || type === "board") {
+    for (const item of data.nodes ?? data.excalidrawScene?.elements ?? []) addItem(item);
+  }
+  return items;
 }
 
 // packages/dsh-concerto/src/client/components/StructuredObjectCard.js
-var import_react9 = __toESM(require_react(), 1);
-var import_react_dom = __toESM(require_react_dom(), 1);
+var import_react14 = __toESM(require_react(), 1);
+var import_react_dom2 = __toESM(require_react_dom(), 1);
 
-// packages/dsh-concerto/src/client/components/overlay.js
-var import_react4 = __toESM(require_react(), 1);
-var overlayStack = [];
-var FOCUSABLE_SELECTOR = [
-  "button:not([disabled])",
-  "[href]",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "textarea:not([disabled])",
-  '[tabindex]:not([tabindex="-1"])'
-].join(",");
-function useOverlay(containerRef, initialFocusRef, onClose, active = true) {
-  const closeRef = import_react4.default.useRef(onClose);
-  closeRef.current = onClose;
-  import_react4.default.useEffect(() => {
-    if (!active || typeof document === "undefined") return;
-    const token = {};
-    overlayStack.push(token);
-    const prevFocus = document.activeElement;
-    initialFocusRef?.current?.focus?.();
-    const onKeyDown = (e) => {
-      if (overlayStack[overlayStack.length - 1] !== token) return;
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        closeRef.current?.();
-        return;
+// packages/dsh-concerto/src/client/components/renderers/useCanvasSession.js
+var import_react7 = __toESM(require_react(), 1);
+function normalizeViewport(value) {
+  return {
+    scale: Number.isFinite(value?.scale) && value.scale > 0 ? value.scale : 1,
+    panX: Number.isFinite(value?.panX) ? value.panX : 0,
+    panY: Number.isFinite(value?.panY) ? value.panY : 0
+  };
+}
+function initialViewports(saved) {
+  return {
+    preview: normalizeViewport(saved),
+    modal: saved.modalTransform ? normalizeViewport({ scale: saved.modalTransform.k, panX: saved.modalTransform.x, panY: saved.modalTransform.y }) : null
+  };
+}
+function useCanvasSession(sessionId, objectId, defaultCollapsedIds = []) {
+  const defaultsRef = import_react7.default.useRef(defaultCollapsedIds);
+  defaultsRef.current = defaultCollapsedIds;
+  const saved = import_react7.default.useMemo(() => readCanvasViewport(sessionId, objectId), [sessionId, objectId]);
+  const [collapsedIds, setCollapsedIdsState] = import_react7.default.useState(() => Array.isArray(saved.collapsedIds) ? new Set(saved.collapsedIds) : new Set(defaultsRef.current));
+  const [viewports, setViewports] = import_react7.default.useState(() => initialViewports(saved));
+  import_react7.default.useEffect(() => {
+    setCollapsedIdsState(Array.isArray(saved.collapsedIds) ? new Set(saved.collapsedIds) : new Set(defaultsRef.current));
+    setViewports(initialViewports(saved));
+  }, [saved]);
+  const setCollapsedIds = import_react7.default.useCallback((nextValue) => {
+    setCollapsedIdsState((current) => {
+      const candidate = typeof nextValue === "function" ? nextValue(current) : nextValue;
+      const next = new Set(candidate || []);
+      if (next.size === current.size && [...next].every((id) => current.has(id))) return current;
+      writeCanvasViewport(sessionId, objectId, { collapsedIds: [...next].sort() });
+      return next;
+    });
+  }, [sessionId, objectId]);
+  const setViewport = import_react7.default.useCallback((mode, value) => {
+    if (mode !== "preview" && mode !== "modal") return;
+    setViewports((current) => {
+      const nextViewport = value == null ? null : normalizeViewport(value);
+      if (mode === "modal") {
+        writeCanvasViewport(sessionId, objectId, {
+          modalTransform: nextViewport ? { k: nextViewport.scale, x: nextViewport.panX, y: nextViewport.panY } : null
+        });
+      } else {
+        const next = nextViewport || normalizeViewport();
+        writeCanvasViewport(sessionId, objectId, { scale: next.scale, panX: next.panX, panY: next.panY });
       }
-      if (e.key === "Tab" && containerRef?.current) {
-        const focusables = [...containerRef.current.querySelectorAll(FOCUSABLE_SELECTOR)];
-        if (focusables.length === 0) return;
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => {
-      const idx = overlayStack.indexOf(token);
-      if (idx >= 0) overlayStack.splice(idx, 1);
-      document.removeEventListener("keydown", onKeyDown, true);
-      if (prevFocus && typeof prevFocus.focus === "function" && prevFocus.isConnected) {
-        prevFocus.focus();
-      }
-    };
-  }, [active]);
+      return { ...current, [mode]: nextViewport };
+    });
+  }, [sessionId, objectId]);
+  return import_react7.default.useMemo(() => ({ collapsedIds, viewports, setCollapsedIds, setViewport }), [collapsedIds, viewports, setCollapsedIds, setViewport]);
 }
 
 // packages/dsh-concerto/src/client/components/renderers/MarkmapRenderer.js
-var import_react5 = __toESM(require_react(), 1);
+var import_react10 = __toESM(require_react(), 1);
 
 // packages/dsh-concerto/src/client/components/renderers/exportUtils.js
 function downloadTextFile(filename, content, mime = "text/plain;charset=utf-8") {
@@ -6046,183 +8269,362 @@ function exportPngFromSvgElement(svgEl, filename, width = 960, height = 600) {
   img.src = url;
 }
 
-// packages/dsh-concerto/src/client/components/renderers/MarkmapRenderer.js
-var cachedMarkmapChunk = null;
-var cachedMarkmapPromise = null;
-async function loadMarkmapChunk() {
-  if (cachedMarkmapChunk) return cachedMarkmapChunk;
-  if (!cachedMarkmapPromise) {
-    cachedMarkmapPromise = import(
-      /* webpackIgnore: true */
-      API + "/assets/markmap.js"
-    ).then((mod) => {
-      if (typeof mod?.renderInteractiveMarkmap === "function") {
-        cachedMarkmapChunk = mod;
-        return mod;
-      }
-      return null;
-    }).catch(() => null);
+// packages/dsh-concerto/src/client/components/renderers/SvgViewport.js
+var import_react8 = __toESM(require_react(), 1);
+function SvgViewport({ width, height, zoom, pan, onViewportChange, inModal, label: label2, tools, children }) {
+  const stageRef = import_react8.default.useRef(null);
+  const dragRef = import_react8.default.useRef(null);
+  const [overflowing, setOverflowing] = import_react8.default.useState(false);
+  const [hintVisible, setHintVisible] = import_react8.default.useState(false);
+  const wasOverflowing = import_react8.default.useRef(false);
+  import_react8.default.useEffect(() => {
+    if (overflowing && !wasOverflowing.current) {
+      setHintVisible(true);
+      const timer = setTimeout(() => setHintVisible(false), 3e3);
+      wasOverflowing.current = true;
+      return () => clearTimeout(timer);
+    }
+    if (!overflowing) {
+      setHintVisible(false);
+      wasOverflowing.current = false;
+    }
+  }, [overflowing]);
+  import_react8.default.useLayoutEffect(() => {
+    const stage = stageRef.current;
+    stage.scrollLeft = -pan.x;
+    stage.scrollTop = -pan.y;
+  }, [pan.x, pan.y, zoom, width, height]);
+  import_react8.default.useLayoutEffect(() => {
+    const stage = stageRef.current;
+    const update = () => setOverflowing(stage.scrollWidth > stage.clientWidth + 1 || stage.scrollHeight > stage.clientHeight + 1);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [zoom, width, height]);
+  return h(
+    "div",
+    {
+      className: "concerto-graph-frame",
+      style: inModal ? { flex: 1, minHeight: 0 } : { height: Math.min(380, Math.max(160, height + 24)) }
+    },
+    h(
+      "div",
+      {
+        ref: stageRef,
+        className: "concerto-canvas-stage concerto-canvas-stage--readable",
+        tabIndex: 0,
+        role: "region",
+        "aria-label": label2 + "\uFF0C\u53EF\u6EDA\u52A8\u67E5\u770B",
+        onScroll: (event) => {
+          const { scrollLeft, scrollTop } = event.currentTarget;
+          if (Math.abs(pan.x + scrollLeft) > 1 || Math.abs(pan.y + scrollTop) > 1) {
+            onViewportChange(zoom, { x: -scrollLeft, y: -scrollTop });
+          }
+        },
+        onPointerDown: (event) => {
+          if (event.pointerType !== "mouse" || event.button !== 0 || event.target.closest('button, [role="button"]')) return;
+          const stage = event.currentTarget;
+          dragRef.current = { x: event.clientX, y: event.clientY, left: stage.scrollLeft, top: stage.scrollTop };
+          stage.focus({ preventScroll: true });
+          stage.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        },
+        onPointerMove: (event) => {
+          const drag = dragRef.current;
+          if (!drag) return;
+          event.currentTarget.scrollLeft = drag.left + drag.x - event.clientX;
+          event.currentTarget.scrollTop = drag.top + drag.y - event.clientY;
+        },
+        onPointerUp: () => {
+          dragRef.current = null;
+        },
+        onPointerCancel: () => {
+          dragRef.current = null;
+        },
+        onLostPointerCapture: () => {
+          dragRef.current = null;
+        }
+      },
+      h("div", {
+        className: "concerto-graph-content",
+        style: { width: Math.ceil(width * zoom), height: Math.ceil(height * zoom) }
+      }, children)
+    ),
+    overflowing && hintVisible && h("span", { className: "concerto-graph-scroll-hint", "aria-hidden": true }, "\u6EDA\u52A8\u753B\u5E03\u67E5\u770B\u66F4\u591A"),
+    tools && h("div", { className: "concerto-stage-tools" }, tools)
+  );
+}
+
+// packages/dsh-concerto/src/client/components/renderers/MarkmapSvgDocument.js
+var import_react9 = __toESM(require_react(), 1);
+function branchStroke(branchIndex) {
+  return `var(--cc-branch-${Math.abs(branchIndex || 0) % 4 + 1})`;
+}
+function nodeStrokeColor(node, liveStatus = null) {
+  const status = liveStatus || node.status;
+  if (status === "blocked" || status === "failed") return "var(--cc-state-blocked)";
+  if (status === "unknown") return "var(--cc-state-unknown)";
+  if (status === "done" || status === "completed") return "var(--cc-state-done)";
+  if (["running", "waiting_input", "waiting_approval"].includes(status)) return "var(--cc-state-running)";
+  if (status === "review") return "var(--cc-state-review)";
+  return node.depth === 0 ? "var(--cc-border-strong)" : branchStroke(node.branchIndex);
+}
+function matchMindmapTask(node, tasks) {
+  if (!Array.isArray(tasks) || tasks.length === 0 || !node) return null;
+  if (node.taskId) {
+    const byId = tasks.find((t) => t.taskId === node.taskId);
+    if (byId) return byId;
   }
-  return cachedMarkmapPromise;
+  const byNodeId = tasks.find((t) => t.taskId === node.id);
+  if (byNodeId) return byNodeId;
+  const text = String(node.fullLabel || node.label || "");
+  const m = text.match(/\b(task-\d+)\b/i);
+  if (m) {
+    const byMention = tasks.find((t) => t.taskId.toLowerCase() === m[1].toLowerCase());
+    if (byMention) return byMention;
+  }
+  return null;
 }
-function branchStrokeVar(branchIndex = 0) {
-  const idx = ((Number(branchIndex) || 0) % 4 + 4) % 4 + 1;
-  return `var(--cc-branch-${idx})`;
+function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode, tasks = [], onJumpTask = null, onSelectNode = null }) {
+  return h(
+    "svg",
+    {
+      ref: svgRef,
+      viewBox: `0 0 ${layout.width} ${layout.height}`,
+      width: Math.ceil(layout.width * (layout.zoom || 1)),
+      height: Math.ceil(layout.height * (layout.zoom || 1)),
+      role: "group",
+      "aria-label": title,
+      style: { fontFamily: "var(--cc-font-sans)" }
+    },
+    h(
+      "g",
+      null,
+      layout.edges.map((edge, index) => {
+        const cx1 = edge.x1 + (edge.x2 - edge.x1) * 0.5;
+        const d = `M ${edge.x1} ${edge.y1} C ${cx1} ${edge.y1}, ${cx1} ${edge.y2}, ${edge.x2} ${edge.y2}`;
+        const isError = edge.status === "blocked" || edge.status === "failed";
+        const isUnknown = edge.status === "unknown";
+        const isWaiting = ["waiting_approval", "waiting_input", "attention"].includes(edge.status);
+        const target = layout.nodes.find((node) => node.id === edge.targetId);
+        const stroke = isError ? "var(--cc-state-blocked)" : isUnknown ? "var(--cc-state-unknown)" : isWaiting ? "var(--cc-state-attention)" : branchStroke(edge.branchIndex);
+        return h("path", {
+          key: index,
+          d,
+          fill: "none",
+          stroke,
+          strokeDasharray: isError || isUnknown || isWaiting ? "5 4" : void 0,
+          strokeOpacity: 0.9,
+          strokeWidth: Math.max(1.1, 2.2 - Math.max(0, (target?.depth || 1) - 1) * 0.4)
+        });
+      }),
+      layout.nodes.map((node) => {
+        const liveTask = matchMindmapTask(node, tasks);
+        const liveStatus = liveTask ? liveTask.viewState || liveTask.state : node.status;
+        const linkedTaskId = liveTask?.taskId || node.taskId || null;
+        const stroke = nodeStrokeColor(node, liveStatus);
+        const isRoot = node.depth === 0;
+        const isRunning = ["running", "waiting_input", "waiting_approval"].includes(liveStatus);
+        const isDone = liveStatus === "done" || liveStatus === "completed";
+        const isBlocked = liveStatus === "blocked" || liveStatus === "failed";
+        const boxed = !node.isLeaf && (isRoot || node.depth === 1) || Boolean(liveTask);
+        const fontSize = layout.fontSize;
+        const lineHeight = layout.lineHeight || Math.round(fontSize * 1.4);
+        const toggleWidth = node.collapsed ? Math.max(32, String(node.hiddenCount || 0).length * 10 + 18) : 24;
+        const canJump = Boolean(linkedTaskId && typeof onJumpTask === "function");
+        const canAnnotate = typeof onSelectNode === "function";
+        const interactive = canJump || canAnnotate;
+        const onNodeClick = (event) => {
+          if (!interactive) return;
+          event.stopPropagation();
+          if (event.shiftKey && canAnnotate) {
+            onSelectNode({ id: node.id, label: node.fullLabel || node.label, taskId: linkedTaskId });
+            return;
+          }
+          if (canJump) onJumpTask(linkedTaskId);
+          else if (canAnnotate) onSelectNode({ id: node.id, label: node.fullLabel || node.label, taskId: linkedTaskId });
+        };
+        const cls = [
+          interactive ? "concerto-battle-node--interactive" : "",
+          isRunning ? "concerto-battle-node--running" : "",
+          isDone ? "concerto-battle-node--done" : "",
+          isBlocked ? "concerto-battle-node--blocked" : ""
+        ].filter(Boolean).join(" ");
+        return h(
+          "g",
+          {
+            key: node.id,
+            className: cls || void 0,
+            "data-concerto-mm-node": node.id,
+            "data-task-id": linkedTaskId || void 0,
+            "data-status": liveStatus || void 0,
+            transform: `translate(${node.x}, ${node.y})`,
+            onClick: interactive ? onNodeClick : void 0
+          },
+          h("title", null, (node.fullLabel || node.label) + (linkedTaskId ? ` \xB7 ${linkedTaskId}\uFF08${liveStatus || "pending"}\uFF0C\u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\uFF09` : canAnnotate ? "\uFF08\u70B9\u51FB\u6307\u56FE\u4E0B\u6307\u4EE4\uFF09" : "")),
+          h("rect", {
+            x: 0,
+            y: 0,
+            width: node.width,
+            height: node.height,
+            rx: 8,
+            fill: boxed ? isRoot ? "var(--cc-accent-soft)" : "var(--cc-card-bg)" : "transparent",
+            stroke: boxed ? stroke : "none",
+            strokeWidth: isRunning ? 2 : boxed ? 1.2 : 0
+          }),
+          !isRoot && h("rect", { x: 0, y: 4, width: 3, height: Math.max(0, node.height - 8), rx: 1.5, fill: stroke }),
+          node.isLeaf && h("line", { x1: -10, y1: node.height / 2, x2: 0, y2: node.height / 2, stroke, strokeWidth: 1.2 }),
+          node.lines.map((line, lineIndex) => h("text", {
+            key: lineIndex,
+            x: node.isLeaf ? 8 : 18,
+            y: Math.round((node.height - node.lines.length * lineHeight) / 2 + fontSize + lineIndex * lineHeight),
+            fill: isRoot ? "var(--cc-accent-text)" : "var(--cc-text-primary)",
+            fontSize,
+            fontWeight: isRoot ? 600 : 500
+          }, line)),
+          node.hasChildren && h(
+            "g",
+            {
+              "data-concerto-mm-toggle": node.id,
+              transform: `translate(${node.width}, ${node.height / 2})`,
+              style: { cursor: "pointer" },
+              role: "button",
+              tabIndex: 0,
+              "aria-label": `${node.collapsed ? "\u5C55\u5F00" : "\u6536\u8D77"}\uFF1A${node.fullLabel || node.label}`,
+              "aria-expanded": !node.collapsed,
+              onKeyDown: (event) => {
+                if (event.key === " ") event.preventDefault();
+                if (event.key === "Enter") onToggleNode(node.id, event);
+              },
+              onKeyUp: (event) => {
+                if (event.key === " ") onToggleNode(node.id, event);
+              },
+              onClick: (event) => onToggleNode(node.id, event)
+            },
+            h("circle", { className: "concerto-mm-hit", cx: 0, cy: 0, r: 12, fill: "transparent", stroke: "none" }),
+            h("rect", {
+              x: -toggleWidth / 2,
+              y: -12,
+              width: toggleWidth,
+              height: 24,
+              rx: 12,
+              fill: "var(--cc-card-nested-bg)",
+              stroke,
+              strokeWidth: 1
+            }),
+            h("text", {
+              x: 0,
+              y: 3.5,
+              textAnchor: "middle",
+              fill: "var(--cc-text-secondary)",
+              fontSize: Math.max(10, Math.round(fontSize - 1)),
+              fontWeight: 500
+            }, node.collapsed ? `+${node.hiddenCount}` : "\u2212")
+          )
+        );
+      })
+    )
+  );
 }
-function nodeStrokeColor(node) {
-  if (node.status === "blocked" || node.status === "failed") return "var(--cc-state-blocked)";
-  if (node.status === "unknown") return "var(--cc-state-unknown)";
-  if (node.depth === 0) return "var(--cc-branch-1)";
-  return branchStrokeVar(node.branchIndex);
-}
-function nodeFillOpacity(depth) {
-  if (depth <= 1) return 0.16;
-  if (depth === 2) return 0.11;
-  return 0.07;
-}
-function MarkmapRenderer({ object, sessionId = "", inModal = false, onExpand }) {
+
+// packages/dsh-concerto/src/client/components/renderers/MarkmapRenderer.js
+function MarkmapRenderer({ object, sessionId = "", inModal = false, canvasSession: providedCanvasSession, onExpand = null, tasks = [], onJumpTask = null, onSelectNode = null }) {
   const hostTheme = useHostTheme();
-  const dataSig = import_react5.default.useMemo(() => JSON.stringify(object?.data || null), [object?.data]);
-  const root = import_react5.default.useMemo(() => {
+  const dataSig = import_react10.default.useMemo(() => JSON.stringify(object?.data || null), [object?.data]);
+  const root = import_react10.default.useMemo(() => {
     const raw = object?.data?.root ? object.data.root : object?.data?.markdown ? parseMarkdownToMindmap(object.data.markdown) : null;
     return raw ? normalizeMindmapTree(raw) : null;
   }, [dataSig, object?.title]);
-  const totalNodes = import_react5.default.useMemo(() => root ? countMindmapNodes(root) : 0, [root]);
-  const initialVp = import_react5.default.useMemo(() => readCanvasViewport(sessionId, object?.id), [sessionId, object?.id]);
-  const [collapsed, setCollapsed] = import_react5.default.useState(() => {
-    if (Array.isArray(initialVp.collapsedIds)) return new Set(initialVp.collapsedIds);
-    return root ? new Set(defaultPreviewCollapsedIds(root, 8, 1)) : /* @__PURE__ */ new Set();
-  });
-  const [zoom, setZoom] = import_react5.default.useState(() => initialVp.scale || 1);
-  const [pan, setPan] = import_react5.default.useState(() => ({ x: initialVp.panX || 0, y: initialVp.panY || 0 }));
-  const [libState, setLibState] = import_react5.default.useState({ mode: "svg", error: "" });
-  const dragging = import_react5.default.useRef(null);
-  const svgRef = import_react5.default.useRef(null);
-  const libMountRef = import_react5.default.useRef(null);
-  const mmControllerRef = import_react5.default.useRef(null);
-  const collapsedRef = import_react5.default.useRef(collapsed);
-  collapsedRef.current = collapsed;
-  const rootRef = import_react5.default.useRef(root);
-  rootRef.current = root;
-  const mountedSigRef = import_react5.default.useRef("");
-  import_react5.default.useEffect(() => {
-    const vp = readCanvasViewport(sessionId, object?.id);
-    setCollapsed(Array.isArray(vp.collapsedIds) ? new Set(vp.collapsedIds) : rootRef.current ? new Set(defaultPreviewCollapsedIds(rootRef.current, 8, 1)) : /* @__PURE__ */ new Set());
-    setZoom(vp.scale || 1);
-    setPan({ x: vp.panX || 0, y: vp.panY || 0 });
-  }, [sessionId, object?.id]);
-  const updateCollapsed = import_react5.default.useCallback((nextSet) => {
-    setCollapsed(nextSet);
-    writeCanvasViewport(sessionId, object?.id, { collapsedIds: [...nextSet] });
-    mmControllerRef.current?.setCollapsedIds?.(nextSet);
-  }, [sessionId, object?.id]);
-  const updateViewport = import_react5.default.useCallback((nextZoom, nextPan) => {
-    setZoom(nextZoom);
-    setPan(nextPan);
-    writeCanvasViewport(sessionId, object?.id, { scale: nextZoom, panX: nextPan.x, panY: nextPan.y });
-  }, [sessionId, object?.id]);
-  import_react5.default.useEffect(() => {
-    if (!inModal || typeof document === "undefined" || !rootRef.current) return;
-    let cancelled = false;
-    let rafId = 0;
-    mountedSigRef.current = dataSig;
-    setLibState({ mode: "loading", error: "" });
-    loadMarkmapChunk().then((mod) => {
-      if (cancelled) return;
-      if (!mod || !libMountRef.current) {
-        setLibState({ mode: "svg", error: "" });
-        return;
-      }
-      rafId = requestAnimationFrame(() => {
-        if (cancelled || !libMountRef.current || !rootRef.current) return;
-        try {
-          mmControllerRef.current?.destroy?.();
-          const savedVp = readCanvasViewport(sessionId, object?.id);
-          mmControllerRef.current = mod.renderInteractiveMarkmap(libMountRef.current, rootRef.current, {
-            collapsedIds: collapsedRef.current,
-            initialExpandLevel: -1,
-            initialTransform: savedVp?.modalTransform || null,
-            onFoldChange: (foldedIds) => {
-              const next = new Set(foldedIds);
-              setCollapsed(next);
-              writeCanvasViewport(sessionId, object?.id, { collapsedIds: foldedIds });
-            },
-            onTransformChange: (modalTransform) => {
-              writeCanvasViewport(sessionId, object?.id, { modalTransform });
-            }
-          });
-          setLibState({ mode: "markmap-view", error: "" });
-        } catch (err) {
-          setLibState({ mode: "svg", error: err?.message || "" });
-        }
-      });
-    });
-    return () => {
-      cancelled = true;
-      if (rafId) cancelAnimationFrame(rafId);
-      if (mmControllerRef.current?.getTransform) {
-        try {
-          const cur = mmControllerRef.current.getTransform();
-          if (cur && Number.isFinite(cur.k) && cur.k > 0) {
-            writeCanvasViewport(sessionId, object?.id, { modalTransform: { k: cur.k, x: cur.x, y: cur.y } });
-          }
-        } catch {
-        }
-      }
-      mmControllerRef.current?.destroy?.();
-      mmControllerRef.current = null;
-    };
-  }, [inModal, object?.id, sessionId]);
-  import_react5.default.useEffect(() => {
-    if (!inModal || !mmControllerRef.current || !root) return;
-    if (mountedSigRef.current === dataSig) return;
-    mountedSigRef.current = dataSig;
-    mmControllerRef.current.updateData?.(root, collapsedRef.current);
-  }, [inModal, dataSig, root]);
-  const layout = import_react5.default.useMemo(
-    () => root ? layoutMindmapTree(root, collapsed, { fontSize: Math.max(12, hostTheme.fontSize - 1) }) : { nodes: [], edges: [], width: 0, height: 0, hiddenDescendantTotal: 0 },
-    [root, collapsed, hostTheme.fontSize]
+  const defaultCollapsedIds = import_react10.default.useMemo(
+    () => root ? defaultPreviewCollapsedIdsWithinBudget(root, { fontSize: hostTheme.fontSize }) : [],
+    [root, hostTheme.fontSize]
   );
+  const ownCanvasSession = useCanvasSession(sessionId, object?.id, defaultCollapsedIds);
+  const canvasSession = providedCanvasSession || ownCanvasSession;
+  const { collapsedIds, viewports, setCollapsedIds, setViewport } = canvasSession;
+  const mode = inModal ? "modal" : "preview";
+  const viewport = viewports[mode] || { scale: 1, panX: 0, panY: 0 };
+  const zoom = viewport.scale;
+  const pan = { x: viewport.panX, y: viewport.panY };
+  const svgRef = import_react10.default.useRef(null);
+  const totalNodes = import_react10.default.useMemo(() => root ? countMindmapNodes(root) : 0, [root]);
+  const layout = import_react10.default.useMemo(
+    () => root ? layoutMindmapTree(root, collapsedIds, { fontSize: hostTheme.fontSize }) : { nodes: [], edges: [], width: 0, height: 0, hiddenDescendantTotal: 0 },
+    [root, collapsedIds, hostTheme.fontSize]
+  );
+  import_react10.default.useEffect(() => {
+    if (!root) return;
+    const validIds = /* @__PURE__ */ new Set();
+    const walk = (node) => {
+      validIds.add(node.id);
+      for (const child of node.children || []) walk(child);
+    };
+    walk(root);
+    setCollapsedIds((current) => {
+      const next = new Set([...current].filter((id) => validIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [root, setCollapsedIds]);
+  const updateViewport = import_react10.default.useCallback((nextZoom, nextPan) => {
+    setViewport(mode, { scale: nextZoom, panX: nextPan.x, panY: nextPan.y });
+  }, [mode, setViewport]);
+  const fitView = import_react10.default.useCallback(() => {
+    const stage = svgRef.current?.closest(".concerto-canvas-stage");
+    if (!stage || !layout.width || !layout.height) return;
+    const nextZoom = Math.max(0.1, Math.min(1, stage.clientWidth / layout.width, stage.clientHeight / layout.height));
+    updateViewport(nextZoom, { x: 0, y: 0 });
+  }, [layout.width, layout.height, updateViewport]);
+  import_react10.default.useLayoutEffect(() => {
+    if (!inModal || viewports.modal) return;
+    const frame = requestAnimationFrame(fitView);
+    return () => cancelAnimationFrame(frame);
+  }, [inModal, object?.id, viewports.modal, fitView]);
   if (!root) return h("p", { style: styles.muted }, "\u601D\u7EF4\u5BFC\u56FE\u5185\u5BB9\u4E3A\u7A7A\u3002");
-  function toggleNode(id, e) {
-    e.stopPropagation();
-    const next = new Set(collapsed);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    updateCollapsed(next);
+  function updateCollapsed(nextSet) {
+    setCollapsedIds(nextSet);
   }
-  function resetView() {
-    if (inModal && libState.mode !== "svg" && mmControllerRef.current?.fit) {
-      mmControllerRef.current.fit();
-      return;
-    }
-    updateViewport(1, { x: 0, y: 0 });
+  function toggleNode(id, event) {
+    event.stopPropagation();
+    setCollapsedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
-  const useRealMarkmap = inModal && libState.mode !== "svg";
   const hiddenCount = layout.hiddenDescendantTotal || 0;
-  const canFoldMore = totalNodes > 8 && collapsed.size === 0;
-  const summaryText = `\u5171 ${totalNodes} \u8282\u70B9` + (hiddenCount > 0 ? ` \xB7 \u5F53\u524D\u5C55\u793A ${layout.nodes.length} \u9879\uFF08\u5DF2\u6298\u53E0 ${hiddenCount} \u9879\uFF09` : " \xB7 \u5DF2\u5C55\u5F00\u5168\u90E8");
+  const canFoldMore = totalNodes > 8 && collapsedIds.size === 0;
+  const branchCount = root.children?.length || 0;
+  const summaryText = inModal ? `\u5171 ${totalNodes} \u8282\u70B9` + (hiddenCount > 0 ? ` \xB7 \u5F53\u524D\u5C55\u793A ${layout.nodes.length} \u9879\uFF08\u5DF2\u6298\u53E0 ${hiddenCount} \u9879\uFF09` : " \xB7 \u5DF2\u5C55\u5F00\u5168\u90E8") : `${branchCount} \u4E2A\u5206\u652F \xB7 ${totalNodes} \u9879` + (hiddenCount > 0 ? ` \xB7 \u6298\u53E0 ${hiddenCount} \u9879` : "");
   const zoomOutBtn = (iconOnly) => h("button", {
     type: "button",
     className: iconOnly ? "concerto-btn concerto-btn--ghost concerto-btn--icon" : "concerto-btn",
     "aria-label": "\u7F29\u5C0F",
     title: "\u7F29\u5C0F",
-    onClick: () => useRealMarkmap ? mmControllerRef.current?.rescale?.(0.83) : updateViewport(Math.max(0.5, Number((zoom - 0.15).toFixed(2))), pan)
+    onClick: () => updateViewport(Math.max(0.1, Number((zoom - 0.15).toFixed(2))), pan)
   }, iconOnly ? "\u2212" : "\u7F29\u5C0F");
   const zoomInBtn = (iconOnly) => h("button", {
     type: "button",
     className: iconOnly ? "concerto-btn concerto-btn--ghost concerto-btn--icon" : "concerto-btn",
     "aria-label": "\u653E\u5927",
     title: "\u653E\u5927",
-    onClick: () => useRealMarkmap ? mmControllerRef.current?.rescale?.(1.2) : updateViewport(Math.min(2.4, Number((zoom + 0.15).toFixed(2))), pan)
+    onClick: () => updateViewport(Math.min(2.4, Number((zoom + 0.15).toFixed(2))), pan)
   }, iconOnly ? "+" : "\u653E\u5927");
   const fitBtn = (iconOnly) => h("button", {
     type: "button",
     className: iconOnly ? "concerto-btn concerto-btn--ghost concerto-btn--icon" : "concerto-btn",
     "aria-label": "\u9002\u5E94\u7A97\u53E3",
     title: "\u9002\u5E94\u7A97\u53E3",
-    onClick: resetView
-  }, iconOnly ? "\u22A1" : "\u9002\u5E94\u7A97\u53E3");
+    onClick: fitView
+  }, iconOnly ? h(UiIcon, { name: "expand" }) : "\u9002\u5E94\u7A97\u53E3");
+  const actualSizeBtn = (iconOnly) => h("button", {
+    type: "button",
+    className: iconOnly ? "concerto-btn concerto-btn--ghost" : "concerto-btn",
+    "aria-label": "\u539F\u59CB\u5B57\u53F7",
+    title: "\u6309\u5BBF\u4E3B\u539F\u59CB\u5B57\u53F7\u663E\u793A",
+    onClick: () => updateViewport(1, { x: 0, y: 0 })
+  }, iconOnly ? "100%" : "\u539F\u59CB\u5B57\u53F7");
   return h(
     "div",
     {
@@ -6249,142 +8651,34 @@ function MarkmapRenderer({ object, sessionId = "", inModal = false, onExpand }) 
         }, "\u6536\u8D77\u6DF1\u5C42"),
         zoomOutBtn(false),
         zoomInBtn(false),
-        fitBtn(false),
-        h("button", { type: "button", className: "concerto-btn", onClick: () => exportSvgElement(useRealMarkmap ? libMountRef.current : svgRef.current, `${object.id}.svg`, layout.width, layout.height) }, "\u5BFC\u51FA SVG"),
-        h("button", { type: "button", className: "concerto-btn", onClick: () => exportPngFromSvgElement(useRealMarkmap ? libMountRef.current : svgRef.current, `${object.id}.png`, layout.width, layout.height) }, "\u5BFC\u51FA PNG")
-      )
-    ),
-    h(
-      "div",
-      {
-        className: "concerto-canvas-stage",
-        style: { height: inModal ? "100%" : Math.min(280, Math.max(185, layout.height + 24)), minHeight: inModal ? 420 : void 0 },
-        onMouseDown: (e) => {
-          if (!useRealMarkmap) dragging.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-        },
-        onMouseMove: (e) => {
-          if (!useRealMarkmap && dragging.current) {
-            updateViewport(zoom, { x: e.clientX - dragging.current.x, y: e.clientY - dragging.current.y });
-          }
-        },
-        onMouseUp: () => {
-          dragging.current = null;
-        },
-        onMouseLeave: () => {
-          dragging.current = null;
-        }
-      },
-      !inModal && h(
-        "div",
-        { className: "concerto-stage-tools", onMouseDown: (e) => e.stopPropagation() },
-        zoomOutBtn(true),
-        zoomInBtn(true),
-        fitBtn(true)
+        actualSizeBtn(false),
+        fitBtn(false)
       ),
-      inModal && h("svg", {
-        ref: libMountRef,
-        width: "100%",
-        height: "100%",
-        style: { display: useRealMarkmap ? "block" : "none", width: "100%", height: "100%", minHeight: 420, fontFamily: "var(--cc-font-sans)" }
-      }),
-      !useRealMarkmap && h(
-        "svg",
-        {
-          ref: svgRef,
-          viewBox: `0 0 ${layout.width} ${layout.height}`,
-          width: "100%",
-          height: "100%",
-          style: { display: "block", minHeight: 180, fontFamily: "var(--cc-font-sans)" }
-        },
-        h(
-          "g",
-          { transform: `translate(${pan.x}, ${pan.y}) scale(${zoom})` },
-          layout.edges.map((e, i) => {
-            const cx1 = e.x1 + (e.x2 - e.x1) * 0.5;
-            const d = `M ${e.x1} ${e.y1} C ${cx1} ${e.y1}, ${cx1} ${e.y2}, ${e.x2} ${e.y2}`;
-            const isErr = e.status === "blocked" || e.status === "failed";
-            const isUnk = e.status === "unknown";
-            const stroke = isErr ? "var(--cc-state-blocked)" : isUnk ? "var(--cc-state-unknown)" : branchStrokeVar(e.branchIndex ?? Math.max(0, e.depth - 1));
-            return h("path", {
-              key: i,
-              d,
-              fill: "none",
-              stroke,
-              strokeDasharray: isErr || isUnk ? "5 4" : void 0,
-              strokeOpacity: Math.max(0.55, 0.95 - (e.depth - 1) * 0.12),
-              strokeWidth: e.depth <= 1 ? 2 : 1.5
-            });
-          }),
-          layout.nodes.map((n) => {
-            const stroke = nodeStrokeColor(n);
-            const isRoot = n.depth === 0;
-            const fs = Math.max(12, (layout.fontSize || 12.5) - (isRoot ? 0 : 0.5));
-            const lh = layout.lineHeight || Math.round(fs * 1.4);
-            return h(
-              "g",
-              {
-                key: n.id,
-                "data-concerto-mm-node": n.id,
-                transform: `translate(${n.x}, ${n.y})`
-              },
-              h("title", null, n.fullLabel || n.label),
-              h("rect", {
-                x: 0,
-                y: 0,
-                width: n.width,
-                height: n.height,
-                rx: 8,
-                fill: isRoot ? "var(--cc-card-nested-bg)" : stroke,
-                fillOpacity: isRoot ? 1 : nodeFillOpacity(n.depth),
-                stroke: isRoot ? "var(--cc-branch-1)" : stroke,
-                strokeWidth: isRoot ? 2 : 1.5
-              }),
-              n.lines.map((line, li) => h("text", {
-                key: li,
-                x: 12,
-                y: Math.round(fs + 6 + li * lh),
-                fill: "var(--cc-text-primary)",
-                fontSize: fs,
-                fontWeight: isRoot ? 600 : 500
-              }, line)),
-              n.collapsed && n.hiddenCount > 0 && h("text", {
-                x: n.width - 14,
-                y: Math.round(n.height / 2 + 4),
-                textAnchor: "end",
-                fill: isRoot ? "var(--cc-accent-text)" : "var(--cc-text-primary)",
-                fontSize: Math.max(11, Math.round(fs - 0.5)),
-                fontWeight: 700
-              }, `+${n.hiddenCount}`),
-              n.hasChildren && h(
-                "g",
-                {
-                  "data-concerto-mm-toggle": n.id,
-                  transform: `translate(${n.width}, ${n.height / 2})`,
-                  style: { cursor: "pointer" },
-                  onClick: (e) => toggleNode(n.id, e)
-                },
-                h("circle", {
-                  cx: 0,
-                  cy: 0,
-                  r: 7.5,
-                  fill: "var(--cc-card-nested-bg)",
-                  stroke,
-                  strokeWidth: 1.5
-                }),
-                h("text", {
-                  x: 0,
-                  y: 3.5,
-                  textAnchor: "middle",
-                  fill: "var(--cc-text-primary)",
-                  fontSize: Math.max(10, Math.round(fs - 1)),
-                  fontWeight: 700
-                }, n.collapsed ? "+" : "\u2212")
-              )
-            );
-          })
-        )
+      h(
+        "div",
+        { className: "concerto-canvas-export" },
+        h("button", { type: "button", className: "concerto-btn", onClick: () => exportSvgElement(svgRef.current, `${object.id}.svg`, layout.width, layout.height) }, "\u5BFC\u51FA SVG"),
+        h("button", { type: "button", className: "concerto-btn", onClick: () => exportPngFromSvgElement(svgRef.current, `${object.id}.png`, layout.width, layout.height) }, "\u5BFC\u51FA PNG")
       )
     ),
+    h(SvgViewport, {
+      width: layout.width,
+      height: layout.height,
+      zoom,
+      pan,
+      onViewportChange: updateViewport,
+      inModal,
+      label: object.title || "\u8BA1\u5212\u5BFC\u56FE",
+      tools: !inModal && h(import_react10.default.Fragment, null, zoomOutBtn(true), zoomInBtn(true), actualSizeBtn(true), fitBtn(true))
+    }, h(MarkmapSvgDocument, {
+      layout: { ...layout, zoom },
+      title: object.title || "\u8BA1\u5212\u5BFC\u56FE",
+      svgRef,
+      onToggleNode: toggleNode,
+      tasks,
+      onJumpTask,
+      onSelectNode
+    })),
     !inModal && h(
       "div",
       { className: "concerto-canvas-foot" },
@@ -6402,14 +8696,20 @@ function MarkmapRenderer({ object, sessionId = "", inModal = false, onExpand }) 
           type: "button",
           className: "concerto-link",
           onClick: () => updateCollapsed(new Set(defaultPreviewCollapsedIds(root, 8, 1)))
-        }, "\u6536\u8D77\u6DF1\u5C42")
+        }, "\u6536\u8D77\u6DF1\u5C42"),
+        onExpand && h("button", {
+          type: "button",
+          className: "concerto-link",
+          "aria-label": "\u5168\u5C4F\u67E5\u770B",
+          onClick: onExpand
+        }, h(UiIcon, { name: "expand", size: 12 }), "\u5168\u5C4F")
       )
     )
   );
 }
 
 // packages/dsh-concerto/src/client/components/renderers/SvgDiagramRenderer.js
-var import_react6 = __toESM(require_react(), 1);
+var import_react11 = __toESM(require_react(), 1);
 var LAYOUT_LABELS = { dag: "\u4F9D\u8D56 DAG", timeline: "\u65F6\u95F4\u7EBF", radial: "\u4E2D\u5FC3\u8F90\u5C04", swimlane: "\u6210\u5458\u6CF3\u9053" };
 function statusCssVar(status) {
   switch (status) {
@@ -6435,6 +8735,15 @@ function statusCssVar(status) {
       return "var(--cc-text-muted)";
   }
 }
+function statusGroup(status) {
+  if (status === "done" || status === "completed") return ["completed", "\u5B8C\u6210"];
+  if (["waiting_approval", "waiting_input", "attention"].includes(status)) return ["waiting_approval", "\u7B49\u5F85"];
+  if (status === "running" || status === "in_progress") return ["running", "\u8FDB\u884C\u4E2D"];
+  if (status === "review") return ["review", "\u5F85\u9A8C\u6536"];
+  if (status === "blocked" || status === "failed") return ["blocked", "\u963B\u585E"];
+  if (status === "unknown") return ["unknown", "\u672A\u77E5"];
+  return ["pending", "\u5F85\u529E"];
+}
 function edgeAppearance(semantic, highlightCritical) {
   if (semantic === "blocked") {
     return { stroke: "var(--cc-state-blocked)", width: 1.8, dash: "6 4", markerSuffix: "-blocked" };
@@ -6442,49 +8751,79 @@ function edgeAppearance(semantic, highlightCritical) {
   if (semantic === "unknown") {
     return { stroke: "var(--cc-state-unknown)", width: 1.8, dash: "6 4", markerSuffix: "-unknown" };
   }
+  if (semantic === "waiting") {
+    return { stroke: "var(--cc-state-attention)", width: 1.8, dash: "6 4", markerSuffix: "-waiting" };
+  }
   if (semantic === "critical" && highlightCritical) {
     return { stroke: "var(--cc-accent)", width: 2.2, dash: void 0, markerSuffix: "-crit" };
   }
   return { stroke: "var(--cc-border-strong)", width: 1.5, dash: void 0, markerSuffix: "" };
 }
-function SvgDiagramRenderer({ object, sessionId = "", inModal = false }) {
+function resolveLiveTask(node, tasks) {
+  if (!Array.isArray(tasks) || tasks.length === 0 || !node) return null;
+  if (node.taskId) {
+    const byId = tasks.find((t) => t.taskId === node.taskId);
+    if (byId) return byId;
+  }
+  if (typeof node.id === "string") {
+    const byNodeId = tasks.find((t) => t.taskId === node.id);
+    if (byNodeId) return byNodeId;
+  }
+  const text = String(node.fullLabel || node.label || "");
+  const m = text.match(/\b(task-\d+)\b/i);
+  if (m) {
+    const byMention = tasks.find((t) => t.taskId.toLowerCase() === m[1].toLowerCase());
+    if (byMention) return byMention;
+  }
+  return null;
+}
+function SvgDiagramRenderer({ object, sessionId = "", inModal = false, tasks = [], onJumpTask = null, onSelectNode = null }) {
   const hostTheme = useHostTheme();
-  const initialVp = import_react6.default.useMemo(() => readCanvasViewport(sessionId, object?.id), [sessionId, object?.id]);
-  const [zoom, setZoom] = import_react6.default.useState(() => initialVp.scale || 1);
-  const [pan, setPan] = import_react6.default.useState(() => ({ x: initialVp.panX || 0, y: initialVp.panY || 0 }));
-  const [highlightCritical, setHighlightCritical] = import_react6.default.useState(true);
-  const dragging = import_react6.default.useRef(null);
-  const svgRef = import_react6.default.useRef(null);
-  import_react6.default.useEffect(() => {
+  const initialVp = import_react11.default.useMemo(() => readCanvasViewport(sessionId, object?.id), [sessionId, object?.id]);
+  const [zoom, setZoom] = import_react11.default.useState(() => initialVp.scale || 1);
+  const [pan, setPan] = import_react11.default.useState(() => ({ x: initialVp.panX || 0, y: initialVp.panY || 0 }));
+  const [highlightCritical, setHighlightCritical] = import_react11.default.useState(true);
+  const svgRef = import_react11.default.useRef(null);
+  import_react11.default.useEffect(() => {
     const vp = readCanvasViewport(sessionId, object?.id);
     setZoom(vp.scale || 1);
     setPan({ x: vp.panX || 0, y: vp.panY || 0 });
   }, [sessionId, object?.id]);
-  const updateViewport = import_react6.default.useCallback((nextZoom, nextPan) => {
+  const updateViewport = import_react11.default.useCallback((nextZoom, nextPan) => {
     setZoom(nextZoom);
     setPan(nextPan);
     writeCanvasViewport(sessionId, object?.id, { scale: nextZoom, panX: nextPan.x, panY: nextPan.y });
   }, [sessionId, object?.id]);
   const rawData = object?.data || {};
   const layoutMode = rawData.layout || "dag";
-  const layout = import_react6.default.useMemo(() => layoutDiagram(rawData, {
+  const layout = import_react11.default.useMemo(() => layoutDiagram(rawData, {
     direction: object?.layoutHints?.direction,
     criticalPath: highlightCritical ? object?.layoutHints?.criticalPath : [],
     userOffsets: object?.userLayout?.offsets,
-    fontSize: Math.max(12, hostTheme.fontSize - 1)
-  }), [rawData, object?.layoutHints, object?.userLayout?.offsets, highlightCritical, hostTheme.fontSize]);
+    fontSize: hostTheme.fontSize,
+    semanticKind: object?.semanticKind
+  }), [rawData, object?.layoutHints, object?.userLayout?.offsets, object?.semanticKind, highlightCritical, hostTheme.fontSize]);
+  const markerId = "concerto-arrow-" + import_react11.default.useId().replace(/[^a-zA-Z0-9_-]/g, "");
   if (!layout.nodes.length) return h("p", { style: styles.muted }, "\u56FE\u8C31\u6682\u65E0\u8282\u70B9\u3002");
-  const markerId = "concerto-arrow-" + String(object.id || "diag").replace(/[^a-zA-Z0-9_-]/g, "") + (inModal ? "-modal" : "");
   const hasCritical = layout.nodes.some((n) => n.critical) || layout.edges.some((e) => e.critical || e.semantic === "critical");
   const fs = Math.max(12, layout.fontSize || 12.5);
   const lh = layout.lineHeight || Math.round(fs * 1.38);
   const summaryText = (LAYOUT_LABELS[layoutMode] || layoutMode) + " \xB7 " + layout.nodes.length + " \u8282\u70B9 / " + layout.edges.length + " \u8FDE\u7EBF";
+  const statusCounts = /* @__PURE__ */ new Map();
+  for (const node of layout.nodes) {
+    const [status, text] = statusGroup(node.status);
+    const current = statusCounts.get(status) || { status, text, count: 0 };
+    current.count += 1;
+    statusCounts.set(status, current);
+  }
+  const edgeLegend = [...new Set(layout.edges.map((edge) => edge.semantic).filter((semantic) => semantic && semantic !== "default"))];
+  const edgeLegendLabels = { critical: "\u5173\u952E\u8DEF\u5F84", waiting: "\u7B49\u5F85", blocked: "\u963B\u585E", unknown: "\u672A\u77E5" };
   const zoomOutBtn = (iconOnly) => h("button", {
     type: "button",
     className: iconOnly ? "concerto-btn concerto-btn--ghost concerto-btn--icon" : "concerto-btn",
     "aria-label": "\u7F29\u5C0F",
     title: "\u7F29\u5C0F",
-    onClick: () => updateViewport(Math.max(0.5, Number((zoom - 0.15).toFixed(2))), pan)
+    onClick: () => updateViewport(Math.max(0.1, Number((zoom - 0.15).toFixed(2))), pan)
   }, iconOnly ? "\u2212" : "\u7F29\u5C0F");
   const zoomInBtn = (iconOnly) => h("button", {
     type: "button",
@@ -6498,8 +8837,18 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false }) {
     className: iconOnly ? "concerto-btn concerto-btn--ghost concerto-btn--icon" : "concerto-btn",
     "aria-label": "\u9002\u5E94\u7A97\u53E3",
     title: "\u9002\u5E94\u7A97\u53E3",
+    onClick: () => {
+      const stage = svgRef.current.closest(".concerto-canvas-stage");
+      updateViewport(Math.min(1, stage.clientWidth / layout.width, stage.clientHeight / layout.height), { x: 0, y: 0 });
+    }
+  }, iconOnly ? h(UiIcon, { name: "expand" }) : "\u9002\u5E94\u7A97\u53E3");
+  const actualSizeBtn = (iconOnly) => h("button", {
+    type: "button",
+    className: iconOnly ? "concerto-btn concerto-btn--ghost" : "concerto-btn",
+    "aria-label": "\u539F\u59CB\u5B57\u53F7",
+    title: "\u6309\u5BBF\u4E3B\u539F\u59CB\u5B57\u53F7\u663E\u793A",
     onClick: () => updateViewport(1, { x: 0, y: 0 })
-  }, iconOnly ? "\u22A1" : "\u9002\u5E94\u7A97\u53E3");
+  }, iconOnly ? "100%" : "\u539F\u59CB\u5B57\u53F7");
   return h(
     "div",
     {
@@ -6516,45 +8865,45 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false }) {
         hasCritical && h("button", { type: "button", className: "concerto-btn", onClick: () => setHighlightCritical((v) => !v) }, highlightCritical ? "\u9690\u85CF\u5F3A\u8C03\u8DEF\u5F84" : "\u5F3A\u8C03\u8DEF\u5F84"),
         zoomOutBtn(false),
         zoomInBtn(false),
-        fitBtn(false),
+        actualSizeBtn(false),
+        fitBtn(false)
+      ),
+      h(
+        "div",
+        { className: "concerto-canvas-export" },
         h("button", { type: "button", className: "concerto-btn", onClick: () => exportSvgElement(svgRef.current, `${object.id}.svg`, layout.width, layout.height) }, "\u5BFC\u51FA SVG"),
         h("button", { type: "button", className: "concerto-btn", onClick: () => exportPngFromSvgElement(svgRef.current, `${object.id}.png`, layout.width, layout.height) }, "\u5BFC\u51FA PNG")
       )
     ),
     h(
-      "div",
+      SvgViewport,
       {
-        className: "concerto-canvas-stage",
-        style: { height: inModal ? "100%" : Math.min(280, Math.max(185, layout.height + 24)) },
-        onMouseDown: (e) => {
-          dragging.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
-        },
-        onMouseMove: (e) => {
-          if (dragging.current) updateViewport(zoom, { x: e.clientX - dragging.current.x, y: e.clientY - dragging.current.y });
-        },
-        onMouseUp: () => {
-          dragging.current = null;
-        },
-        onMouseLeave: () => {
-          dragging.current = null;
-        }
+        width: layout.width,
+        height: layout.height,
+        zoom,
+        pan,
+        onViewportChange: updateViewport,
+        inModal,
+        label: object.title || "\u4EFB\u52A1\u4F9D\u8D56\u56FE",
+        tools: !inModal && h(import_react11.default.Fragment, null, zoomOutBtn(true), zoomInBtn(true), actualSizeBtn(true), fitBtn(true))
       },
-      !inModal && h(
-        "div",
-        { className: "concerto-stage-tools", onMouseDown: (e) => e.stopPropagation() },
-        zoomOutBtn(true),
-        zoomInBtn(true),
-        fitBtn(true)
-      ),
       h(
         "svg",
         {
           ref: svgRef,
           viewBox: `0 0 ${layout.width} ${layout.height}`,
-          width: "100%",
-          height: "100%",
-          style: { display: "block", minHeight: 180, fontFamily: "var(--cc-font-sans)" }
+          width: Math.ceil(layout.width * zoom),
+          height: Math.ceil(layout.height * zoom),
+          role: "img",
+          "aria-label": object.title || "\u4EFB\u52A1\u4F9D\u8D56\u56FE",
+          "aria-describedby": markerId + "-description",
+          style: { fontFamily: "var(--cc-font-sans)" }
         },
+        h(
+          "desc",
+          { id: markerId + "-description" },
+          layout.nodes.map((node) => `${node.fullLabel}\uFF1A${(STATUS_TOKENS[node.status] || STATUS_TOKENS.pending).label}`).join("\uFF1B") + "\u3002\u5173\u7CFB\uFF1A" + layout.edges.map((edge) => `${layout.nodes.find((node) => node.id === edge.from).fullLabel} \u2192 ${layout.nodes.find((node) => node.id === edge.to).fullLabel}`).join("\uFF1B")
+        ),
         h(
           "defs",
           null,
@@ -6577,11 +8926,16 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false }) {
             "marker",
             { id: markerId + "-unknown", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6.5, markerHeight: 6.5, orient: "auto-start-reverse" },
             h("path", { d: "M 0 1 L 10 5 L 0 9 z", fill: "var(--cc-state-unknown)" })
+          ),
+          h(
+            "marker",
+            { id: markerId + "-waiting", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 6.5, markerHeight: 6.5, orient: "auto-start-reverse" },
+            h("path", { d: "M 0 1 L 10 5 L 0 9 z", fill: "var(--cc-state-attention)" })
           )
         ),
         h(
           "g",
-          { transform: `translate(${pan.x}, ${pan.y}) scale(${zoom})` },
+          null,
           (layout.lanes || []).map((lane) => {
             const laneText = lane.memberId ? `@${lane.memberId}` : lane.label;
             const laneBoxW = Math.max(96, Math.round(approxLineWidth(laneText, fs) + 24));
@@ -6618,7 +8972,7 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false }) {
           }),
           layout.edges.map((e, idx) => {
             const app = edgeAppearance(e.semantic, highlightCritical);
-            const labelW = Math.max(44, Math.round(approxLineWidth(e.label || "", 12) + 16));
+            const labelW = e.labelWidth;
             return h(
               "g",
               { key: idx, "data-concerto-edge-semantic": e.semantic || "default" },
@@ -6628,16 +8982,7 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false }) {
                 stroke: app.stroke,
                 strokeWidth: app.width,
                 strokeDasharray: app.dash,
-                strokeOpacity: e.semantic === "default" ? 0.85 : 0.95
-              }),
-              h("line", {
-                x1: e.x1,
-                y1: e.y1,
-                x2: e.x2,
-                y2: e.y2,
-                stroke: app.stroke,
-                strokeWidth: app.width,
-                strokeOpacity: 0.01,
+                strokeOpacity: e.semantic === "default" ? 0.85 : 0.95,
                 markerEnd: `url(#${markerId + app.markerSuffix})`
               }),
               e.label && h(
@@ -6645,55 +8990,100 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false }) {
                 null,
                 h("rect", {
                   x: e.midX - Math.round(labelW / 2),
-                  y: e.midY - 12,
+                  y: e.midY - e.labelHeight / 2,
                   width: labelW,
-                  height: 18,
+                  height: e.labelHeight,
                   rx: 6,
                   fill: "var(--cc-canvas-bg)",
                   stroke: "var(--cc-border-subtle)"
                 }),
                 h("text", {
                   x: e.midX,
-                  y: e.midY + 1,
+                  y: e.midY + e.labelFontSize * 0.35,
                   textAnchor: "middle",
                   fill: e.semantic === "default" ? "var(--cc-text-secondary)" : app.stroke,
-                  fontSize: Math.max(11, Math.round(fs - 0.5)),
+                  fontSize: e.labelFontSize,
                   fontWeight: 500
                 }, e.label)
               )
             );
           }),
           layout.nodes.map((n) => {
-            const st2 = STATUS_TOKENS[n.status] || STATUS_TOKENS.pending;
-            const stColor = statusCssVar(n.status);
-            const isCrit = Boolean(n.critical) && highlightCritical;
+            const liveTask = resolveLiveTask(n, tasks);
+            const effectiveStatus = liveTask ? liveTask.viewState || liveTask.state : n.status;
+            const effectiveTaskId = liveTask?.taskId || n.taskId || null;
+            const st2 = STATUS_TOKENS[effectiveStatus] || STATUS_TOKENS.pending;
+            const stColor = statusCssVar(effectiveStatus);
+            const completed = effectiveStatus === "done" || effectiveStatus === "completed";
+            const isRunning = ["running", "waiting_input", "waiting_approval"].includes(effectiveStatus);
+            const isBlocked = effectiveStatus === "blocked" || effectiveStatus === "failed";
+            const canJump = Boolean(effectiveTaskId && typeof onJumpTask === "function");
+            const canAnnotate = typeof onSelectNode === "function";
+            const interactive = canJump || canAnnotate;
+            const activate = (event) => {
+              if (!interactive) return;
+              event.stopPropagation();
+              if (event.shiftKey && canAnnotate) {
+                onSelectNode({ id: n.id, label: n.fullLabel || n.label, taskId: effectiveTaskId });
+                return;
+              }
+              if (canJump) {
+                onJumpTask(effectiveTaskId);
+              } else if (canAnnotate) {
+                onSelectNode({ id: n.id, label: n.fullLabel || n.label, taskId: effectiveTaskId });
+              }
+            };
+            const battleClass = [
+              "concerto-diagram-node",
+              interactive ? "concerto-battle-node--interactive" : "",
+              isRunning ? "concerto-battle-node--running" : "",
+              completed ? "concerto-battle-node--done" : "",
+              isBlocked ? "concerto-battle-node--blocked" : ""
+            ].filter(Boolean).join(" ");
             return h(
               "g",
-              { key: n.id, "data-concerto-diag-node": n.id, "data-status": n.status || "pending", transform: `translate(${n.x}, ${n.y})` },
-              h("title", null, (n.fullLabel || n.label) + (n.status ? " \xB7 " + st2.label : "")),
+              {
+                key: n.id,
+                className: battleClass,
+                "data-concerto-diag-node": n.id,
+                "data-status": effectiveStatus || "pending",
+                "data-task-id": effectiveTaskId || void 0,
+                transform: `translate(${n.x}, ${n.y})`,
+                role: interactive ? "button" : void 0,
+                tabIndex: interactive ? 0 : void 0,
+                "aria-label": canJump ? `\u6253\u5F00\u4EFB\u52A1 ${effectiveTaskId}\uFF1A${n.fullLabel || n.label}` : canAnnotate ? `\u6279\u6CE8\u8282\u70B9\uFF1A${n.fullLabel || n.label}` : void 0,
+                onClick: interactive ? activate : void 0,
+                onKeyDown: interactive ? (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    activate(event);
+                  }
+                } : void 0
+              },
+              h("title", null, (n.fullLabel || n.label) + (effectiveStatus ? " \xB7 " + st2.label : "") + (canJump ? "\uFF08\u70B9\u51FB\u6253\u5F00\u4EFB\u52A1\uFF0CShift+\u70B9\u51FB\u6279\u6CE8\uFF09" : canAnnotate ? "\uFF08\u70B9\u51FB\u6307\u56FE\u4E0B\u6307\u4EE4\uFF09" : "")),
               h("rect", {
                 x: 0,
                 y: 0,
                 width: n.width,
                 height: n.height,
                 rx: 8,
-                fill: "var(--cc-card-nested-bg)",
-                stroke: isCrit ? "var(--cc-accent)" : stColor,
-                strokeWidth: isCrit ? 2 : 1.5
+                fill: completed ? "var(--cc-card-nested-bg)" : "var(--cc-card-bg)",
+                stroke: isBlocked ? "var(--cc-state-blocked)" : effectiveStatus === "unknown" ? "var(--cc-state-unknown)" : isRunning ? "var(--cc-state-running)" : completed ? "var(--cc-state-done)" : "var(--cc-border-subtle)",
+                strokeDasharray: effectiveStatus === "unknown" ? "5 3" : void 0,
+                strokeWidth: isRunning ? 2 : 1.2
               }),
               h("rect", { x: 0, y: 0, width: 4, height: n.height, rx: 2, fill: stColor }),
               n.lines.map((line, li) => h("text", {
                 key: li,
-                x: 14,
-                y: Math.round(fs + 6 + li * lh),
-                fill: "var(--cc-text-primary)",
+                x: 18,
+                y: Math.round(fs + 12 + li * lh),
+                fill: completed ? "var(--cc-text-secondary)" : "var(--cc-text-primary)",
                 fontSize: fs,
                 fontWeight: 600
               }, line)),
-              n.status && h("text", {
-                x: n.width - 10,
-                y: n.height - 6,
-                textAnchor: "end",
+              effectiveStatus && h("text", {
+                x: 18,
+                y: n.height - 12,
                 fill: stColor,
                 fontSize: Math.max(11, Math.round(fs - 0.5)),
                 fontWeight: 600
@@ -6705,15 +9095,28 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false }) {
     ),
     !inModal && h(
       "div",
-      { className: "concerto-canvas-foot" },
-      h("span", { className: "concerto-num" }, summaryText),
-      hasCritical && h("button", { type: "button", className: "concerto-link", onClick: () => setHighlightCritical((v) => !v) }, highlightCritical ? "\u9690\u85CF\u5F3A\u8C03\u8DEF\u5F84" : "\u5F3A\u8C03\u8DEF\u5F84")
+      { className: "concerto-canvas-foot concerto-diagram-foot" },
+      h(
+        "div",
+        { className: "concerto-diagram-status-summary", "aria-label": "\u8282\u70B9\u72B6\u6001\u7EDF\u8BA1" },
+        [...statusCounts.values()].map((item) => h(
+          "span",
+          { key: item.status },
+          h(StatusIcon, { status: item.status, size: 12 }),
+          `${item.count} ${item.text}`
+        ))
+      ),
+      edgeLegend.length > 0 && h(
+        "div",
+        { className: "concerto-diagram-edge-legend", "aria-label": "\u8FDE\u7EBF\u56FE\u4F8B" },
+        edgeLegend.map((semantic) => h("span", { key: semantic, "data-semantic": semantic }, edgeLegendLabels[semantic] || semantic))
+      )
     )
   );
 }
 
 // packages/dsh-concerto/src/client/components/renderers/ExcalidrawRenderer.js
-var import_react7 = __toESM(require_react(), 1);
+var import_react12 = __toESM(require_react(), 1);
 var cachedRoughPromise = null;
 function loadRoughModule() {
   if (!cachedRoughPromise) {
@@ -6787,27 +9190,37 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
   const persistedOffsets = object?.userLayout?.offsets || {};
   const persistedLabels = object?.userLayout?.labelOverrides || {};
   const persistedNotes = Array.isArray(object?.userLayout?.annotations) ? object.userLayout.annotations : [];
-  const initialVp = import_react7.default.useMemo(() => readCanvasViewport(sessionId, object?.id), [sessionId, object?.id]);
-  const [userOffsets, setUserOffsets] = import_react7.default.useState(() => persistedOffsets);
-  const [labelOverrides, setLabelOverrides] = import_react7.default.useState(() => persistedLabels);
-  const [annotations, setAnnotations] = import_react7.default.useState(() => persistedNotes);
-  const [userLayoutVer, setUserLayoutVer] = import_react7.default.useState(() => object?.userLayout?.version ?? 0);
-  const [editingNodeId, setEditingNodeId] = import_react7.default.useState("");
-  const [editingDraft, setEditingDraft] = import_react7.default.useState("");
-  const [addingNote, setAddingNote] = import_react7.default.useState(false);
-  const [noteDraft, setNoteDraft] = import_react7.default.useState("");
-  const [pendingMergeObj, setPendingMergeObj] = import_react7.default.useState(null);
-  const [appliedObj, setAppliedObj] = import_react7.default.useState(object);
-  const [zoom, setZoom] = import_react7.default.useState(() => initialVp.scale || 1);
-  const [pan, setPan] = import_react7.default.useState(() => ({ x: initialVp.panX || 0, y: initialVp.panY || 0 }));
-  const [roughApi, setRoughApi] = import_react7.default.useState(null);
-  const [saveNote, setSaveNote] = import_react7.default.useState("");
-  const activeDragRef = import_react7.default.useRef(null);
-  const svgRef = import_react7.default.useRef(null);
-  const roughOverlayRef = import_react7.default.useRef(null);
-  const instanceIdRef = import_react7.default.useRef(Math.random().toString(36).slice(2));
+  const initialVp = import_react12.default.useMemo(() => readCanvasViewport(sessionId, object?.id), [sessionId, object?.id]);
+  const [userOffsets, setUserOffsets] = import_react12.default.useState(() => persistedOffsets);
+  const [labelOverrides, setLabelOverrides] = import_react12.default.useState(() => persistedLabels);
+  const [annotations, setAnnotations] = import_react12.default.useState(() => persistedNotes);
+  const [userLayoutVer, setUserLayoutVer] = import_react12.default.useState(() => object?.userLayout?.version ?? 0);
+  const [editingNodeId, setEditingNodeId] = import_react12.default.useState("");
+  const [editingDraft, setEditingDraft] = import_react12.default.useState("");
+  const [addingNote, setAddingNote] = import_react12.default.useState(false);
+  const [noteDraft, setNoteDraft] = import_react12.default.useState("");
+  const [pendingMergeObj, setPendingMergeObj] = import_react12.default.useState(null);
+  const [appliedObj, setAppliedObj] = import_react12.default.useState(object);
+  const [zoom, setZoom] = import_react12.default.useState(() => initialVp.scale || 1);
+  const [pan, setPan] = import_react12.default.useState(() => ({ x: initialVp.panX || 0, y: initialVp.panY || 0 }));
+  const [roughApi, setRoughApi] = import_react12.default.useState(null);
+  const [saveNote, setSaveNote] = import_react12.default.useState("");
+  const [saving, setSaving] = import_react12.default.useState(false);
+  const [failedSave, setFailedSave] = import_react12.default.useState(null);
+  const savingRef = import_react12.default.useRef(false);
+  const userVersionRef = import_react12.default.useRef(userLayoutVer);
+  const editId = import_react12.default.useId();
+  const noteId = import_react12.default.useId();
+  const activeDragRef = import_react12.default.useRef(null);
+  const svgRef = import_react12.default.useRef(null);
+  const roughOverlayRef = import_react12.default.useRef(null);
+  const editInputRef = import_react12.default.useRef(null);
+  const instanceIdRef = import_react12.default.useRef(Math.random().toString(36).slice(2));
   const isActivelyEditing = Boolean(editingNodeId) || addingNote || inModal;
-  const broadcastUserLayer = import_react7.default.useCallback((nextOffsets, nextLabels, nextNotes, version, viewport) => {
+  import_react12.default.useEffect(() => {
+    if (editingNodeId) editInputRef.current?.focus();
+  }, [editingNodeId]);
+  const broadcastUserLayer = import_react12.default.useCallback((nextOffsets, nextLabels, nextNotes, version, viewport, saveStatus) => {
     if (typeof window === "undefined" || !object?.id) return;
     try {
       window.dispatchEvent(new CustomEvent(EXCALIDRAW_SYNC_EVENT, {
@@ -6819,13 +9232,14 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
           labelOverrides: nextLabels,
           annotations: nextNotes,
           version,
-          viewport
+          viewport,
+          saveStatus
         }
       }));
     } catch {
     }
   }, [sessionId, object?.id]);
-  import_react7.default.useEffect(() => {
+  import_react12.default.useEffect(() => {
     if (typeof window === "undefined" || !object?.id) return;
     const onSync = (ev) => {
       const d = ev?.detail;
@@ -6834,7 +9248,16 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       if (d.offsets) setUserOffsets(d.offsets);
       if (d.labelOverrides) setLabelOverrides(d.labelOverrides);
       if (Array.isArray(d.annotations)) setAnnotations(d.annotations);
-      if (typeof d.version === "number") setUserLayoutVer(d.version);
+      if (typeof d.version === "number") {
+        userVersionRef.current = d.version;
+        setUserLayoutVer(d.version);
+      }
+      if (d.saveStatus) {
+        savingRef.current = d.saveStatus.phase === "saving";
+        setSaving(savingRef.current);
+        setSaveNote(d.saveStatus.note);
+        setFailedSave(d.saveStatus.failure || null);
+      }
       if (d.viewport) {
         setZoom(d.viewport.scale || 1);
         setPan({ x: d.viewport.panX || 0, y: d.viewport.panY || 0 });
@@ -6843,17 +9266,17 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
     window.addEventListener(EXCALIDRAW_SYNC_EVENT, onSync);
     return () => window.removeEventListener(EXCALIDRAW_SYNC_EVENT, onSync);
   }, [sessionId, object?.id]);
-  import_react7.default.useEffect(() => {
+  import_react12.default.useEffect(() => {
     const vp = readCanvasViewport(sessionId, object?.id);
     setZoom(vp.scale || 1);
     setPan({ x: vp.panX || 0, y: vp.panY || 0 });
   }, [sessionId, object?.id]);
-  const updateViewport = import_react7.default.useCallback((nextZoom, nextPan) => {
+  const updateViewport = import_react12.default.useCallback((nextZoom, nextPan) => {
     setZoom(nextZoom);
     setPan(nextPan);
     writeCanvasViewport(sessionId, object?.id, { scale: nextZoom, panX: nextPan.x, panY: nextPan.y });
   }, [sessionId, object?.id]);
-  import_react7.default.useEffect(() => {
+  import_react12.default.useEffect(() => {
     if (!object) return;
     if (object.id !== appliedObj?.id) {
       setAppliedObj(object);
@@ -6862,6 +9285,8 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       setLabelOverrides(object.userLayout?.labelOverrides || {});
       setAnnotations(Array.isArray(object.userLayout?.annotations) ? object.userLayout.annotations : []);
       setUserLayoutVer(object.userLayout?.version ?? 0);
+      userVersionRef.current = object.userLayout?.version ?? 0;
+      setFailedSave(null);
       return;
     }
     if (object.version !== appliedObj?.version) {
@@ -6872,14 +9297,15 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       }
     }
     const serverUserVer = object.userLayout?.version ?? 0;
-    if (serverUserVer > userLayoutVer && !isActivelyEditing) {
+    if (serverUserVer > userLayoutVer && !isActivelyEditing && !failedSave && !saving) {
       setUserOffsets(object.userLayout?.offsets || {});
       setLabelOverrides(object.userLayout?.labelOverrides || {});
       setAnnotations(Array.isArray(object.userLayout?.annotations) ? object.userLayout.annotations : []);
       setUserLayoutVer(serverUserVer);
+      userVersionRef.current = serverUserVer;
     }
-  }, [object?.id, object?.version, object?.userLayout?.version, isActivelyEditing]);
-  import_react7.default.useEffect(() => {
+  }, [object?.id, object?.version, object?.userLayout?.version, isActivelyEditing, failedSave, saving]);
+  import_react12.default.useEffect(() => {
     if (typeof document === "undefined") return;
     let cancelled = false;
     loadRoughModule().then((mod) => {
@@ -6891,7 +9317,7 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
   }, []);
   const currentObj = appliedObj || object;
   const sceneElements = currentObj?.data?.excalidrawScene?.elements;
-  const layout = import_react7.default.useMemo(() => {
+  const layout = import_react12.default.useMemo(() => {
     const fontSize = Math.max(12, hostTheme.fontSize - 1);
     if (Array.isArray(sceneElements)) {
       const visible = sceneElements.filter((el) => el && !el.isDeleted);
@@ -6909,8 +9335,8 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
           shape: r.type,
           label: labelOverrides[r.id] || baseLabel,
           lines: [labelOverrides[r.id] || baseLabel],
-          x: Math.round((r.x || 40 * (idx + 1)) + (off.dx || 0)),
-          y: Math.round((r.y || 40) + (off.dy || 0)),
+          x: Math.round((r.x ?? 40 * (idx + 1)) + (off.dx || 0)),
+          y: Math.round((r.y ?? 40) + (off.dy || 0)),
           width: Math.max(84, Math.round(r.width || 136)),
           height: Math.max(38, Math.round(r.height || 52)),
           status: r.customData?.status,
@@ -6919,8 +9345,8 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       });
       const freeTexts = texts.filter((t) => !t.containerId && typeof t.text === "string" && t.text.trim()).map((t, idx) => ({
         id: t.id || "ft-" + idx,
-        x: Math.round(t.x || 24),
-        y: Math.round((t.y || 24) + 14),
+        x: Math.round(t.x ?? 24),
+        y: Math.round((t.y ?? 24) + 14),
         text: t.text
       }));
       const edges2 = arrows.map((a) => {
@@ -6936,8 +9362,18 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
         const semantic = isErr ? "blocked" : isUnk ? "unknown" : a.customData?.critical || toNode?.critical ? "critical" : "default";
         return { x1, y1, x2, y2, midX: Math.round((x1 + x2) / 2), midY: Math.round((y1 + y2) / 2), label: a.customData?.label, semantic };
       });
-      const width = Math.max(360, ...nodes2.map((n) => n.x + n.width + 40), ...freeTexts.map((t) => t.x + 120));
-      const height = Math.max(200, ...nodes2.map((n) => n.y + n.height + 40), ...freeTexts.map((t) => t.y + 40));
+      const width = Math.max(
+        360,
+        ...nodes2.map((n) => n.x + n.width + 40),
+        ...freeTexts.map((t) => t.x + approxLineWidth(t.text, fontSize) + 40),
+        ...edges2.map((e) => Math.max(e.x1, e.x2) + 40)
+      );
+      const height = Math.max(
+        200,
+        ...nodes2.map((n) => n.y + n.height + 40),
+        ...freeTexts.map((t) => t.y + 40),
+        ...edges2.map((e) => Math.max(e.y1, e.y2) + 40)
+      );
       return { nodes: nodes2, edges: edges2, freeTexts, omittedTypes, width, height };
     }
     if (currentObj?.type === "mindmap") {
@@ -6981,7 +9417,7 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       height: Math.max(190, ...nodes.map((n) => n.y + n.height + 40))
     };
   }, [currentObj, sceneElements, userOffsets, labelOverrides, hostTheme.fontSize]);
-  import_react7.default.useEffect(() => {
+  import_react12.default.useEffect(() => {
     const group = roughOverlayRef.current;
     const svg = svgRef.current;
     if (!group || !svg || !roughApi?.svg) return;
@@ -7013,28 +9449,42 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       group.appendChild(sketchShape);
     }
   }, [roughApi, layout.nodes, hostTheme]);
-  async function persistUserLayer(nextOffsets, nextLabels, nextNotes, reset = false, nextViewport = null) {
+  async function persistUserLayer(nextOffsets, nextLabels, nextNotes, reset = false, nextViewport = null, expectedVersion = userVersionRef.current) {
+    if (savingRef.current) return;
     broadcastUserLayer(nextOffsets, nextLabels, nextNotes, void 0, nextViewport);
     if (!sessionId || !currentObj?.id) return;
+    savingRef.current = true;
+    setSaving(true);
+    setFailedSave(null);
+    setSaveNote("\u6B63\u5728\u4FDD\u5B58\u2026");
+    broadcastUserLayer(nextOffsets, nextLabels, nextNotes, void 0, nextViewport, { phase: "saving", note: "\u6B63\u5728\u4FDD\u5B58\u2026" });
     try {
       const res = await saveViewObjectUserLayout(sessionId, {
         id: currentObj.id,
-        expectedUserVersion: userLayoutVer,
+        expectedUserVersion: expectedVersion,
         offsets: nextOffsets,
         labelOverrides: nextLabels,
         annotations: nextNotes,
         reset
       });
-      if (res?.ok && res.userLayout) {
-        setUserLayoutVer(res.userLayout.version);
-        setSaveNote("\u5DF2\u4FDD\u5B58\u5E03\u5C40 v" + res.userLayout.version);
-        broadcastUserLayer(nextOffsets, nextLabels, nextNotes, res.userLayout.version, nextViewport);
-      }
-    } catch {
+      if (!res?.ok || !res.userLayout) throw new Error("\u672A\u53D6\u5F97\u670D\u52A1\u5668\u4FDD\u5B58\u7ED3\u679C");
+      userVersionRef.current = res.userLayout.version;
+      setUserLayoutVer(res.userLayout.version);
+      setSaveNote("\u5DF2\u4FDD\u5B58\u5E03\u5C40 v" + res.userLayout.version);
+      broadcastUserLayer(nextOffsets, nextLabels, nextNotes, res.userLayout.version, nextViewport, { phase: "saved", note: "\u5DF2\u4FDD\u5B58\u5E03\u5C40 v" + res.userLayout.version });
+    } catch (err) {
+      setSaveNote("\u4FEE\u6539\u5C1A\u672A\u4FDD\u5B58");
+      const failure = { offsets: nextOffsets, labels: nextLabels, notes: nextNotes, reset, viewport: nextViewport, conflict: err.status === 409, message: err.message };
+      setFailedSave(failure);
+      broadcastUserLayer(nextOffsets, nextLabels, nextNotes, void 0, nextViewport, { phase: "failed", note: "\u4FEE\u6539\u5C1A\u672A\u4FDD\u5B58", failure });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   }
   function startNodeDrag(node, e) {
     e.stopPropagation();
+    if (savingRef.current) return;
     const baseOff = userOffsets[node.id] || { dx: 0, dy: 0 };
     activeDragRef.current = { kind: "node", id: node.id, startX: e.clientX, startY: e.clientY, dx0: baseOff.dx, dy0: baseOff.dy };
   }
@@ -7077,8 +9527,12 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
     const trimmed = editingDraft.trim();
     const nextLabels = trimmed ? { ...labelOverrides, [editingNodeId]: trimmed } : labelOverrides;
     setLabelOverrides(nextLabels);
-    setEditingNodeId("");
+    closeNodeEditor();
     persistUserLayer(userOffsets, nextLabels, annotations);
+  }
+  function closeNodeEditor() {
+    svgRef.current?.querySelector(`[data-concerto-excalidraw-node="${CSS.escape(editingNodeId)}"]`)?.focus();
+    setEditingNodeId("");
   }
   function commitAnnotation() {
     const text = noteDraft.trim();
@@ -7117,7 +9571,7 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
     "aria-label": "\u9002\u5E94\u7A97\u53E3",
     title: "\u9002\u5E94\u7A97\u53E3",
     onClick: fitView
-  }, iconOnly ? "\u22A1" : "\u9002\u5E94\u7A97\u53E3");
+  }, iconOnly ? h(UiIcon, { name: "expand" }) : "\u9002\u5E94\u7A97\u53E3");
   return h(
     "div",
     {
@@ -7131,14 +9585,18 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       h(
         "div",
         { className: "concerto-canvas-btns" },
-        h("button", { type: "button", className: "concerto-btn", onClick: () => {
+        h("button", { type: "button", className: "concerto-btn", disabled: saving, onClick: () => {
           setAddingNote(true);
           setNoteDraft("\u5F85\u786E\u8BA4\u8FB9\u754C");
         } }, "\u6DFB\u52A0\u6279\u6CE8"),
         zoomOutBtn(false),
         zoomInBtn(false),
         fitBtn(false),
-        h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: resetLayout }, "\u91CD\u7F6E\u5E03\u5C40"),
+        h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", disabled: saving, onClick: resetLayout }, "\u91CD\u7F6E\u5E03\u5C40")
+      ),
+      h(
+        "div",
+        { className: "concerto-canvas-export" },
         h("button", { type: "button", className: "concerto-btn", onClick: exportExcalidraw }, "\u5BFC\u51FA .excalidraw"),
         h("button", { type: "button", className: "concerto-btn", onClick: () => exportSvgElement(svgRef.current, `${currentObj.id}.svg`, layout.width, layout.height) }, "\u5BFC\u51FA SVG"),
         h("button", { type: "button", className: "concerto-btn", onClick: () => exportPngFromSvgElement(svgRef.current, `${currentObj.id}.png`, layout.width, layout.height) }, "\u5BFC\u51FA PNG")
@@ -7159,18 +9617,32 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
       } }, "\u5408\u5E76\u4FDD\u7559\u6211\u7684\u4F4D\u7F6E"),
       h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setPendingMergeObj(null) }, "\u5FFD\u7565")
     ),
+    failedSave && h(
+      "div",
+      { role: "status", className: "concerto-feedback", "data-tone": "error" },
+      h("span", null, failedSave.conflict ? "\u670D\u52A1\u5668\u5E03\u5C40\u5DF2\u66F4\u65B0\u3002\u4F60\u7684\u4FEE\u6539\u5C1A\u672A\u4FDD\u5B58\uFF0C\u91CD\u65B0\u4FDD\u5B58\u5C06\u8986\u76D6\u5F53\u524D\u5DF2\u77E5\u5E03\u5C40\u3002" : `\u5E03\u5C40\u4FDD\u5B58\u5931\u8D25\uFF1A${failedSave.message}\u3002\u4F60\u7684\u4FEE\u6539\u4ECD\u4FDD\u7559\u5728\u5F53\u524D\u753B\u5E03\u3002`),
+      h("button", {
+        type: "button",
+        className: "concerto-btn",
+        disabled: saving || failedSave.conflict && (object?.userLayout?.version ?? 0) <= userLayoutVer,
+        onClick: () => persistUserLayer(failedSave.offsets, failedSave.labels, failedSave.notes, failedSave.reset, failedSave.viewport, failedSave.conflict ? object.userLayout.version : userVersionRef.current)
+      }, failedSave.conflict ? "\u7528\u6211\u7684\u5E03\u5C40\u91CD\u65B0\u4FDD\u5B58" : "\u91CD\u8BD5\u4FDD\u5B58")
+    ),
+    saving && h("p", { role: "status", className: "concerto-quiet" }, "\u6B63\u5728\u4FDD\u5B58\u5E03\u5C40\u2026"),
     editingNodeId && h(
       "div",
-      { style: { display: "flex", gap: 6, marginBottom: 8 } },
-      h("input", { value: editingDraft, onChange: (e) => setEditingDraft(e.target.value), placeholder: "\u4FEE\u6539\u8282\u70B9\u6587\u5B57", style: { ...styles.input, flex: 1 } }),
-      h("button", { type: "button", className: "concerto-btn concerto-btn--primary", onClick: commitNodeLabel }, "\u786E\u5B9A"),
-      h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setEditingNodeId("") }, "\u53D6\u6D88")
+      { className: "concerto-inline-editor" },
+      h("label", { htmlFor: editId }, "\u8282\u70B9\u6587\u5B57"),
+      h("input", { ref: editInputRef, id: editId, value: editingDraft, disabled: saving, onChange: (e) => setEditingDraft(e.target.value), className: "concerto-input" }),
+      h("button", { type: "button", className: "concerto-btn concerto-btn--primary", disabled: saving, onClick: commitNodeLabel }, "\u786E\u5B9A"),
+      h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: closeNodeEditor }, "\u53D6\u6D88")
     ),
     addingNote && h(
       "div",
-      { style: { display: "flex", gap: 6, marginBottom: 8 } },
-      h("input", { value: noteDraft, onChange: (e) => setNoteDraft(e.target.value), placeholder: "\u8F93\u5165\u767D\u677F\u6279\u6CE8", style: { ...styles.input, flex: 1 } }),
-      h("button", { type: "button", className: "concerto-btn concerto-btn--primary", disabled: !noteDraft.trim(), onClick: commitAnnotation }, "\u6DFB\u52A0"),
+      { className: "concerto-inline-editor" },
+      h("label", { htmlFor: noteId }, "\u767D\u677F\u6279\u6CE8"),
+      h("input", { id: noteId, value: noteDraft, disabled: saving, onChange: (e) => setNoteDraft(e.target.value), className: "concerto-input" }),
+      h("button", { type: "button", className: "concerto-btn concerto-btn--primary", disabled: saving || !noteDraft.trim(), onClick: commitAnnotation }, "\u6DFB\u52A0"),
       h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => {
         setAddingNote(false);
         setNoteDraft("");
@@ -7309,10 +9781,29 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
                 "data-y": n.y,
                 style: { cursor: "move" },
                 onMouseDown: (e) => startNodeDrag(n, e),
+                role: "button",
+                tabIndex: 0,
+                "aria-label": `\u7F16\u8F91\u8282\u70B9\uFF1A${n.label}`,
+                "aria-disabled": saving || void 0,
+                onKeyDown: (e) => {
+                  if (e.key === " ") e.preventDefault();
+                  if (e.key === "Enter" && !savingRef.current) {
+                    setEditingNodeId(n.id);
+                    setEditingDraft(n.label);
+                  }
+                },
+                onKeyUp: (e) => {
+                  if (e.key === " " && !savingRef.current) {
+                    setEditingNodeId(n.id);
+                    setEditingDraft(n.label);
+                  }
+                },
                 onDoubleClick: (e) => {
                   e.stopPropagation();
-                  setEditingNodeId(n.id);
-                  setEditingDraft(n.label);
+                  if (!savingRef.current) {
+                    setEditingNodeId(n.id);
+                    setEditingDraft(n.label);
+                  }
                 }
               },
               h("title", null, `${n.label}${stInfo ? " \xB7 " + stInfo.label : ""}\uFF08\u62D6\u62FD\u79FB\u52A8\uFF0C\u53CC\u51FB\u6539\u5B57\uFF09`),
@@ -7388,7 +9879,7 @@ function ExcalidrawRenderer({ object, sessionId, inModal = false }) {
 }
 
 // packages/dsh-concerto/src/client/components/renderers/HtmlSandboxRenderer.js
-var import_react8 = __toESM(require_react(), 1);
+var import_react13 = __toESM(require_react(), 1);
 function buildSrcDoc(data, hostTheme) {
   const colorScheme = hostTheme?.colorScheme === "dark" ? "dark" : "light";
   const vars = [
@@ -7418,7 +9909,7 @@ function buildSrcDoc(data, hostTheme) {
     code, pre { font-family: var(--font-mono); font-size: var(--code-font-size); }
   `;
   return [
-    '<!doctype html><html><head><meta charset="utf-8">',
+    '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Concerto \u7ED3\u6784\u5316 HTML \u89C6\u56FE</title>',
     `<meta http-equiv="Content-Security-Policy" content="${CONCERTO_HTML_CSP}">`,
     `<style>${baseCss}
 ${data?.css || ""}</style></head>`,
@@ -7437,7 +9928,7 @@ function estimateHtmlHeight(data) {
 }
 function HtmlSandboxRenderer({ object, inModal = false }) {
   const hostTheme = useHostTheme();
-  const srcDoc = import_react8.default.useMemo(() => buildSrcDoc(object?.data, hostTheme), [object?.data, hostTheme]);
+  const srcDoc = import_react13.default.useMemo(() => buildSrcDoc(object?.data, hostTheme), [object?.data, hostTheme]);
   if (!object?.data?.html) return h("p", { style: styles.muted }, "HTML \u5361\u7247\u5185\u5BB9\u4E3A\u7A7A\u3002");
   const cardH = estimateHtmlHeight(object?.data);
   const cappedH = Math.min(240, cardH);
@@ -7462,7 +9953,6 @@ function HtmlSandboxRenderer({ object, inModal = false }) {
       },
       h("iframe", {
         sandbox: "",
-        scrolling: inModal ? "auto" : "no",
         title: object.title || "Concerto \u6C99\u7BB1 HTML \u89C6\u56FE",
         srcDoc,
         style: {
@@ -7479,22 +9969,48 @@ function HtmlSandboxRenderer({ object, inModal = false }) {
     !inModal && h(
       "div",
       { className: "concerto-canvas-foot" },
-      h("span", null, clipped ? "\u6C99\u7BB1\u5185\u5BB9\u5DF2\u622A\u65AD \xB7 \u70B9\u51FB\u53F3\u4E0A\u89D2\u5168\u5C4F\u67E5\u770B" : "\u6C99\u7BB1\u5185\u5BB9\u9884\u89C8")
+      h("span", null, clipped ? "\u53EF\u6EDA\u52A8\u67E5\u770B\u9884\u89C8 \xB7 \u5C55\u5F00\u753B\u5E03\u9605\u8BFB\u5B8C\u6574\u5185\u5BB9" : "\u6C99\u7BB1\u5185\u5BB9\u9884\u89C8 \xB7 \u53EF\u6EDA\u52A8\u67E5\u770B")
     )
   );
+}
+
+// packages/dsh-concerto/src/client/components/popover.js
+function showAnchoredPopover(trigger, panel, { width = 420, maxHeight = 360 } = {}) {
+  if (!trigger || !panel || typeof panel.showPopover !== "function") return false;
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const actualWidth = Math.min(width, Math.max(240, viewportWidth - 32));
+  const rect = trigger.getBoundingClientRect();
+  const left = Math.max(16, Math.min(rect.right - actualWidth, viewportWidth - actualWidth - 16));
+  const estimatedHeight = Math.min(maxHeight, panel.scrollHeight || maxHeight);
+  let top = rect.bottom + 8;
+  let availableHeight = viewportHeight - top - 16;
+  if (availableHeight < 180 && rect.top > viewportHeight / 2) {
+    top = Math.max(16, rect.top - estimatedHeight - 8);
+    availableHeight = rect.top - 24;
+  }
+  panel.style.width = `${actualWidth}px`;
+  panel.style.maxHeight = `${Math.max(120, Math.min(maxHeight, availableHeight))}px`;
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+  panel.showPopover();
+  return true;
+}
+function hideAnchoredPopover(panel) {
+  if (panel && typeof panel.hidePopover === "function") panel.hidePopover();
 }
 
 // packages/dsh-concerto/src/client/components/StructuredObjectCard.js
 var RENDERER_LABELS = {
   html: "HTML \u8868\u683C / \u9A8C\u6536\u6E05\u5355",
-  markmap: "Markmap",
+  markmap: "SVG \u5BFC\u56FE",
   svg: "SVG \u56FE\u8C31",
   excalidraw: "\u624B\u7ED8\u767D\u677F",
   "sandbox-iframe": "\u6C99\u7BB1 HTML"
 };
 var ENGINE_DETAILS = {
   html: "HTML \u7ED3\u6784\u5316\u8868\u683C / \u9A8C\u6536\u6E05\u5355\uFF08\u5B9E\u65F6\u6267\u884C\u53EA\u8BFB\u540C\u6B65\u4EFB\u52A1\u72B6\u6001\uFF0C\u5FEB\u7167\u51BB\u7ED3\u5386\u53F2\u72B6\u6001\uFF09",
-  markmap: "Markmap 0.18 + D3\uFF08\u9884\u89C8\u4E3A\u5706\u89D2\u8282\u70B9\uFF0C\u5168\u5C4F\u4E3A Markmap \u539F\u751F\u6811\u679D\u6837\u5F0F\uFF0C\u5171\u4EAB\u6298\u53E0\u4E0E\u89C6\u89D2\uFF09",
+  markmap: "\u81EA\u7ED8 SVG \u5BFC\u56FE\uFF08\u9884\u89C8\u4E0E\u5168\u5C4F\u5171\u7528\u786E\u5B9A\u6027\u5E03\u5C40\u3001\u6298\u53E0\u72B6\u6001\u548C SVG/PNG \u5BFC\u51FA\uFF09",
   svg: "Dagre + SVG \u77E2\u91CF\u5E03\u5C40\uFF08\u968F\u5BBF\u4E3B\u5B57\u53F7\u6D4B\u91CF\u4E2D\u6587\u5BBD\u5EA6\uFF0C\u533A\u5206 3 \u79CD\u8FDE\u7EBF\u8BED\u4E49\uFF09",
   excalidraw: "Excalidraw v2 + Rough.js \u767D\u677F\u5F15\u64CE\uFF08\u7528\u6237\u5E03\u5C40\u72EC\u7ACB\u7248\u672C\u4FDD\u5B58\uFF09",
   "sandbox-iframe": "\u6C99\u7BB1 iframe\uFF08\u663E\u5F0F\u63A5\u6536\u5BBF\u4E3B\u6DF1\u6D45\u8272\u3001\u5B57\u4F53\u4E0E\u5B57\u53F7\u53D8\u91CF\uFF09"
@@ -7514,46 +10030,36 @@ function resolveObjectRenderer(object, overrideRenderer) {
 function CanvasModal({ title, onClose, children }) {
   useTeamCss();
   const hostTheme = useHostTheme();
-  const dialogRef = import_react9.default.useRef(null);
-  const closeBtnRef = import_react9.default.useRef(null);
-  useOverlay(dialogRef, closeBtnRef, onClose, true);
+  const dialogRef = import_react14.default.useRef(null);
+  const titleId = import_react14.default.useId();
+  useModalDialog(dialogRef, onClose);
   const dialog = h(
-    "div",
+    "dialog",
     {
-      className: "concerto-modal-backdrop concerto-surface",
+      ref: dialogRef,
+      className: "concerto-canvas-modal concerto-surface",
       "data-concerto-theme": hostTheme.colorScheme,
-      style: hostTheme.cssVars,
-      onClick: (e) => {
-        if (e.target === e.currentTarget) onClose?.();
-      }
+      "data-concerto-modal": "true",
+      "aria-labelledby": titleId,
+      closedby: "any",
+      style: hostTheme.cssVars
     },
     h(
-      "section",
-      {
-        ref: dialogRef,
-        className: "concerto-canvas-modal",
-        "data-concerto-modal": "true",
-        role: "dialog",
-        "aria-modal": "true",
-        "aria-label": title
-      },
-      h(
-        "div",
-        { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 } },
-        h("strong", { style: { fontSize: "var(--cc-fs-title)" } }, title),
-        h("button", {
-          ref: closeBtnRef,
-          type: "button",
-          className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
-          "aria-label": "\u5173\u95ED\u753B\u5E03",
-          title: "\u5173\u95ED\u753B\u5E03",
-          onClick: onClose
-        }, "\u2715")
-      ),
-      children
-    )
+      "div",
+      { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 } },
+      h("h2", { id: titleId, className: "concerto-dialog-title" }, title),
+      h("button", {
+        ref: (node) => node?.setAttribute("autofocus", ""),
+        type: "button",
+        className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
+        "aria-label": "\u5173\u95ED\u753B\u5E03",
+        title: "\u5173\u95ED\u753B\u5E03",
+        onClick: onClose
+      }, h(UiIcon, { name: "close" }))
+    ),
+    children
   );
-  return typeof document !== "undefined" && document.body ? (0, import_react_dom.createPortal)(dialog, document.body) : dialog;
+  return typeof document !== "undefined" && document.body ? (0, import_react_dom2.createPortal)(dialog, document.body) : dialog;
 }
 function isNumericCell(val) {
   if (typeof val === "number") return true;
@@ -7585,10 +10091,94 @@ function StructuredObjectCard({
   highlighted = false,
   userPinned = false,
   onTogglePin = null,
-  badgeLabel = ""
+  pinBusy = false,
+  badgeLabel = "",
+  isApprovedPlan = false,
+  goalCompleted = false
 }) {
-  const [modalOpen, setModalOpen] = import_react9.default.useState(false);
-  const [infoOpen, setInfoOpen] = import_react9.default.useState(false);
+  const [modalOpen, setModalOpen] = import_react14.default.useState(false);
+  const [infoOpen, setInfoOpen] = import_react14.default.useState(false);
+  const [pointOpen, setPointOpen] = import_react14.default.useState(false);
+  const [pointedNode, setPointedNode] = import_react14.default.useState(null);
+  const [pointText, setPointText] = import_react14.default.useState("");
+  const [pointSending, setPointSending] = import_react14.default.useState(false);
+  const [pointNotice, setPointNotice] = import_react14.default.useState("");
+  const [pointErr, setPointErr] = import_react14.default.useState("");
+  const handleSelectDiagramNode = sessionId ? (nodeInfo) => {
+    setPointedNode(nodeInfo);
+    setPointOpen(true);
+    setPointNotice("");
+    setPointErr("");
+  } : null;
+  async function submitPointCommand(event) {
+    event?.preventDefault?.();
+    if (!sessionId || !pointText.trim() || pointSending) return;
+    setPointSending(true);
+    setPointErr("");
+    setPointNotice("");
+    try {
+      const targetLabel = pointedNode?.label ? ` @ ${pointedNode.label}` : "";
+      const fullText = `[\u6307\u56FE\u6279\u6CE8 \xB7 ${object.type}:${object.id}${targetLabel}] ${pointText.trim()}`;
+      await request2("/runs/suggest", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId,
+          text: fullText,
+          ...pointedNode?.taskId || object.taskId ? { taskId: pointedNode?.taskId || object.taskId } : {},
+          commandId: `point-${object.id}-${crypto.randomUUID()}`
+        })
+      });
+      setPointText("");
+      setPointNotice("\u5DF2\u5C06\u6307\u56FE\u6307\u4EE4\u53D1\u7ED9\u6307\u6325\u8005\u961F\u5217");
+    } catch (err) {
+      setPointErr(err?.message || "\u53D1\u9001\u5931\u8D25");
+    } finally {
+      setPointSending(false);
+    }
+  }
+  const cardRef = import_react14.default.useRef(null);
+  const infoButtonRef = import_react14.default.useRef(null);
+  const infoPanelRef = import_react14.default.useRef(null);
+  const hostTheme = useHostTheme();
+  import_react14.default.useEffect(() => {
+    if (!infoOpen || typeof document === "undefined") return;
+    const native = showAnchoredPopover(infoButtonRef.current, infoPanelRef.current, { width: 420, maxHeight: 360 });
+    infoPanelRef.current.dataset.nativePopover = String(native);
+    const handleToggle = (event) => {
+      if (event.newState === "closed") setInfoOpen(false);
+    };
+    const handlePointer = (event) => {
+      if (!cardRef.current?.contains(event.target)) setInfoOpen(false);
+    };
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        setInfoOpen(false);
+        infoButtonRef.current?.focus({ preventScroll: true });
+      }
+    };
+    if (native) {
+      infoPanelRef.current.addEventListener("toggle", handleToggle);
+    } else {
+      document.addEventListener("pointerdown", handlePointer, true);
+      document.addEventListener("keydown", handleKey, true);
+    }
+    return () => {
+      if (native) {
+        infoPanelRef.current?.removeEventListener("toggle", handleToggle);
+        hideAnchoredPopover(infoPanelRef.current);
+      } else {
+        document.removeEventListener("pointerdown", handlePointer, true);
+        document.removeEventListener("keydown", handleKey, true);
+      }
+    };
+  }, [infoOpen]);
+  const defaultCollapsedIds = import_react14.default.useMemo(() => {
+    if (object?.type !== "mindmap") return [];
+    const raw = object.data?.root ? object.data.root : object.data?.markdown ? parseMarkdownToMindmap(object.data.markdown) : null;
+    const root = raw ? normalizeMindmapTree(raw) : null;
+    return root ? defaultPreviewCollapsedIdsWithinBudget(root, { fontSize: hostTheme.fontSize }) : [];
+  }, [object?.id, object?.version, object?.data, hostTheme.fontSize]);
+  const canvasSession = useCanvasSession(sessionId, object?.id, defaultCollapsedIds);
   if (!object) {
     return h(
       "div",
@@ -7626,8 +10216,8 @@ function StructuredObjectCard({
         { className: "concerto-table-wrap" },
         h(
           "table",
-          { className: "concerto-table" },
-          h("thead", null, h("tr", null, cols.map((col, idx) => h("th", { key: idx }, String(col))))),
+          { className: "concerto-table", "aria-label": object.title || "\u6570\u636E\u8868\u683C" },
+          h("thead", null, h("tr", null, cols.map((col, idx) => h("th", { key: idx, scope: "col" }, String(col))))),
           h("tbody", null, rows.map((row, rIdx) => h("tr", { key: rIdx }, cols.map((col, cIdx) => {
             const cell = row[cIdx];
             const tone = tableCellTone(col, cell);
@@ -7653,11 +10243,12 @@ function StructuredObjectCard({
           h("span", {
             "aria-hidden": true,
             className: "concerto-state-chip " + (checked ? "concerto-state-done" : "concerto-state-idle")
-          }, checked ? "\u2611" : "\u2610"),
+          }, h(UiIcon, { name: checked ? "checkbox-checked" : "checkbox" })),
           h(
             "div",
             { style: { flex: 1, minWidth: 0 } },
             h("div", null, item.label),
+            h("span", { className: "concerto-sr-only" }, checked ? "\u5DF2\u5B8C\u6210" : "\u672A\u5B8C\u6210"),
             (subHint || item.note) && h(
               "div",
               { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)" } },
@@ -7674,8 +10265,8 @@ function StructuredObjectCard({
         modalBody = h(ExcalidrawRenderer, { object, sessionId, inModal: true });
       } else if (renderer === "svg") {
         const diagObj = { ...object, type: "diagram", data: mindmapToDiagramData(object.data, object.title) };
-        content = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: false });
-        modalBody = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: true });
+        content = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: false, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
+        modalBody = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: true, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
       } else if (renderer === "html") {
         const treeRoot = normalizeMindmapTree(object.data?.root || parseMarkdownToMindmap(object.data?.markdown));
         const renderOutlineNode = (node, depth = 0) => h(
@@ -7701,15 +10292,15 @@ function StructuredObjectCard({
         content = outlineEl;
         modalBody = outlineEl;
       } else {
-        content = h(MarkmapRenderer, { object, sessionId, inModal: false });
-        modalBody = h(MarkmapRenderer, { object, sessionId, inModal: true });
+        content = h(MarkmapRenderer, { object, sessionId, inModal: false, canvasSession, onExpand: () => setModalOpen(true), tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
+        modalBody = h(MarkmapRenderer, { object, sessionId, inModal: true, canvasSession, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
       }
     } else if (object.type === "board" || object.type === "diagram" && renderer === "excalidraw") {
       content = h(ExcalidrawRenderer, { object, sessionId, inModal: false });
       modalBody = h(ExcalidrawRenderer, { object, sessionId, inModal: true });
     } else if (object.type === "diagram") {
-      content = h(SvgDiagramRenderer, { object, sessionId, inModal: false });
-      modalBody = h(SvgDiagramRenderer, { object, sessionId, inModal: true });
+      content = h(SvgDiagramRenderer, { object, sessionId, inModal: false, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
+      modalBody = h(SvgDiagramRenderer, { object, sessionId, inModal: true, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
     } else if (object.type === "html") {
       content = h(HtmlSandboxRenderer, { object, sessionId, inModal: false });
       modalBody = h(HtmlSandboxRenderer, { object, sessionId, inModal: true });
@@ -7721,15 +10312,19 @@ function StructuredObjectCard({
   }
   const semantic = SEMANTIC_META[object.semanticKind || "blueprint"] || SEMANTIC_META.blueprint;
   const showInlineSemantic = object.semanticKind === "live_execution" || object.semanticKind === "snapshot";
+  const semanticText = object.title?.includes(semantic.label) ? object.semanticKind === "live_execution" ? "\u5B9E\u65F6" : "\u5FEB\u7167" : semantic.label;
+  const layerLabel = object.layer === "review" || object.roleKind === "reviewer" ? "\u5BA1\u67E5\u7EA7" : object.layer === "team" || !object.taskId && object.roleKind === "commander" ? "\u56E2\u961F\u7EA7" : "\u4EFB\u52A1\u7EA7";
   return h(
     "article",
     {
+      ref: cardRef,
       className: "concerto-card" + (highlighted ? " concerto-card-highlight" : ""),
       "data-concerto-object-id": object.id,
       "data-concerto-object-version": object.version,
       "data-concerto-renderer": renderer,
       "data-concerto-semantic": object.semanticKind || "blueprint",
       "data-size": effectiveSize,
+      tabIndex: -1,
       id: `concerto-stage-obj-${object.type}-${object.id}`
     },
     h(
@@ -7741,12 +10336,17 @@ function StructuredObjectCard({
         h(
           "div",
           { className: "concerto-card-title-row" },
+          h("h3", { title: object.title || `${object.type}:${object.id}` }, object.title || object.type + ":" + object.id),
           showInlineSemantic && h("span", {
             className: "concerto-state-chip concerto-semantic-pill " + semantic.cls,
             "data-semantic": object.semanticKind,
             title: object.snapshotAt ? "\u5FEB\u7167\u65F6\u95F4\uFF1A" + new Date(object.snapshotAt).toLocaleString() : semantic.label
-          }, semantic.label),
-          h("strong", { title: object.title || `${object.type}:${object.id}` }, object.title || object.type + ":" + object.id)
+          }, semanticText),
+          isApprovedPlan && h("span", {
+            className: "concerto-state-chip concerto-semantic-pill " + (goalCompleted ? "concerto-state-done" : "concerto-state-idle"),
+            "data-concerto-plan-status": goalCompleted ? "completed" : "approved",
+            title: goalCompleted ? "\u56E2\u961F\u76EE\u6807\u5DF2\u7ED3\u9879\uFF0C\u8BE5\u8BA1\u5212\u5DF2\u5B8C\u6210\u6267\u884C" : "\u5F53\u524D\u5DF2\u6279\u51C6\u7684\u56E2\u961F\u8BA1\u5212\u57FA\u7EBF"
+          }, goalCompleted ? "\u76EE\u6807\u5DF2\u7ED3\u9879" : "\u5DF2\u6279\u51C6\u8BA1\u5212")
         ),
         object.caption && h("div", { className: "concerto-card-caption", title: object.caption }, object.caption)
       ),
@@ -7757,31 +10357,55 @@ function StructuredObjectCard({
           type: "button",
           className: "concerto-btn concerto-btn--ghost concerto-btn--icon concerto-btn--pin",
           "aria-pressed": userPinned,
+          disabled: pinBusy,
           "data-concerto-pin": `${object.type}:${object.id}`,
           "aria-label": userPinned ? "\u5DF2\u7F6E\u9876\uFF08\u70B9\u51FB\u53D6\u6D88\uFF09" : "\u7F6E\u9876\u5230\u6982\u89C8\u9884\u89C8",
           title: userPinned ? "\u53D6\u6D88\u4E2A\u4EBA\u7F6E\u9876" : "\u4E2A\u4EBA\u7F6E\u9876\u5230\u6982\u89C8\u9884\u89C8\uFF08\u6A21\u578B\u66F4\u65B0\u4E0D\u8986\u76D6\uFF09",
           onClick: () => onTogglePin(object)
-        }, userPinned ? "\u2605" : "\u2606"),
+        }, h(UiIcon, { name: "pin", filled: userPinned })),
+        sessionId && h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          style: { padding: "2px 8px", fontSize: "var(--cc-fs-caption)" },
+          "aria-expanded": pointOpen,
+          "data-concerto-point-cmd": `${object.type}:${object.id}`,
+          title: "\u6307\u7740\u8FD9\u5F20\u56FE\u76F4\u63A5\u7ED9\u6307\u6325\u8005\u53D1\u6279\u6CE8\u6216\u4FEE\u6539\u6307\u4EE4",
+          onClick: () => {
+            setPointOpen((v) => !v);
+            setPointNotice("");
+            setPointErr("");
+          }
+        }, "\u{1F4CC} \u6307\u56FE\u6307\u4EE4"),
         modalBody && h("button", {
           type: "button",
           className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
           "aria-label": "\u5C55\u5F00\u753B\u5E03",
           title: "\u5168\u5C4F\u67E5\u770B",
           onClick: () => setModalOpen(true)
-        }, "\u2922"),
+        }, h(UiIcon, { name: "expand" })),
         h("button", {
+          ref: infoButtonRef,
           type: "button",
           className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
           title: "\u67E5\u770B\u6E32\u67D3\u5F15\u64CE\u3001\u6765\u6E90\u4E0E\u7248\u672C\u5143\u6570\u636E",
           "aria-expanded": infoOpen,
           "aria-label": `\u67E5\u770B ${object.title || object.id} \u5143\u6570\u636E`,
+          onPointerDown: (event) => {
+            if (infoOpen) event.preventDefault();
+          },
           onClick: () => setInfoOpen((v) => !v)
-        }, "\u24D8")
+        }, h(UiIcon, { name: "info" }))
       )
     ),
     infoOpen && h(
       "div",
-      { className: "concerto-info-pop" },
+      {
+        ref: infoPanelRef,
+        popover: "auto",
+        role: "dialog",
+        "aria-label": `${object.title || object.id} \u5143\u6570\u636E`,
+        className: "concerto-info-pop"
+      },
       h(
         "div",
         null,
@@ -7804,9 +10428,18 @@ function StructuredObjectCard({
         "div",
         { style: { marginTop: 4 } },
         "\u6240\u6709\u8005\uFF1A",
-        onOpenMember && object.authorId ? h("button", { type: "button", className: "concerto-chip", onClick: () => onOpenMember(object.authorId) }, object.authorId) : object.ownerId || object.authorId || "\u672A\u77E5",
+        object.source === "user_import" ? "\u672C\u673A\u7528\u6237" : onOpenMember && object.authorId ? h("button", { type: "button", className: "concerto-chip", onClick: () => onOpenMember(object.authorId) }, object.authorId) : object.ownerId || object.authorId || "\u672A\u77E5",
+        " \xB7 \u5C42\u7EA7\uFF1A",
+        h("span", { className: "concerto-tag" }, layerLabel),
         " \xB7 \u7248\u672C\uFF1A",
         h("span", { className: "concerto-id" }, "v" + object.version)
+      ),
+      object.source === "user_import" && h("div", { style: { marginTop: 4 } }, "\u6765\u6E90\uFF1A\u7528\u6237\u5BFC\u5165"),
+      Array.isArray(object.editableBy) && object.editableBy.length > 0 && h(
+        "div",
+        { style: { marginTop: 4 } },
+        "\u7F16\u8F91\u6743\u9650\uFF1A",
+        h("span", { className: "concerto-id" }, object.editableBy.join(", "))
       ),
       object.taskId && h(
         "div",
@@ -7823,6 +10456,49 @@ function StructuredObjectCard({
       )
     ),
     ambiguousNote && h("p", { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", marginTop: 0 } }, ambiguousNote),
+    pointOpen && sessionId && h(
+      "form",
+      { className: "concerto-point-cmd-bar", onSubmit: submitPointCommand, "data-concerto-point-cmd-form": `${object.type}:${object.id}` },
+      h(
+        "div",
+        { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap", fontSize: "var(--cc-fs-caption)" } },
+        h(
+          "span",
+          null,
+          "\u6307\u5411\uFF1A",
+          h("code", { className: "concerto-id" }, `${object.type}:${object.id}`),
+          pointedNode && h(
+            "span",
+            { className: "concerto-chip", style: { marginLeft: 6 } },
+            `@ ${pointedNode.label}`,
+            h("button", { type: "button", className: "concerto-link", style: { marginLeft: 4 }, onClick: () => setPointedNode(null) }, "\xD7")
+          )
+        ),
+        h("button", { type: "button", className: "concerto-link", onClick: () => setPointOpen(false) }, "\u6536\u8D77")
+      ),
+      h(
+        "div",
+        { style: { display: "flex", gap: 6 } },
+        h("input", {
+          className: "concerto-input",
+          style: { flex: 1 },
+          disabled: pointSending,
+          value: pointText,
+          placeholder: "\u8F93\u5165\u6279\u6CE8\u6216\u4FEE\u6539\u6307\u4EE4\uFF0C\u76F4\u63A5\u53D1\u7ED9\u6307\u6325\u8005\u2026",
+          onChange: (e) => {
+            setPointText(e.target.value);
+            if (pointNotice) setPointNotice("");
+          }
+        }),
+        h("button", {
+          type: "submit",
+          className: "concerto-btn concerto-btn--primary",
+          disabled: pointSending || !pointText.trim()
+        }, pointSending ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u7ED9\u6307\u6325\u8005")
+      ),
+      pointErr && h("div", { role: "alert", className: "concerto-field-error" }, pointErr),
+      pointNotice && h("div", { role: "status", className: "concerto-quiet" }, pointNotice)
+    ),
     renderError ? h(
       "div",
       { role: "alert", style: { padding: 10, borderRadius: "var(--cc-radius-ctrl)", background: "var(--cc-state-blocked-bg)" } },
@@ -7838,14 +10514,6 @@ function StructuredObjectCard({
 }
 
 // packages/dsh-concerto/src/client/components/ReferenceText.js
-var TYPE_ICON = {
-  table: "\u25A6",
-  checklist: "\u2611",
-  mindmap: "\u25CE",
-  diagram: "\u21E2",
-  board: "\u270E",
-  html: "\u25A3"
-};
 function scrollToInlineObjectRef(type, id) {
   if (typeof document === "undefined") return;
   const normType = type === "canvas" ? "board" : type;
@@ -7886,7 +10554,7 @@ function renderInlineSpans(line, onJumpObject, viewObjects = [], onViewAllArtifa
       if (shownRefCount < collapseThreshold) {
         shownRefCount += 1;
         const obj = (viewObjects || []).find((o) => o.type === normType && o.id === refId);
-        const displayLabel = (TYPE_ICON[normType] ? TYPE_ICON[normType] + " " : "") + (obj?.title || refId);
+        const displayLabel = obj?.title || refId;
         parts.push(h("button", {
           key: parts.length,
           type: "button",
@@ -7895,7 +10563,7 @@ function renderInlineSpans(line, onJumpObject, viewObjects = [], onViewAllArtifa
           "data-concerto-inline-ref": `${normType}:${refId}`,
           style: { margin: "0 2px", verticalAlign: "baseline" },
           onClick: () => onJumpObject ? onJumpObject({ type: normType, id: refId }) : scrollToInlineObjectRef(normType, refId)
-        }, displayLabel));
+        }, h(UiIcon, { name: normType }), displayLabel));
       } else {
         skippedCollapsed += 1;
       }
@@ -8010,7 +10678,7 @@ function ReferenceText({
             title: `${tok.type}:${tok.id}`,
             "data-concerto-inline-ref": `${tok.type}:${tok.id}`,
             onClick: () => onJumpObject ? onJumpObject({ type: tok.type, id: tok.id }) : scrollToInlineObjectRef(tok.type, tok.id)
-          }, (TYPE_ICON[tok.type] ? TYPE_ICON[tok.type] + " " : "") + displayTitle + " \u203A")
+          }, h(UiIcon, { name: tok.type }), displayTitle + " \u203A")
         );
       }
       if (!obj.ok) {
@@ -8038,10 +10706,76 @@ function ReferenceText({
 }
 
 // packages/dsh-concerto/src/client/components/MemberDrawer.js
-var import_react10 = __toESM(require_react(), 1);
-var import_react_dom2 = __toESM(require_react_dom(), 1);
+var import_react16 = __toESM(require_react(), 1);
+
+// packages/dsh-concerto/src/client/components/Tabs.js
+var import_react15 = __toESM(require_react(), 1);
+function TabList({ id, label: label2, tabs, value, onChange, className = "concerto-tabs" }) {
+  const nativeFocusGroup = typeof HTMLElement !== "undefined" && Object.hasOwn(HTMLElement.prototype, "focusGroup");
+  const groupRef = import_react15.default.useRef(null);
+  const [polyfilled, setPolyfilled] = import_react15.default.useState(false);
+  import_react15.default.useEffect(() => {
+    if (nativeFocusGroup) return;
+    let cancelled = false;
+    import("/concerto/assets/focusgroup.js").then(({ polyfill }) => {
+      if (cancelled) return;
+      polyfill(groupRef.current);
+      setPolyfilled(true);
+    }).catch((err) => console.error("[Concerto] focusgroup unavailable; keeping keyboard fallback", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [nativeFocusGroup]);
+  return h("div", {
+    ref: groupRef,
+    className,
+    role: "tablist",
+    "aria-label": label2,
+    focusgroup: "tablist nomemory",
+    onKeyDown: (event) => {
+      if (nativeFocusGroup || polyfilled || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      const buttons = [...event.currentTarget.querySelectorAll('[role="tab"]')];
+      const index = buttons.indexOf(document.activeElement);
+      const direction = getComputedStyle(event.currentTarget).direction === "rtl" ? -1 : 1;
+      const step = event.key === "ArrowRight" ? direction : -direction;
+      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + step + buttons.length) % buttons.length;
+      event.preventDefault();
+      buttons[next].focus();
+    }
+  }, tabs.map((tab) => h(
+    "button",
+    {
+      key: tab.value,
+      id: `${id}-tab-${tab.value}`,
+      type: "button",
+      role: "tab",
+      className: "concerto-tab-btn",
+      "data-concerto-tab": tab.value,
+      "aria-selected": value === tab.value,
+      "aria-label": tab.attentionCount > 0 ? `${tab.label}\uFF0C${tab.attentionCount} \u9879\u5F85\u5904\u7406` : void 0,
+      focusgroupstart: value === tab.value ? "" : void 0,
+      tabIndex: nativeFocusGroup || polyfilled ? void 0 : value === tab.value ? 0 : -1,
+      onClick: () => onChange(tab.value)
+    },
+    tab.label,
+    tab.count > 0 && h("span", { className: "concerto-tag concerto-num" }, String(tab.count)),
+    tab.attentionCount > 0 && h("span", { className: "concerto-tab-attention concerto-num", "aria-hidden": "true" }, String(tab.attentionCount))
+  )));
+}
+function tabPanelProps(id, value) {
+  return { id: `${id}-panel-${value}`, role: "tabpanel", "aria-labelledby": `${id}-tab-${value}`, tabIndex: 0 };
+}
+function focusAndReveal(element, block = "center") {
+  if (!element) return;
+  element.focus({ preventScroll: true });
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  element.scrollIntoView({ behavior: reduceMotion ? "instant" : "smooth", block });
+}
+
+// packages/dsh-concerto/src/client/components/MemberDrawer.js
 var HISTORY_SOURCE_DESC = {
-  codex_normalized: "Codex app-server \xB7 \u5B8C\u6574\u5F52\u4E00\u5316\u6D88\u606F\u4E0E\u5DE5\u5177\u6D3B\u52A8\u884C",
+  codex_normalized: "Codex app-server \xB7 \u6D88\u606F\u4E0E\u5DE5\u5177\u6D3B\u52A8\u8BB0\u5F55",
+  connector_normalized: "\u5916\u90E8\u8FDE\u63A5\u5668 \xB7 \u5F52\u4E00\u5316\u6D88\u606F\u4E0E\u5DE5\u5177\u6D3B\u52A8\u8BB0\u5F55",
   hosted_session: "DSH Hosted \xB7 \u5BBF\u4E3B session \u4E8B\u4EF6\u6295\u5F71 + Runtime \u8BB0\u5F55\uFF08\u5B8C\u6574\u5EA6\u5F85\u771F\u5B9E\u5BBF\u4E3B\u9A8C\u8BC1\uFF09",
   hosted_partial: "DSH Hosted \xB7 \u4EC5 Runtime \u8BB0\u5F55\u4E0E\u51B3\u7B56\u6458\u8981\uFF08\u672A\u8BFB\u53D6\u5230\u5BBF\u4E3B\u4F1A\u8BDD\u4E8B\u4EF6\uFF09",
   runtime_only: "\u8BE5\u540E\u7AEF\u4EC5\u63D0\u4F9B Runtime \u751F\u547D\u5468\u671F\u8BB0\u5F55"
@@ -8053,6 +10787,119 @@ function EmptyState({ icon, text, action = null }) {
     h("span", { "aria-hidden": true, style: { fontSize: "var(--cc-fs-display)" } }, icon),
     h("p", { style: { margin: 0 } }, text),
     action
+  );
+}
+function dutyAuthor(record) {
+  return record.author.kind === "user" ? "\u7528\u6237" : `\u6307\u6325\u8005 ${record.author.id}`;
+}
+function MemberDutiesPanel({ sessionId, memberId }) {
+  const fieldId = import_react16.default.useId();
+  const [data, setData] = import_react16.default.useState(null);
+  const [draft, setDraft] = import_react16.default.useState(null);
+  const [pending, setPending] = import_react16.default.useState(false);
+  const [message, setMessage] = import_react16.default.useState("");
+  const [needsReload, setNeedsReload] = import_react16.default.useState(false);
+  const [reload, setReload] = import_react16.default.useState(0);
+  import_react16.default.useEffect(() => {
+    let active = true;
+    fetchMemberDuties(sessionId, memberId).then((result) => {
+      if (!active) return;
+      setData(result);
+      setNeedsReload(false);
+    }, (error) => {
+      if (!active) return;
+      setMessage(`\u8BFB\u53D6\u5931\u8D25\uFF1A${error.message}`);
+      setNeedsReload(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [sessionId, memberId, reload]);
+  const current = data?.current;
+  const save = async (event) => {
+    event.preventDefault();
+    const action = event.nativeEvent.submitter?.value || "save";
+    const body = new FormData(event.currentTarget).get("body");
+    setPending(true);
+    setMessage("");
+    try {
+      const updated = await updateMemberDuties(sessionId, memberId, {
+        action,
+        ...action === "save" ? { body } : {},
+        expectedVersion: current?.version ?? 0
+      });
+      setData(updated);
+      setDraft(null);
+      setMessage(action === "save" ? `\u5DF2\u4FDD\u5B58 v${updated.current.version}\u3002` : "\u5DF2\u64A4\u9500\u3002");
+    } catch (error) {
+      setMessage(error.message);
+      setNeedsReload(error.status === 409);
+    } finally {
+      setPending(false);
+    }
+  };
+  return h(
+    "div",
+    { className: "concerto-card" },
+    data && h(
+      "form",
+      { action: `${API}/members/duties`, method: "post", onSubmit: save },
+      h(
+        "div",
+        { style: styles.muted },
+        current ? `v${current.version} \xB7 ${dutyAuthor(current)} \xB7 ${current.active ? "\u751F\u6548\u4E2D" : "\u5DF2\u64A4\u9500"}` : "\u6682\u65E0\u804C\u8D23\u8865\u5145"
+      ),
+      h(
+        "div",
+        { className: "concerto-field" },
+        h("label", { htmlFor: fieldId }, "\u9879\u76EE\u6210\u5458\u804C\u8D23\u8865\u5145\uFF08\u5FC5\u586B\uFF09"),
+        h("textarea", {
+          id: fieldId,
+          name: "body",
+          className: "concerto-textarea",
+          rows: 4,
+          value: draft ?? current?.body ?? "",
+          required: true,
+          maxLength: data.maxLength,
+          disabled: pending,
+          "aria-describedby": fieldId + "-hint",
+          onChange: (event) => setDraft(event.target.value)
+        }),
+        h("p", { id: fieldId + "-hint", className: "concerto-field-hint" }, "\u7528\u4E8E\u8BE5\u6210\u5458\u540E\u7EED\u6D3E\u53D1\u3002\u53EF\u586B\u5199\u804C\u8D23\u91CD\u70B9\u3001\u9879\u76EE\u7EA6\u5B9A\u548C\u4EA4\u4ED8\u8981\u6C42\u3002")
+      ),
+      h(
+        "div",
+        { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+        h("button", { type: "submit", value: "save", className: "concerto-btn concerto-btn--primary", disabled: pending || needsReload }, "\u4FDD\u5B58\u804C\u8D23"),
+        current?.active && h("button", {
+          type: "submit",
+          value: "revoke",
+          className: "concerto-btn concerto-btn--ghost",
+          formNoValidate: true,
+          disabled: pending || needsReload
+        }, "\u64A4\u9500\u804C\u8D23")
+      )
+    ),
+    h("div", { role: "status", style: styles.muted }, message || (!data ? "\u6B63\u5728\u8BFB\u53D6\u804C\u8D23\u8865\u5145\u2026" : "")),
+    needsReload && h("button", {
+      type: "button",
+      className: "concerto-btn concerto-btn--ghost",
+      onClick: () => {
+        setMessage("");
+        setReload((value) => value + 1);
+      }
+    }, "\u91CD\u65B0\u8BFB\u53D6"),
+    data?.versions.length > 0 && h(
+      "details",
+      { style: { marginTop: 8 } },
+      h("summary", null, "\u7248\u672C\u5386\u53F2"),
+      h("ol", null, data.versions.slice().reverse().map((record) => h(
+        "li",
+        { key: record.version },
+        `v${record.version} \xB7 ${dutyAuthor(record)} \xB7 ${new Date(record.updatedAt).toLocaleString()} ${record.active ? "" : "\xB7 \u5DF2\u64A4\u9500"}`,
+        record.active && h("p", { style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere" } }, record.body)
+      )))
+    )
   );
 }
 function activityFromSnapshotEvents(snapshot, memberId) {
@@ -8121,33 +10968,36 @@ function MemberDrawer({
   state,
   sessionId,
   snapshot,
+  canManageDuties = false,
   initialTab = "messages",
   onClose,
   onJumpTask,
   onOpenMember,
-  onJumpObject
+  onJumpObject,
+  returnTaskId = "",
+  onBack = null
 }) {
-  useTeamCss();
-  const hostTheme = useHostTheme();
-  const [tab, setTab] = import_react10.default.useState(initialTab);
-  const [activities, setActivities] = import_react10.default.useState([]);
-  const [hasMore, setHasMore] = import_react10.default.useState(false);
-  const [nextBefore, setNextBefore] = import_react10.default.useState(null);
-  const [historyMode, setHistoryMode] = import_react10.default.useState("runtime_only");
-  const [loading, setLoading] = import_react10.default.useState(false);
-  const [loadingOlder, setLoadingOlder] = import_react10.default.useState(false);
-  const asideRef = import_react10.default.useRef(null);
-  const closeRef = import_react10.default.useRef(null);
-  const bodyRef = import_react10.default.useRef(null);
-  const hasLoadedInitialRef = import_react10.default.useRef(false);
-  const pagedOlderRef = import_react10.default.useRef(false);
-  const loadingOlderRef = import_react10.default.useRef(false);
-  const requestGenRef = import_react10.default.useRef(0);
-  const pendingScrollAnchorRef = import_react10.default.useRef(null);
-  import_react10.default.useEffect(() => {
+  const [tab, setTab] = import_react16.default.useState(initialTab);
+  const [activities, setActivities] = import_react16.default.useState([]);
+  const [hasMore, setHasMore] = import_react16.default.useState(false);
+  const [nextBefore, setNextBefore] = import_react16.default.useState(null);
+  const [historyMode, setHistoryMode] = import_react16.default.useState("runtime_only");
+  const [loading, setLoading] = import_react16.default.useState(false);
+  const [loadingOlder, setLoadingOlder] = import_react16.default.useState(false);
+  const [historyError, setHistoryError] = import_react16.default.useState("");
+  const [olderError, setOlderError] = import_react16.default.useState("");
+  const [historyRetry, setHistoryRetry] = import_react16.default.useState(0);
+  const tabsId = import_react16.default.useId();
+  const bodyRef = import_react16.default.useRef(null);
+  const hasLoadedInitialRef = import_react16.default.useRef(false);
+  const pagedOlderRef = import_react16.default.useRef(false);
+  const loadingOlderRef = import_react16.default.useRef(false);
+  const requestGenRef = import_react16.default.useRef(0);
+  const pendingScrollAnchorRef = import_react16.default.useRef(null);
+  import_react16.default.useEffect(() => {
     setTab(initialTab || "messages");
   }, [member?.id, initialTab]);
-  import_react10.default.useEffect(() => {
+  import_react16.default.useEffect(() => {
     requestGenRef.current += 1;
     hasLoadedInitialRef.current = false;
     pagedOlderRef.current = false;
@@ -8157,9 +11007,10 @@ function MemberDrawer({
     setHasMore(false);
     setNextBefore(null);
     setLoadingOlder(false);
+    setHistoryError("");
+    setOlderError("");
   }, [member?.id, sessionId]);
-  useOverlay(asideRef, closeRef, onClose, Boolean(member?.id));
-  import_react10.default.useLayoutEffect(() => {
+  import_react16.default.useLayoutEffect(() => {
     const anchor = pendingScrollAnchorRef.current;
     const body = bodyRef.current;
     if (!anchor || !body) return;
@@ -8167,7 +11018,7 @@ function MemberDrawer({
     const delta = body.scrollHeight - anchor.prevScrollHeight;
     if (delta > 0) body.scrollTop = anchor.prevScrollTop + delta;
   }, [activities]);
-  import_react10.default.useEffect(() => {
+  import_react16.default.useEffect(() => {
     if (!member?.id || !sessionId) return;
     const isInitial = !hasLoadedInitialRef.current;
     const gen = requestGenRef.current;
@@ -8176,6 +11027,7 @@ function MemberDrawer({
     fetchMemberActivity(sessionId, member.id, { limit: 30 }).then((res) => {
       if (cancelled || requestGenRef.current !== gen) return;
       const incoming = Array.isArray(res.items) ? res.items : [];
+      setHistoryError("");
       const firstApply = !hasLoadedInitialRef.current;
       hasLoadedInitialRef.current = true;
       setActivities((prev) => firstApply ? incoming : mergeLatestActivities(prev, incoming));
@@ -8184,7 +11036,7 @@ function MemberDrawer({
         setNextBefore(res.nextBefore ?? null);
       }
       setHistoryMode(res.backendHistoryMode || (member.connector === "codex" ? "codex_normalized" : "hosted_partial"));
-    }).catch(() => {
+    }).catch((err) => {
       if (cancelled || requestGenRef.current !== gen) return;
       const fallback = activityFromSnapshotEvents(snapshot, member.id);
       const firstApply = !hasLoadedInitialRef.current;
@@ -8194,19 +11046,21 @@ function MemberDrawer({
         setHasMore(false);
         setNextBefore(null);
       }
-      setHistoryMode(member.connector === "codex" ? "codex_normalized" : "runtime_only");
+      if (firstApply) setHistoryMode("runtime_only");
+      setHistoryError(`\u5386\u53F2\u540C\u6B65\u5931\u8D25\uFF1A${err.message}\u3002${firstApply ? "\u5F53\u524D\u4EC5\u663E\u793A Runtime \u8BB0\u5F55\u3002" : "\u5DF2\u4FDD\u7559\u52A0\u8F7D\u8FC7\u7684\u8BB0\u5F55\u3002"}`);
     }).finally(() => {
       if (!cancelled && isInitial) setLoading(false);
     });
     return () => {
       cancelled = true;
     };
-  }, [member?.id, sessionId, snapshot?.serverTime]);
+  }, [member?.id, sessionId, snapshot?.serverTime, historyRetry]);
   async function loadOlder() {
     if (!nextBefore || loadingOlderRef.current) return;
     const gen = requestGenRef.current;
     loadingOlderRef.current = true;
     setLoadingOlder(true);
+    setOlderError("");
     try {
       const res = await fetchMemberActivity(sessionId, member.id, { before: nextBefore, limit: 30 });
       if (requestGenRef.current !== gen) return;
@@ -8225,8 +11079,8 @@ function MemberDrawer({
       } else {
         setHasMore(false);
       }
-    } catch {
-      if (requestGenRef.current === gen) setHasMore(false);
+    } catch (err) {
+      if (requestGenRef.current === gen) setOlderError("\u66F4\u65E9\u6D88\u606F\u52A0\u8F7D\u5931\u8D25\uFF1A" + err.message);
     } finally {
       if (requestGenRef.current === gen) {
         loadingOlderRef.current = false;
@@ -8238,252 +11092,193 @@ function MemberDrawer({
   const viewObjects = Array.isArray(snapshot?.viewObjects) ? snapshot.viewObjects : [];
   const pinnedRefs = snapshot?.publicView?.pinnedRefs || [];
   const userPinnedSet = new Set(Array.isArray(snapshot?.userPinnedRefs) ? snapshot.userPinnedRefs : []);
-  const memberTasks = member.roleKind === "commander" ? snapshot?.tasks || [] : (snapshot?.tasks || []).filter((t) => t.memberId === member.id);
   const memberExecs = (snapshot?.executions || []).filter((e) => e.memberId === member.id);
+  const memberTasks = member.roleKind === "commander" ? snapshot?.tasks || [] : (snapshot?.tasks || []).filter((t) => t.memberId === member.id || t.review?.actor?.id === member.id || memberExecs.some((e) => e.taskId === t.taskId));
   const memberObjects = viewObjects.filter((o) => o.authorId === member.id || Array.isArray(o.editableBy) && o.editableBy.includes(member.id));
   const currentTask = memberTasks.find((t) => !["completed", "cancelled"].includes(t.state)) || memberTasks.at(-1);
-  const stMeta = STATE_META[state] || STATE_META.idle;
   const memberCap = (snapshot?.metadata?.memberCapabilities || []).find((c) => c.memberId === member.id) || null;
   const capSummary = memberCap ? formatCapabilitySummary(memberCap) : null;
   const hostChat = member.roleKind === "commander" ? readHostChatMessages(sessionId) : { supported: false, messages: [] };
   const mergedMessages = activities.length > 0 ? activities : activityFromSnapshotEvents(snapshot, member.id);
-  const tabCountTag = (count) => count > 0 ? h("span", { className: "concerto-tag concerto-num" }, String(count)) : null;
-  const dialogNode = h(
-    "div",
+  return h(
+    InspectorDialog,
     {
-      className: "concerto-drawer-backdrop concerto-surface",
-      "data-concerto-theme": hostTheme.colorScheme,
-      style: hostTheme.cssVars,
-      onClick: (e) => {
-        if (e.target === e.currentTarget) onClose?.();
-      }
+      title: `\u6210\u5458\u8BE6\u60C5\uFF1A${member.id}`,
+      onClose,
+      className: "concerto-member-inspector-dialog",
+      dialogProps: { "data-concerto-member-drawer": member.id }
     },
     h(
-      "aside",
-      {
-        ref: asideRef,
-        className: "concerto-drawer concerto-surface",
-        "data-concerto-theme": hostTheme.colorScheme,
-        style: hostTheme.cssVars,
-        role: "dialog",
-        "aria-modal": "true",
-        "aria-label": "Concerto \u6210\u5458\u8BE6\u60C5",
-        "data-concerto-member-drawer": member.id
-      },
+      "div",
+      { className: "concerto-drawer-head" },
       h(
         "div",
-        { className: "concerto-drawer-head" },
+        { style: { display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 } },
+        returnTaskId && h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          "aria-label": `\u8FD4\u56DE ${returnTaskId}`,
+          onClick: onBack || onClose
+        }, `\u2190 ${returnTaskId}`),
+        h(MemberGlyph, { member, state, size: 56 }),
         h(
           "div",
-          { style: { display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 } },
-          h(MemberGlyph, { member, state, size: 56 }),
+          { style: { minWidth: 0, flex: 1 } },
           h(
             "div",
-            { style: { minWidth: 0, flex: 1 } },
-            h(
-              "div",
-              { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } },
-              h("strong", { style: { fontSize: "var(--cc-fs-title)" } }, member.id + (member.roleKind === "commander" ? " \xB7 \u6307\u6325\u8005" : member.roleKind === "reviewer" ? " \xB7 \u5BA1\u67E5\u8005" : " \xB7 \u6267\u884C\u8005")),
-              h("span", { className: "concerto-state-chip " + stMeta.cls }, stMeta.icon + " " + label(state)),
-              h("span", { className: "concerto-tag" }, member.connector ? `${member.connector} \xB7 app-server` : member.source === "hosted" ? "DSH Hosted" : "\u5916\u90E8\u540E\u7AEF"),
-              capSummary && h("span", {
-                className: "concerto-chip",
-                "data-concerto-capability-status": memberCap?.verificationStatus || "unknown",
-                title: capSummary.summary
-              }, capSummary.badge)
-            ),
-            capSummary && h(
-              "div",
-              { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)", marginTop: 4 } },
-              capSummary.summary + (capSummary.tools.length > 0 ? `\uFF08\u5DE5\u5177\uFF1A${capSummary.tools.join(", ")}\uFF09` : "")
-            ),
-            currentTask && h(
-              "div",
-              { style: { fontSize: "var(--cc-fs-meta)", color: "var(--cc-text-secondary)", marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
-              h("span", null, "\u5F53\u524D\u4EFB\u52A1\uFF1A" + currentTask.title),
-              onJumpTask && h("button", {
-                type: "button",
-                className: "concerto-link concerto-id",
-                onClick: () => {
-                  onClose?.();
-                  onJumpTask(currentTask.taskId, { memberId: member.id, label: currentTask.taskId });
-                }
-              }, `\u5B9A\u4F4D ${currentTask.taskId} \u203A`)
-            )
-          )
-        ),
-        h("button", {
-          ref: closeRef,
-          type: "button",
-          className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
-          "aria-label": "\u5173\u95ED",
-          title: "\u5173\u95ED\u6210\u5458\u8BE6\u60C5",
-          onClick: onClose
-        }, "\u2715")
-      ),
-      h(
-        "div",
-        { className: "concerto-drawer-tabs", role: "tablist" },
-        h("button", { type: "button", role: "tab", "aria-selected": tab === "messages", className: "concerto-tab-btn", onClick: () => setTab("messages") }, "\u6D88\u606F\u4E0E\u6D3B\u52A8"),
-        h("button", { type: "button", role: "tab", "aria-selected": tab === "tasks", className: "concerto-tab-btn", onClick: () => setTab("tasks") }, "\u4EFB\u52A1", tabCountTag(memberTasks.length)),
-        h("button", { type: "button", role: "tab", "aria-selected": tab === "objects", className: "concerto-tab-btn", onClick: () => setTab("objects") }, "\u4EA7\u7269", tabCountTag(memberObjects.length)),
-        h("button", { type: "button", role: "tab", "aria-selected": tab === "executions", className: "concerto-tab-btn", onClick: () => setTab("executions") }, "\u6267\u884C\u8BB0\u5F55", tabCountTag(memberExecs.length))
-      ),
-      h(
-        "div",
-        { ref: bodyRef, className: "concerto-drawer-body" },
-        tab === "messages" && h(
-          "div",
-          { style: { display: "flex", flexDirection: "column", gap: 10 } },
-          h(
-            "div",
-            { className: "concerto-tag", style: { alignSelf: "flex-start" } },
-            member.roleKind === "commander" ? hostChat.supported ? "DSH \u4F1A\u8BDD\u6D88\u606F + Runtime \u51B3\u7B56" : historyMode === "hosted_session" ? HISTORY_SOURCE_DESC.hosted_session : "\u5BF9\u8BDD\u6B63\u6587\u8BF7\u770B\u5BF9\u8BDD\u9875\u7B7E \xB7 \u5F53\u524D\u5C55\u793A Commander Runtime \u51B3\u7B56\u8BB0\u5F55" : HISTORY_SOURCE_DESC[historyMode] || "\u8BE5\u540E\u7AEF\u672A\u63D0\u4F9B\u5B8C\u6574\u5BF9\u8BDD\u5386\u53F2\uFF0C\u4EC5\u663E\u793A Runtime \u8BB0\u5F55"
+            { style: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } },
+            h("h2", { className: "concerto-dialog-title" }, member.id + (member.roleKind === "commander" ? " \xB7 \u6307\u6325\u8005" : member.roleKind === "reviewer" ? " \xB7 \u5BA1\u67E5\u8005" : " \xB7 \u6267\u884C\u8005")),
+            h(StateChip, { status: state, text: label(state) }),
+            h("span", { className: "concerto-tag" }, member.connector ? member.connector === "codex" ? "codex \xB7 app-server" : `\u5916\u90E8\u8FDE\u63A5\u5668 \xB7 ${member.connector}` : member.source === "hosted" ? "DSH Hosted" : "\u5916\u90E8\u540E\u7AEF"),
+            capSummary && h("span", {
+              className: "concerto-chip",
+              "data-concerto-capability-status": memberCap?.verificationStatus || "unknown",
+              title: capSummary.summary
+            }, capSummary.badge)
           ),
-          hasMore && h("button", { type: "button", className: "concerto-btn", disabled: loading || loadingOlder, onClick: loadOlder }, loadingOlder ? "\u52A0\u8F7D\u4E2D\u2026" : "\u52A0\u8F7D\u66F4\u65E9\u6D88\u606F"),
-          member.roleKind === "commander" && hostChat.messages.map((msg) => h(
+          capSummary && h(
             "div",
-            { key: "hc-" + msg.id, className: "concerto-bubble" },
-            h(
-              "div",
-              { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } },
-              (msg.role === "user" ? "\u7528\u6237" : member.id) + (msg.recordedAt ? " \xB7 " + new Date(msg.recordedAt).toLocaleTimeString() : "")
-            ),
-            h(ReferenceText, {
-              text: msg.text,
-              viewObjects,
-              tasks: snapshot?.tasks || [],
-              pinnedRefs,
-              context: { authorId: member.id },
-              sessionId,
-              onJumpTask: (tid) => {
-                onClose?.();
-                onJumpTask?.(tid, { memberId: member.id, label: tid });
-              },
-              onOpenMember,
-              onJumpObject: (ref) => {
-                onClose?.();
-                onJumpObject?.(ref, { memberId: member.id });
+            { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)", marginTop: 4 } },
+            capSummary.summary + (capSummary.tools.length > 0 ? `\uFF08\u5DE5\u5177\uFF1A${capSummary.tools.join(", ")}\uFF09` : "")
+          ),
+          currentTask && h(
+            "div",
+            { style: { fontSize: "var(--cc-fs-meta)", color: "var(--cc-text-secondary)", marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+            h("span", null, "\u5F53\u524D\u4EFB\u52A1\uFF1A" + currentTask.title),
+            onJumpTask && h("button", {
+              type: "button",
+              className: "concerto-link concerto-id",
+              onClick: () => {
+                onClose?.(false);
+                onJumpTask(currentTask.taskId, { memberId: member.id, label: currentTask.taskId });
               }
-            })
-          )),
-          mergedMessages.length === 0 && hostChat.messages.length === 0 && memberTasks.length === 0 ? h(EmptyState, {
-            icon: "\u{1F4AC}",
-            text: "\u6682\u65E0 " + member.id + " \u7684\u6D88\u606F\u6216\u6267\u884C\u8BB0\u5F55\u3002",
-            action: currentTask && onJumpTask && h("button", { type: "button", className: "concerto-link", onClick: () => {
-              onClose?.();
-              onJumpTask(currentTask.taskId, { memberId: member.id });
-            } }, "\u67E5\u770B\u5173\u8054\u4EFB\u52A1 \u2192")
-          }) : mergedMessages.map((act) => {
-            if (act.kind === "message") {
-              const speaker = act.role === "user" ? "\u7528\u6237" : member.id;
-              return h(
-                "div",
-                { key: act.activityId, className: "concerto-bubble" },
-                h(
-                  "div",
-                  { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } },
-                  speaker + (act.recordedAt ? " \xB7 " + new Date(act.recordedAt).toLocaleTimeString() : "") + (act.taskId ? " \xB7 " + act.taskId : "")
-                ),
-                h(ReferenceText, {
-                  text: act.text || act.summary,
-                  viewObjects,
-                  tasks: snapshot?.tasks || [],
-                  pinnedRefs,
-                  context: { taskId: act.taskId, authorId: member.id },
-                  sessionId,
-                  onJumpTask: (tid) => {
-                    onClose?.();
-                    onJumpTask?.(tid, { memberId: member.id, label: tid });
-                  },
-                  onOpenMember,
-                  onJumpObject: (ref) => {
-                    onClose?.();
-                    onJumpObject?.(ref, { memberId: member.id });
-                  }
-                }),
-                act.truncated && h(
-                  "div",
-                  { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } },
-                  `\u5DF2\u622A\u65AD\u81F3 4000 \u5B57\u7B26\uFF08\u539F\u59CB ${act.fullLength} \u5B57\u7B26\uFF09`
-                )
-              );
-            }
-            return h(
-              "details",
-              { key: act.activityId, className: "concerto-activity-line" },
-              h(
-                "summary",
-                { style: { cursor: "pointer" } },
-                (act.recordedAt ? new Date(act.recordedAt).toLocaleTimeString() + " \xB7 " : "") + act.summary
-              ),
-              (act.text || act.detail) && h("pre", {
-                style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "var(--cc-fs-code)", marginTop: 6, maxHeight: 200, overflow: "auto" }
-              }, act.text || JSON.stringify(act.detail, null, 2))
-            );
-          })
-        ),
-        tab === "tasks" && (memberTasks.length === 0 ? h(EmptyState, { icon: "\u{1F4CB}", text: member.id + " \u6682\u65E0\u5173\u8054\u4EFB\u52A1\u3002" }) : memberTasks.map((tk) => {
-          const tMeta = STATE_META[tk.viewState] || STATE_META[tk.state] || STATE_META.pending;
-          return h(
-            "div",
-            { key: tk.taskId, className: "concerto-card" },
-            h(
-              "div",
-              { className: "concerto-card-head" },
-              h(
-                "div",
-                { className: "concerto-card-head-main" },
-                h(
-                  "div",
-                  { className: "concerto-card-title-row" },
-                  h("strong", null, tk.title)
-                )
-              ),
-              h("span", { className: "concerto-state-chip " + tMeta.cls }, tMeta.icon + " " + tMeta.label)
-            ),
-            tk.objective && h("div", { style: { fontSize: "var(--cc-fs-meta)", color: "var(--cc-text-secondary)", marginBottom: 6 } }, tk.objective),
-            (tk.blockedReason || tk.progress?.at(-1)?.note) && h("div", {
-              style: { fontSize: "var(--cc-fs-caption)", color: tk.blockedReason ? "var(--cc-state-blocked)" : "var(--cc-text-muted)", marginBottom: 6 }
-            }, tk.blockedReason ? "\u963B\u585E\uFF1A" + tk.blockedReason : "\u6700\u65B0\u8FDB\u5C55\uFF1A" + tk.progress.at(-1).note),
-            h(
-              "div",
-              { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
-              h("span", { className: "concerto-id", style: { color: "var(--cc-text-muted)" } }, tk.taskId + " \xB7 \u7B2C " + tk.attempt + " \u6B21"),
-              onJumpTask && h("button", {
-                type: "button",
-                className: "concerto-chip",
-                onClick: () => {
-                  onClose?.();
-                  onJumpTask(tk.taskId, { memberId: member.id, label: tk.taskId });
-                }
-              }, "\u8DF3\u8F6C\u67E5\u770B\u4EFB\u52A1 \u203A")
-            )
-          );
-        })),
-        tab === "objects" && (memberObjects.length === 0 ? h(EmptyState, { icon: "\u{1F9E9}", text: member.id + " \u6682\u672A\u53D1\u5E03\u7ED3\u6784\u5316\u8F93\u51FA\u3002" }) : memberObjects.map((obj) => {
-          const isCmdPinned = pinnedRefs.some((p) => p.id === obj.id && p.type === obj.type);
-          const isUserPinned = userPinnedSet.has(`${obj.type}:${obj.id}`);
-          return h(
-            "div",
-            { key: obj.id, style: { display: "flex", flexDirection: "column", gap: 6 } },
-            h(StructuredObjectCard, {
-              object: obj,
-              tasks: snapshot?.tasks || [],
-              sessionId,
-              onJumpTask: (tid) => {
-                onClose?.();
-                onJumpTask?.(tid, { memberId: member.id, label: tid });
-              },
-              onOpenMember,
-              userPinned: isUserPinned,
-              badgeLabel: isCmdPinned ? "\u6307\u6325\u8005\u63A8\u8350" : ""
-            })
-          );
-        })),
-        tab === "executions" && (memberExecs.length === 0 ? h(EmptyState, { icon: "\u2699\uFE0F", text: member.id + " \u6682\u65E0\u6267\u884C\u8BB0\u5F55\u3002" }) : memberExecs.slice().reverse().map((exec) => h(
+            }, `\u5B9A\u4F4D ${currentTask.taskId} \u203A`)
+          )
+        )
+      ),
+      h("button", {
+        ref: (node) => node?.setAttribute("autofocus", ""),
+        type: "button",
+        className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
+        "aria-label": "\u5173\u95ED",
+        title: "\u5173\u95ED\u6210\u5458\u8BE6\u60C5",
+        onClick: onClose
+      }, h(UiIcon, { name: "close" }))
+    ),
+    h(TabList, { id: tabsId, label: `${member.id} \u6210\u5458\u8BE6\u60C5`, className: "concerto-drawer-tabs", value: tab, onChange: setTab, tabs: [
+      { value: "messages", label: "\u6D88\u606F\u4E0E\u6D3B\u52A8" },
+      { value: "tasks", label: "\u4EFB\u52A1", count: memberTasks.length },
+      { value: "objects", label: "\u4EA7\u7269", count: memberObjects.length },
+      { value: "executions", label: "\u6267\u884C\u8BB0\u5F55", count: memberExecs.length },
+      ...canManageDuties && member.roleKind !== "commander" ? [{ value: "duties", label: "\u9879\u76EE\u804C\u8D23" }] : []
+    ] }),
+    h(
+      "div",
+      { ...tabPanelProps(tabsId, tab), ref: bodyRef, className: "concerto-drawer-body" },
+      tab === "duties" && h(MemberDutiesPanel, { sessionId, memberId: member.id }),
+      tab === "messages" && h(
+        "div",
+        { style: { display: "flex", flexDirection: "column", gap: 10 } },
+        h(
           "div",
-          { key: exec.executionId, className: "concerto-card" },
+          { className: "concerto-tag", style: { alignSelf: "flex-start" } },
+          member.roleKind === "commander" ? hostChat.supported ? "DSH \u4F1A\u8BDD\u6D88\u606F + Runtime \u51B3\u7B56" : historyMode === "hosted_session" ? HISTORY_SOURCE_DESC.hosted_session : "\u5BF9\u8BDD\u6B63\u6587\u8BF7\u770B\u5BF9\u8BDD\u9875\u7B7E \xB7 \u5F53\u524D\u5C55\u793A Commander Runtime \u51B3\u7B56\u8BB0\u5F55" : HISTORY_SOURCE_DESC[historyMode] || "\u8BE5\u540E\u7AEF\u672A\u63D0\u4F9B\u5B8C\u6574\u5BF9\u8BDD\u5386\u53F2\uFF0C\u4EC5\u663E\u793A Runtime \u8BB0\u5F55"
+        ),
+        historyError && h(
+          "div",
+          { className: "concerto-feedback", role: "status" },
+          h("span", null, historyError),
+          h("button", { type: "button", className: "concerto-btn", onClick: () => setHistoryRetry((n) => n + 1) }, "\u91CD\u8BD5\u540C\u6B65")
+        ),
+        olderError && h("p", { role: "status", className: "concerto-field-error" }, olderError),
+        hasMore && h("button", { type: "button", className: "concerto-btn", disabled: loading || loadingOlder, onClick: loadOlder }, loadingOlder ? "\u52A0\u8F7D\u4E2D\u2026" : olderError ? "\u91CD\u8BD5\u52A0\u8F7D\u66F4\u65E9\u6D88\u606F" : "\u52A0\u8F7D\u66F4\u65E9\u6D88\u606F"),
+        member.roleKind === "commander" && hostChat.messages.map((msg) => h(
+          "div",
+          { key: "hc-" + msg.id, className: "concerto-bubble" },
+          h(
+            "div",
+            { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } },
+            (msg.role === "user" ? "\u7528\u6237" : member.id) + (msg.recordedAt ? " \xB7 " + new Date(msg.recordedAt).toLocaleTimeString() : "")
+          ),
+          h(ReferenceText, {
+            text: msg.text,
+            viewObjects,
+            tasks: snapshot?.tasks || [],
+            pinnedRefs,
+            context: { authorId: member.id },
+            sessionId,
+            onJumpTask: (tid) => {
+              onClose?.(false);
+              onJumpTask?.(tid, { memberId: member.id, label: tid });
+            },
+            onOpenMember,
+            onJumpObject: (ref) => {
+              onClose?.();
+              onJumpObject?.(ref, { memberId: member.id });
+            }
+          })
+        )),
+        mergedMessages.length === 0 && hostChat.messages.length === 0 && memberTasks.length === 0 ? h(EmptyState, {
+          icon: "\u{1F4AC}",
+          text: "\u6682\u65E0 " + member.id + " \u7684\u6D88\u606F\u6216\u6267\u884C\u8BB0\u5F55\u3002",
+          action: currentTask && onJumpTask && h("button", { type: "button", className: "concerto-link", onClick: () => {
+            onClose?.(false);
+            onJumpTask(currentTask.taskId, { memberId: member.id });
+          } }, "\u67E5\u770B\u5173\u8054\u4EFB\u52A1 \u2192")
+        }) : mergedMessages.map((act) => {
+          if (act.kind === "message") {
+            const speaker = act.role === "user" ? "\u7528\u6237" : member.id;
+            return h(
+              "div",
+              { key: act.activityId, className: "concerto-bubble" },
+              h(
+                "div",
+                { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } },
+                speaker + (act.recordedAt ? " \xB7 " + new Date(act.recordedAt).toLocaleTimeString() : "") + (act.taskId ? " \xB7 " + act.taskId : "")
+              ),
+              h(ReferenceText, {
+                text: act.text || act.summary,
+                viewObjects,
+                tasks: snapshot?.tasks || [],
+                pinnedRefs,
+                context: { taskId: act.taskId, authorId: member.id },
+                sessionId,
+                onJumpTask: (tid) => {
+                  onClose?.(false);
+                  onJumpTask?.(tid, { memberId: member.id, label: tid });
+                },
+                onOpenMember,
+                onJumpObject: (ref) => {
+                  onClose?.();
+                  onJumpObject?.(ref, { memberId: member.id });
+                }
+              }),
+              act.truncated && h(
+                "div",
+                { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } },
+                `\u5DF2\u622A\u65AD\u81F3 4000 \u5B57\u7B26\uFF08\u539F\u59CB ${act.fullLength} \u5B57\u7B26\uFF09`
+              )
+            );
+          }
+          return h(
+            "details",
+            { key: act.activityId, className: "concerto-activity-line" },
+            h(
+              "summary",
+              { style: { cursor: "pointer" } },
+              (act.recordedAt ? new Date(act.recordedAt).toLocaleTimeString() + " \xB7 " : "") + act.summary
+            ),
+            (act.text || act.detail) && h("pre", {
+              style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: "var(--cc-fs-code)", marginTop: 6, maxHeight: 200, overflow: "auto" }
+            }, act.text || JSON.stringify(act.detail, null, 2))
+          );
+        })
+      ),
+      tab === "tasks" && (memberTasks.length === 0 ? h(EmptyState, { icon: "\u{1F4CB}", text: member.id + " \u6682\u65E0\u5173\u8054\u4EFB\u52A1\u3002" }) : memberTasks.map((tk) => {
+        const tMeta = STATE_META[tk.viewState] || STATE_META[tk.state] || STATE_META.pending;
+        return h(
+          "div",
+          { key: tk.taskId, className: "concerto-card" },
           h(
             "div",
             { className: "concerto-card-head" },
@@ -8493,28 +11288,1175 @@ function MemberDrawer({
               h(
                 "div",
                 { className: "concerto-card-title-row" },
-                h("strong", null, exec.taskId + " \xB7 \u7B2C " + exec.attempt + " \u6B21\u5C1D\u8BD5")
+                h("strong", null, tk.title)
               )
             ),
-            h("span", { className: "concerto-tag" }, label(exec.state))
+            h(StateChip, { status: tk.viewState || tk.state, text: tMeta.label })
+          ),
+          tk.objective && h("div", { style: { fontSize: "var(--cc-fs-meta)", color: "var(--cc-text-secondary)", marginBottom: 6 } }, tk.objective),
+          (tk.blockedReason || tk.progress?.at(-1)?.note) && h("div", {
+            style: { fontSize: "var(--cc-fs-caption)", color: tk.blockedReason ? "var(--cc-state-blocked)" : "var(--cc-text-muted)", marginBottom: 6 }
+          }, tk.blockedReason ? "\u963B\u585E\uFF1A" + tk.blockedReason : "\u6700\u65B0\u8FDB\u5C55\uFF1A" + tk.progress.at(-1).note),
+          h(
+            "div",
+            { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+            h("span", { className: "concerto-id", style: { color: "var(--cc-text-muted)" } }, tk.taskId + " \xB7 \u7B2C " + tk.attempt + " \u6B21"),
+            onJumpTask && h("button", {
+              type: "button",
+              className: "concerto-chip",
+              onClick: () => {
+                onClose?.(false);
+                onJumpTask(tk.taskId, { memberId: member.id, label: tk.taskId });
+              }
+            }, "\u8DF3\u8F6C\u67E5\u770B\u4EFB\u52A1 \u203A")
+          )
+        );
+      })),
+      tab === "objects" && (memberObjects.length === 0 ? h(EmptyState, { icon: "\u{1F9E9}", text: member.id + " \u6682\u672A\u53D1\u5E03\u7ED3\u6784\u5316\u8F93\u51FA\u3002" }) : memberObjects.map((obj) => {
+        const isCmdPinned = pinnedRefs.some((p) => p.id === obj.id && p.type === obj.type);
+        const isUserPinned = userPinnedSet.has(`${obj.type}:${obj.id}`);
+        return h(
+          "div",
+          { key: obj.id, style: { display: "flex", flexDirection: "column", gap: 6 } },
+          h(StructuredObjectCard, {
+            object: obj,
+            tasks: snapshot?.tasks || [],
+            sessionId,
+            onJumpTask: (tid) => {
+              onClose?.(false);
+              onJumpTask?.(tid, { memberId: member.id, label: tid });
+            },
+            onOpenMember,
+            userPinned: isUserPinned,
+            badgeLabel: isCmdPinned ? "\u6307\u6325\u8005\u63A8\u8350" : ""
+          })
+        );
+      })),
+      tab === "executions" && (memberExecs.length === 0 ? h(EmptyState, { icon: "\u2699\uFE0F", text: member.id + " \u6682\u65E0\u6267\u884C\u8BB0\u5F55\u3002" }) : memberExecs.slice().reverse().map((exec) => h(
+        "div",
+        { key: exec.executionId, className: "concerto-card" },
+        h(
+          "div",
+          { className: "concerto-card-head" },
+          h(
+            "div",
+            { className: "concerto-card-head-main" },
+            h(
+              "div",
+              { className: "concerto-card-title-row" },
+              h("strong", null, exec.taskId + (exec.kind === "review" ? " \xB7 \u72EC\u7ACB\u5BA1\u67E5" : ` \xB7 \u7B2C ${exec.attempt} \u6B21\u5C1D\u8BD5`))
+            )
+          ),
+          h("span", { className: "concerto-tag" }, label(exec.state))
+        ),
+        h(
+          "div",
+          { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)" } },
+          (exec.connectorId || "unknown") + (exec.nativeSessionRef?.sessionId ? " \xB7 Session " + exec.nativeSessionRef.sessionId : "")
+        ),
+        exec.writeScope && h("div", { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", overflowWrap: "anywhere" } }, "\u5DE5\u4F5C\u76EE\u5F55\uFF1A" + exec.writeScope),
+        exec.worktree && h(
+          "div",
+          { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", overflowWrap: "anywhere" } },
+          `Worktree \u5206\u652F\uFF1A${exec.worktree.branch || ""} \xB7 \u57FA\u7EBF ${String(exec.worktree.baseCommit || "").slice(0, 7)}${exec.worktree.headCommit && exec.worktree.headCommit !== exec.worktree.baseCommit ? `..${String(exec.worktree.headCommit).slice(0, 7)}` : ""}`
+        ),
+        exec.taskContext && h(
+          "div",
+          { style: { fontSize: "var(--cc-fs-caption)", marginTop: 4 } },
+          h("strong", null, "\u4E34\u65F6\u4EFB\u52A1\u8BF4\u660E\uFF1A"),
+          exec.taskContext
+        ),
+        exec.memberDuties && h(
+          "details",
+          { style: { marginTop: 6 } },
+          h("summary", null, `\u6D3E\u53D1\u804C\u8D23 v${exec.memberDuties.version} \xB7 ${dutyAuthor(exec.memberDuties)}`),
+          h("p", { style: { whiteSpace: "pre-wrap", overflowWrap: "anywhere" } }, exec.memberDuties.body)
+        ),
+        Array.isArray(exec.skillDeliveries) && exec.skillDeliveries.length > 0 && h(
+          "div",
+          { style: { marginTop: 6, fontSize: "var(--cc-fs-caption)" } },
+          h("strong", null, "\u6D3E\u53D1\u51BB\u7ED3\u65B9\u6CD5\uFF1A"),
+          exec.skillDeliveries.map((d) => {
+            const fb = (exec.skillFeedback || []).find((f) => f.id === d.id);
+            const acc = exec.skillAcceptanceEvidence;
+            return h(
+              "div",
+              { key: `${d.id}@${d.version}`, style: { marginTop: 2 } },
+              h("span", { className: "concerto-id" }, `${d.id}@v${d.version}`),
+              ` (${d.source} \xB7 \u5DF2\u4EA4\u4ED8`,
+              fb ? ` \xB7 \u6210\u5458\u81EA\u8FF0:${fb.outcome}` : "",
+              acc ? ` \xB7 \u9A8C\u6536\u8BC1\u636E:${acc.status === "verified_with_task_acceptance" ? acc.reviewId || "pass" : "fail"}` : "",
+              ")"
+            );
+          })
+        ),
+        exec.metrics && Object.keys(exec.metrics).length > 0 && h(
+          "details",
+          { style: { marginTop: 6 } },
+          h("summary", { style: { cursor: "pointer", fontSize: "var(--cc-fs-caption)" } }, "\u9636\u6BB5\u8017\u65F6\u6307\u6807"),
+          h("pre", { style: { fontSize: "var(--cc-fs-code)", whiteSpace: "pre-wrap" } }, JSON.stringify(exec.metrics, null, 2))
+        )
+      )))
+    )
+  );
+}
+
+// packages/dsh-concerto/src/client/components/AttentionPopover.js
+var import_react17 = __toESM(require_react(), 1);
+function AttentionPopover({ open, onClose, count, trigger, children }) {
+  const rootRef = import_react17.default.useRef(null);
+  const closeRef = import_react17.default.useRef(null);
+  const panelRef = import_react17.default.useRef(null);
+  const panelId = import_react17.default.useId();
+  import_react17.default.useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement;
+    const native = showAnchoredPopover(rootRef.current, panelRef.current, { width: 520, maxHeight: 640 });
+    panelRef.current.dataset.nativePopover = String(native);
+    const handleToggle = (event) => {
+      if (event.newState === "closed") onClose();
+    };
+    const handlePointer = (event) => {
+      if (!rootRef.current?.contains(event.target)) onClose();
+    };
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    if (native) {
+      panelRef.current.addEventListener("toggle", handleToggle);
+    } else {
+      document.addEventListener("pointerdown", handlePointer, true);
+      document.addEventListener("keydown", handleKey, true);
+    }
+    closeRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (native) {
+        panelRef.current?.removeEventListener("toggle", handleToggle);
+        hideAnchoredPopover(panelRef.current);
+      } else {
+        document.removeEventListener("pointerdown", handlePointer, true);
+        document.removeEventListener("keydown", handleKey, true);
+      }
+      if (previousFocus?.isConnected) previousFocus.focus?.({ preventScroll: true });
+    };
+  }, [open, onClose]);
+  return h(
+    "div",
+    { className: "concerto-attention-anchor", ref: rootRef },
+    import_react17.default.cloneElement(trigger, {
+      "aria-expanded": open,
+      "aria-controls": panelId,
+      "aria-haspopup": "dialog",
+      onPointerDown: (event) => {
+        trigger.props.onPointerDown?.(event);
+        if (open) event.preventDefault();
+      }
+    }),
+    open && h(
+      "div",
+      {
+        ref: panelRef,
+        id: panelId,
+        popover: "auto",
+        className: "concerto-attention-popover concerto-surface",
+        role: "dialog",
+        "aria-modal": "false",
+        "aria-label": `\u5F85\u5904\u7406\u4E8B\u9879\uFF0C\u5171 ${count} \u9879`,
+        "data-concerto-section": "attention"
+      },
+      h(
+        "div",
+        { className: "concerto-attention-popover-head" },
+        h("strong", null, `\u5F85\u5904\u7406 ${count} \u9879`),
+        h("button", {
+          ref: closeRef,
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
+          "aria-label": "\u5173\u95ED\u5F85\u5904\u7406\u4E8B\u9879",
+          onClick: onClose
+        }, h(UiIcon, { name: "close" }))
+      ),
+      children
+    )
+  );
+}
+function AttentionContent({
+  attentionItems,
+  blockingMissing,
+  pending,
+  unknownExecs,
+  tasks,
+  executions,
+  canAct,
+  command,
+  jumpToTask,
+  openMemberDrawer
+}) {
+  return h(
+    "div",
+    { className: "concerto-attention-content" },
+    blockingMissing.length > 0 && h(
+      "div",
+      { className: "concerto-attn-card", "data-concerto-missing-required": "true" },
+      h("strong", null, `\u7F3A\u5C11\u9A8C\u6536\u5FC5\u9700\u89C6\u56FE\uFF08${blockingMissing.length}\uFF09`),
+      h(
+        "div",
+        { className: "concerto-attention-pills" },
+        blockingMissing.map((rv) => h(
+          "span",
+          {
+            key: `${rv.taskId || "team"}:${rv.type}:${rv.id}`,
+            className: "concerto-req-view-pill",
+            "data-missing": "true"
+          },
+          h("span", { className: "concerto-id" }, `${rv.type}:${rv.id}`),
+          rv.taskId && h("button", {
+            type: "button",
+            className: "concerto-chip concerto-id",
+            onClick: () => jumpToTask(rv.taskId)
+          }, rv.taskId)
+        ))
+      )
+    ),
+    attentionItems.map((item) => {
+      if (item.kind === "request" || item.kind === "approval" || item.kind === "question") {
+        const req = pending.find((r) => r.requestId === item.requestId);
+        if (!req) return null;
+        return h(
+          "div",
+          { key: item.id, className: "concerto-attn-card", "data-kind": item.kind },
+          h(
+            "div",
+            { className: "concerto-attention-card-head" },
+            h("strong", null, (req.kind === "approval" ? "\u8BF7\u6C42\u6279\u51C6" : "\u5411\u4F60\u63D0\u95EE") + " \xB7 " + (req.memberId || "\u6210\u5458")),
+            req.taskId && h("span", { className: "concerto-tag concerto-id" }, req.taskId)
+          ),
+          h(RequestCard, {
+            item: req,
+            bare: true,
+            disabled: !canAct,
+            onAnswer: (it2, ans) => command("/requests/respond", { requestId: it2.requestId, answer: ans })
+          })
+        );
+      }
+      if (item.kind === "unknown") {
+        const exec = unknownExecs.find((e) => e.executionId === item.executionId);
+        if (!exec) return null;
+        return h(
+          "div",
+          { key: item.id, className: "concerto-attn-card", "data-kind": "unknown" },
+          h(
+            "div",
+            { className: "concerto-attention-card-head" },
+            h("strong", null, "\u9700\u8981\u4F60\u88C1\u51B3 \xB7 " + exec.taskId),
+            h("button", { type: "button", className: "concerto-link concerto-id", onClick: () => jumpToTask(exec.taskId) }, `\u5B9A\u4F4D ${exec.taskId} \u203A`)
+          ),
+          h(AdjudicationCard, {
+            execution: exec,
+            bare: true,
+            disabled: !canAct,
+            onSubmit: (input) => command("/executions/adjudicate", input)
+          })
+        );
+      }
+      if (item.kind === "review") {
+        const task = tasks.find((t) => t.taskId === item.taskId);
+        if (!task) return null;
+        const execSettled = executions.some((e) => e.executionId === task.executionId && ["finished", "stopped"].includes(e.state));
+        return h(
+          "div",
+          { key: item.id, className: "concerto-attn-card", "data-kind": "review" },
+          h(
+            "div",
+            { className: "concerto-attention-card-head" },
+            h("strong", null, "\u5F85\u4F60\u9A8C\u6536 \xB7 " + task.title),
+            h("button", { type: "button", className: "concerto-link concerto-id", onClick: () => jumpToTask(task.taskId) }, `\u5B9A\u4F4D ${task.taskId} \u203A`)
+          ),
+          task.result?.summary && h("p", { className: "concerto-attention-summary" }, task.result.summary),
+          task.result && h(ReviewCard, {
+            task,
+            bare: true,
+            disabled: !canAct || !execSettled,
+            onReview: (tk, verdict, reason) => command("/tasks/review", {
+              taskId: tk.taskId,
+              executionId: tk.executionId,
+              resultId: tk.result.resultId,
+              verdict,
+              reason
+            })
+          })
+        );
+      }
+      return h(
+        "div",
+        { key: item.id, className: "concerto-attn-card", "data-kind": item.kind || "blocked" },
+        h(
+          "div",
+          { className: "concerto-attention-card-head" },
+          h("strong", null, item.title),
+          item.taskId && h("button", { type: "button", className: "concerto-link concerto-id", onClick: () => jumpToTask(item.taskId) }, `\u5B9A\u4F4D ${item.taskId} \u203A`)
+        ),
+        item.detail && h("p", { className: "concerto-attention-summary" }, item.detail),
+        item.memberId && h(
+          "div",
+          null,
+          h(
+            "button",
+            { type: "button", className: "concerto-chip", onClick: () => openMemberDrawer(item.memberId, "messages") },
+            "\u67E5\u770B " + item.memberId + " \u8BE6\u60C5 \u203A"
+          )
+        )
+      );
+    })
+  );
+}
+
+// packages/dsh-concerto/src/client/components/TaskReviewFeedback.js
+var import_react18 = __toESM(require_react(), 1);
+var STATUS = { open: "\u5F85\u5904\u7406", replied: "\u5F85\u590D\u6838", closed: "\u5DF2\u5173\u95ED" };
+var ACTION = { reply: "\u63D0\u4EA4\u4FEE\u8BA2", close: "\u5173\u95ED\u610F\u89C1", reopen: "\u91CD\u65B0\u6253\u5F00" };
+var viewRef = (obj) => `${obj.type}:${obj.id}@v${obj.version}`;
+var actorName = (actor) => actor?.kind === "user" ? "\u7528\u6237" : actor?.id || "Concerto";
+function TaskReviewFeedback({ task, taskObjects, executions, canWrite, disabled, onSave, onOpenVersion }) {
+  const [target, setTarget] = import_react18.default.useState(null);
+  const [error, setError] = import_react18.default.useState("");
+  const [message, setMessage] = import_react18.default.useState("");
+  const feedback = task.reviewFeedback ?? [];
+  const history = task.deliveryHistory ?? [];
+  const taskExecutions = executions.filter((entry) => entry.taskId === task.taskId);
+  const targetOptions = target && !taskObjects.some((item) => viewRef(item) === viewRef(target)) ? [...taskObjects, target] : taskObjects;
+  const items = target ? reviewTargetItems(target) : [];
+  function versionButton(obj) {
+    return h("button", {
+      type: "button",
+      className: "concerto-link",
+      onClick: () => onOpenVersion(obj.id, obj.version, viewRef(obj))
+    }, `${obj.title || obj.id} v${obj.version}${obj.itemLabel ? ` \xB7 ${obj.itemLabel}` : ""}`);
+  }
+  async function save(input, successText) {
+    setError("");
+    setMessage("");
+    const ok = await onSave({ ...input, taskId: task.taskId }, setError);
+    if (ok) setMessage(successText);
+    return ok;
+  }
+  async function create(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const fields = new FormData(form);
+    const text = fields.get("text").trim();
+    if (!text) {
+      setError("\u8BF7\u8F93\u5165\u5BA1\u67E5\u610F\u89C1\u3002");
+      form.elements.namedItem("text").focus();
+      return;
+    }
+    const itemId = fields.get("itemId");
+    const ok = await save({
+      action: "create",
+      text,
+      targetExecutionId: task.result?.executionId ?? task.executionId ?? null,
+      targetResultId: task.result?.resultId ?? null,
+      ...target ? { targetRef: viewRef(target) } : {},
+      ...itemId ? { itemId } : {}
+    }, "\u5BA1\u67E5\u610F\u89C1\u5DF2\u4FDD\u5B58\u3002");
+    if (ok) {
+      form.reset();
+      setTarget(null);
+    }
+  }
+  return h(
+    "section",
+    { className: "concerto-acc-box concerto-review-feedback", "aria-label": "\u5BA1\u67E5\u610F\u89C1\u548C\u5386\u53F2" },
+    h("strong", null, "\u5BA1\u67E5\u610F\u89C1"),
+    feedback.length > 0 && h("ol", { className: "concerto-review-threads" }, feedback.map((thread) => {
+      const original = taskExecutions.find(({ executionId }) => executionId === thread.target.executionId);
+      const action = thread.status === "closed" ? "reopen" : "close";
+      return h(
+        "li",
+        { key: thread.feedbackId, className: "concerto-review-thread" },
+        h(
+          "header",
+          { className: "concerto-review-heading" },
+          h("strong", null, actorName(thread.author)),
+          h("span", { className: "concerto-tag" }, STATUS[thread.status]),
+          h("time", { dateTime: thread.createdAt, className: "concerto-quiet" }, new Date(thread.createdAt).toLocaleString())
+        ),
+        h("p", { className: "concerto-review-text" }, thread.text),
+        h(
+          "div",
+          { className: "concerto-review-heading concerto-quiet" },
+          thread.target.resultId ? original ? `\u7B2C ${original.attempt} \u6B21\u4EA4\u4ED8` : "\u5DF2\u63D0\u4EA4\u4EA4\u4ED8" : original ? `\u7B2C ${original.attempt} \u6B21\u6267\u884C` : "\u4EFB\u52A1",
+          thread.target.artifact && versionButton(thread.target.artifact)
+        ),
+        thread.updates.length > 0 && h("ul", { className: "concerto-review-updates" }, thread.updates.map((update) => h(
+          "li",
+          { key: update.version },
+          h(
+            "span",
+            { className: "concerto-quiet" },
+            `${actorName(update.author)} \xB7 ${ACTION[update.action]} \xB7 ${new Date(update.at).toLocaleString()}`
+          ),
+          update.text && h("p", { className: "concerto-review-text" }, update.text),
+          update.evidence?.map((entry, index) => h("div", { key: index }, entry.artifact ? versionButton(entry.artifact) : entry.ref))
+        ))),
+        canWrite && h("button", {
+          type: "button",
+          className: "concerto-btn",
+          disabled,
+          onClick: () => save(
+            { action, feedbackId: thread.feedbackId, expectedVersion: thread.version },
+            action === "close" ? "\u610F\u89C1\u5DF2\u5173\u95ED\u3002" : "\u610F\u89C1\u5DF2\u91CD\u65B0\u6253\u5F00\u3002"
+          )
+        }, ACTION[action])
+      );
+    })),
+    canWrite && h(
+      "details",
+      null,
+      h("summary", null, "\u6DFB\u52A0\u5BA1\u67E5\u610F\u89C1"),
+      h(
+        "form",
+        { onSubmit: create },
+        h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            "\u9488\u5BF9\u5BF9\u8C61",
+            h(
+              "select",
+              {
+                className: "concerto-input",
+                value: target ? viewRef(target) : "",
+                disabled,
+                onChange: (event) => setTarget(targetOptions.find((obj) => viewRef(obj) === event.target.value) ?? null)
+              },
+              h("option", { value: "" }, task.result ? "\u672C\u6B21\u4EA4\u4ED8" : "\u4EFB\u52A1"),
+              targetOptions.map((obj) => h("option", { key: viewRef(obj), value: viewRef(obj) }, `${obj.title || obj.id} v${obj.version}`))
+            )
+          )
+        ),
+        target && versionButton(target),
+        items.length > 0 && h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            "\u6210\u679C\u6761\u76EE",
+            h(
+              "select",
+              { key: viewRef(target), className: "concerto-input", name: "itemId", disabled },
+              h("option", { value: "" }, "\u6574\u4E2A\u6210\u679C"),
+              items.map(({ id, label: title }, index) => h("option", { key: `${id}-${index}`, value: id }, title))
+            )
+          )
+        ),
+        h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            "\u610F\u89C1\u5185\u5BB9",
+            h("textarea", { name: "text", className: "concerto-textarea", required: true, maxLength: 4e3, rows: 3, disabled })
+          )
+        ),
+        h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled }, "\u4FDD\u5B58\u610F\u89C1")
+      )
+    ),
+    error && h("p", { role: "alert", className: "concerto-field-error" }, error),
+    h("span", { role: "status", className: "concerto-quiet" }, message),
+    (taskExecutions.length > 0 || history.length > 0) && h(
+      "details",
+      null,
+      h("summary", null, "\u5386\u6B21\u6267\u884C\u4E0E\u9A8C\u6536"),
+      taskExecutions.length > 0 && h("ul", { className: "concerto-review-updates" }, taskExecutions.map((entry) => h("li", { key: entry.executionId }, `${entry.kind === "review" ? "\u5BA1\u67E5" : "\u6267\u884C"} \xB7 \u7B2C ${entry.attempt} \u6B21 \xB7 ${entry.memberId || "\u672A\u5206\u914D"} \xB7 ${label(entry.state)}`))),
+      history.length > 0 && h("ol", { className: "concerto-review-updates" }, history.map((event) => {
+        const content = event.type === "review.submitted" ? event.payload.review ?? event.payload.input : event.payload.result ?? event.payload.input;
+        if (!content) return null;
+        const recordTitle = event.type === "review.submitted" ? content.verdict === "pass" ? "\u9A8C\u6536\u901A\u8FC7" : "\u9000\u56DE\u8FD4\u5DE5" : "\u63D0\u4EA4\u4EA4\u4ED8";
+        return h(
+          "li",
+          { key: event.eventId },
+          h("strong", null, `${recordTitle} \xB7 ${actorName(event.actor)}`),
+          h("span", { className: "concerto-quiet" }, ` \xB7 ${new Date(event.recordedAt).toLocaleString()}`),
+          h("p", { className: "concerto-review-text" }, content.reason ?? content.summary),
+          (content.artifactRefs ?? content.evidenceRefs)?.join(" \xB7 "),
+          content.pinnedObjectVersions?.map((obj) => h("div", { key: viewRef(obj) }, versionButton(obj)))
+        );
+      }))
+    )
+  );
+}
+
+// packages/dsh-concerto/src/client/components/SharedAcceptanceChecklist.js
+var import_react19 = __toESM(require_react(), 1);
+
+// packages/dsh-concerto/lib/domain/state_machine.mjs
+var TASK_STATE = Object.freeze({
+  pending: "pending",
+  // 待派发
+  running: "running",
+  // 运行中
+  review: "review",
+  // 待评审
+  completed: "completed",
+  blocked: "blocked",
+  // 已阻塞
+  cancelled: "cancelled",
+  // 已取消
+  failed: "failed"
+  // 已失败
+});
+var EXEC_STATE = Object.freeze({
+  running: "running",
+  // 执行中
+  waiting_input: "waiting_input",
+  // 等待用户输入
+  waiting_approval: "waiting_approval",
+  // 等待审批
+  interrupting: "interrupting",
+  // 正在中断
+  stopped: "stopped",
+  // 已停止
+  finished: "finished",
+  // 已结束
+  unknown: "unknown"
+  // 状态未知
+});
+var TERMINAL_TASK = /* @__PURE__ */ new Set([TASK_STATE.completed, TASK_STATE.cancelled, TASK_STATE.failed]);
+var REJECT = Object.freeze({
+  invalidTransition: "invalid_transition",
+  // 非法状态转移
+  preconditionFailed: "precondition_failed",
+  // 前置条件不满足
+  missingEvidence: "missing_evidence",
+  // 缺少必要证据
+  unsafeRetry: "unsafe_retry"
+  // 不安全重试
+});
+function isTerminalTask(state) {
+  return TERMINAL_TASK.has(state);
+}
+var TASK_VIEW = Object.freeze({
+  waiting_approval: "waiting_approval",
+  waiting_input: "waiting_input",
+  cancelling: "cancelling",
+  unknown: "unknown"
+});
+
+// packages/dsh-concerto/src/client/components/SharedAcceptanceChecklist.js
+var TYPE_LABEL = {
+  checklist: "\u6E05\u5355",
+  table: "\u8868\u683C",
+  diagram: "\u5173\u7CFB\u56FE",
+  mindmap: "\u5BFC\u56FE"
+};
+function flattenMindmap(node, depth = 0, out = []) {
+  if (!node || typeof node !== "object") return out;
+  if (node.id && node.label) out.push({ id: node.id, label: node.label, depth });
+  for (const child of node.children ?? []) flattenMindmap(child, depth + 1, out);
+  return out;
+}
+function imeSafeKeyDown(event) {
+  if (event.key === "Enter" && (event.isComposing || event.nativeEvent?.isComposing)) {
+    event.preventDefault();
+  }
+}
+function SharedAcceptanceChecklist({ task, taskObjects, canWrite, disabled, onSave, onOpenVersion }) {
+  const [draft, setDraft] = import_react19.default.useState(null);
+  const [error, setError] = import_react19.default.useState("");
+  const [message, setMessage] = import_react19.default.useState("");
+  const sharedObjects = taskObjects.filter((object) => isSharedTaskArtifact(task, object));
+  const changes = task.checklistChanges ?? [];
+  if (sharedObjects.length === 0 && changes.length === 0) return null;
+  const editable = canWrite && !isTerminalTask(task.state);
+  const draftObject = draft && sharedObjects.find((object) => object.id === draft.id);
+  const hasNonChecklist = sharedObjects.some((object) => object.type !== "checklist") || changes.some((change) => change.viewType && change.viewType !== "checklist");
+  function startChecklist(object, item) {
+    setError("");
+    setMessage("");
+    setDraft({ kind: "checklist", id: object.id, expectedVersion: object.version, itemId: item?.id, label: item?.label ?? "" });
+  }
+  function startTableCell(object, rowIndex, row, column, value) {
+    setError("");
+    setMessage("");
+    setDraft({
+      kind: "table_cell",
+      id: object.id,
+      expectedVersion: object.version,
+      rowIndex,
+      rowKey: String(row?.[0] ?? ""),
+      column,
+      value: value == null ? "" : String(value)
+    });
+  }
+  function startTableRow(object) {
+    setError("");
+    setMessage("");
+    const cols = Array.isArray(object.data?.columns) ? object.data.columns : [];
+    setDraft({ kind: "table_row", id: object.id, expectedVersion: object.version, columns: cols, cells: cols.map(() => "") });
+  }
+  function startGraphNode(object, node = null) {
+    setError("");
+    setMessage("");
+    setDraft({
+      kind: "graph_node",
+      id: object.id,
+      viewType: object.type,
+      expectedVersion: object.version,
+      itemId: node?.id,
+      parentId: object.type === "mindmap" ? object.data?.root?.id || "root" : "",
+      label: node?.label ?? ""
+    });
+  }
+  function startDiagramEdge(object, edge = null) {
+    setError("");
+    setMessage("");
+    const firstNode = object.data?.nodes?.[0]?.id ?? "";
+    const secondNode = object.data?.nodes?.[1]?.id ?? firstNode;
+    setDraft({
+      kind: "diagram_edge",
+      id: object.id,
+      expectedVersion: object.version,
+      isEdit: Boolean(edge),
+      from: edge?.from ?? firstNode,
+      to: edge?.to ?? secondNode,
+      label: edge?.label ?? "",
+      edgeKind: edge?.kind ?? "normal"
+    });
+  }
+  async function save(event) {
+    event.preventDefault();
+    if (!editable || disabled || !draft) return;
+    let payload;
+    let successText = "\u6539\u52A8\u5DF2\u4FDD\u5B58\u3002";
+    if (draft.kind === "checklist") {
+      if (!draft.label.trim()) {
+        setError("\u8BF7\u8F93\u5165\u6761\u76EE\u5185\u5BB9\u3002");
+        return;
+      }
+      payload = { id: draft.id, expectedVersion: draft.expectedVersion, ...draft.itemId ? { itemId: draft.itemId } : {}, label: draft.label };
+      successText = "\u6E05\u5355\u5DF2\u4FDD\u5B58\u3002";
+    } else if (draft.kind === "table_cell") {
+      if (!draft.value.trim()) {
+        setError("\u8BF7\u8F93\u5165\u5355\u5143\u683C\u5185\u5BB9\u3002");
+        return;
+      }
+      payload = {
+        id: draft.id,
+        expectedVersion: draft.expectedVersion,
+        rowIndex: draft.rowIndex,
+        rowKey: draft.rowKey,
+        column: draft.column,
+        value: draft.value
+      };
+      successText = "\u8868\u683C\u5355\u5143\u683C\u5DF2\u4FDD\u5B58\u3002";
+    } else if (draft.kind === "table_row") {
+      if (draft.cells.every((cell) => !cell.trim())) {
+        setError("\u8BF7\u81F3\u5C11\u586B\u5199\u4E00\u5217\u5185\u5BB9\u3002");
+        return;
+      }
+      payload = { id: draft.id, expectedVersion: draft.expectedVersion, cells: draft.cells };
+      successText = "\u8868\u683C\u884C\u5DF2\u4FDD\u5B58\u3002";
+    } else if (draft.kind === "graph_node") {
+      if (!draft.label.trim()) {
+        setError("\u8BF7\u8F93\u5165\u8282\u70B9\u540D\u79F0\u3002");
+        return;
+      }
+      payload = {
+        id: draft.id,
+        expectedVersion: draft.expectedVersion,
+        ...draft.itemId ? { itemId: draft.itemId } : {},
+        ...draft.parentId ? { parentId: draft.parentId } : {},
+        label: draft.label
+      };
+      successText = "\u56FE\u8282\u70B9\u5DF2\u4FDD\u5B58\u3002";
+    } else if (draft.kind === "diagram_edge") {
+      if (!draft.from || !draft.to) {
+        setError("\u8BF7\u9009\u62E9\u8D77\u70B9\u4E0E\u7EC8\u70B9\u8282\u70B9\u3002");
+        return;
+      }
+      payload = {
+        id: draft.id,
+        expectedVersion: draft.expectedVersion,
+        targetKind: "edge",
+        from: draft.from,
+        to: draft.to,
+        label: draft.label,
+        edgeKind: draft.edgeKind
+      };
+      successText = "\u56FE\u5173\u7CFB\u5DF2\u4FDD\u5B58\u3002";
+    } else {
+      return;
+    }
+    setError("");
+    setMessage("");
+    if (await onSave({ ...payload, taskId: task.taskId }, setError)) {
+      setMessage(successText);
+      setDraft(null);
+    }
+  }
+  function versionButton(id, version, text, typeLabel = "\u9A8C\u6536\u6E05\u5355") {
+    return h("button", {
+      type: "button",
+      className: "concerto-link",
+      onClick: () => onOpenVersion(id, version, text, typeLabel)
+    }, text);
+  }
+  function renderStaleNotice(noun) {
+    if (!draftObject || draftObject.version === draft.expectedVersion) return null;
+    return h(
+      "p",
+      { className: "concerto-quiet" },
+      `${noun}\u5DF2\u6709\u65B0\u7248\u3002`,
+      versionButton(draftObject.id, draftObject.version, `\u67E5\u770B v${draftObject.version}`, TYPE_LABEL[draftObject.type] || "\u5171\u7F16\u6210\u679C"),
+      " ",
+      h("button", {
+        type: "button",
+        className: "concerto-link",
+        disabled,
+        onClick: () => setDraft({ ...draft, expectedVersion: draftObject.version })
+      }, "\u6309\u65B0\u7248\u91CD\u65B0\u7F16\u8F91")
+    );
+  }
+  function renderFormActions(submitLabel) {
+    return h(
+      "div",
+      { className: "concerto-review-heading" },
+      h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled: disabled || !draftObject }, submitLabel),
+      h("button", { type: "button", className: "concerto-btn", onClick: () => {
+        setDraft(null);
+        setError("");
+      } }, "\u53D6\u6D88")
+    );
+  }
+  function renderSharedObject(object) {
+    const typeLabel = TYPE_LABEL[object.type] || object.type;
+    if (object.type === "checklist") {
+      return h(
+        "div",
+        { key: object.id, "data-concerto-shared-object": `${object.type}:${object.id}` },
+        h(
+          "div",
+          { className: "concerto-review-heading" },
+          h("strong", null, object.title),
+          versionButton(object.id, object.version, `v${object.version}`, typeLabel),
+          editable && h("button", { type: "button", className: "concerto-btn", disabled, onClick: () => startChecklist(object) }, "\u65B0\u589E\u6761\u76EE")
+        ),
+        h("ul", { className: "concerto-review-updates" }, object.data.items.map((item, index) => h(
+          "li",
+          { key: `${item.id}-${index}` },
+          h(
+            "div",
+            { className: "concerto-review-heading" },
+            h("span", null, item.label),
+            editable && h("button", {
+              type: "button",
+              className: "concerto-link",
+              disabled,
+              "aria-label": `\u7F16\u8F91\u6761\u76EE ${item.label}`,
+              onClick: () => startChecklist(object, item)
+            }, "\u7F16\u8F91")
+          )
+        )))
+      );
+    }
+    if (object.type === "table") {
+      const cols = Array.isArray(object.data?.columns) ? object.data.columns : [];
+      const rows = Array.isArray(object.data?.rows) ? object.data.rows : [];
+      return h(
+        "div",
+        { key: object.id, "data-concerto-shared-object": `${object.type}:${object.id}` },
+        h(
+          "div",
+          { className: "concerto-review-heading" },
+          h("strong", null, object.title),
+          h("span", { className: "concerto-tag" }, typeLabel),
+          versionButton(object.id, object.version, `v${object.version}`, typeLabel),
+          editable && h("button", { type: "button", className: "concerto-btn", disabled, onClick: () => startTableRow(object) }, "\u65B0\u589E\u884C")
+        ),
+        h(
+          "div",
+          { className: "concerto-table-wrap", tabIndex: 0, role: "region", "aria-label": `${object.title} \u5171\u7F16\u8868\u683C` },
+          h(
+            "table",
+            { className: "concerto-table" },
+            h("thead", null, h("tr", null, cols.map((col, cIdx) => h("th", { key: cIdx, scope: "col" }, String(col))))),
+            h("tbody", null, rows.map((row, rIdx) => h("tr", { key: rIdx }, cols.map((col, cIdx) => {
+              const val = row[cIdx];
+              const CellTag = cIdx === 0 ? "th" : "td";
+              return h(
+                CellTag,
+                { key: cIdx, ...cIdx === 0 ? { scope: "row" } : {} },
+                h(
+                  "div",
+                  { className: "concerto-shared-cell" },
+                  h("span", null, String(val ?? "")),
+                  editable && h("button", {
+                    type: "button",
+                    className: "concerto-link",
+                    disabled,
+                    "aria-label": `\u7F16\u8F91\u5355\u5143\u683C \u7B2C ${rIdx + 1} \u884C ${col}`,
+                    onClick: () => startTableCell(object, rIdx, row, col, val)
+                  }, "\u7F16\u8F91")
+                )
+              );
+            }))))
+          )
+        )
+      );
+    }
+    const nodes = object.type === "diagram" ? Array.isArray(object.data?.nodes) ? object.data.nodes : [] : flattenMindmap(object.data?.root);
+    const edges = object.type === "diagram" && Array.isArray(object.data?.edges) ? object.data.edges : [];
+    return h(
+      "div",
+      { key: object.id, "data-concerto-shared-object": `${object.type}:${object.id}` },
+      h(
+        "div",
+        { className: "concerto-review-heading" },
+        h("strong", null, object.title),
+        h("span", { className: "concerto-tag" }, typeLabel),
+        versionButton(object.id, object.version, `v${object.version}`, typeLabel),
+        editable && h("button", { type: "button", className: "concerto-btn", disabled, onClick: () => startGraphNode(object) }, "\u65B0\u589E\u8282\u70B9"),
+        editable && object.type === "diagram" && nodes.length > 0 && h("button", {
+          type: "button",
+          className: "concerto-btn",
+          disabled,
+          onClick: () => startDiagramEdge(object)
+        }, "\u65B0\u589E\u5173\u7CFB")
+      ),
+      h("ul", { className: "concerto-review-updates" }, nodes.map((node, index) => h(
+        "li",
+        { key: `${node.id}-${index}` },
+        h(
+          "div",
+          { className: "concerto-review-heading" },
+          h("span", null, node.depth ? `${"\xB7 ".repeat(node.depth)}${node.label}` : `${node.label} (${node.id})`),
+          editable && h("button", {
+            type: "button",
+            className: "concerto-link",
+            disabled,
+            "aria-label": `\u7F16\u8F91\u8282\u70B9 ${node.label}`,
+            onClick: () => startGraphNode(object, node)
+          }, "\u7F16\u8F91")
+        )
+      ))),
+      edges.length > 0 && h("ul", { className: "concerto-review-updates" }, edges.map((edge, index) => h(
+        "li",
+        { key: `${edge.from}-${edge.to}-${index}` },
+        h(
+          "div",
+          { className: "concerto-review-heading" },
+          h("span", null, `${edge.from} \u2192 ${edge.to}${edge.label ? `\uFF1A${edge.label}` : ""}`),
+          editable && h("button", {
+            type: "button",
+            className: "concerto-link",
+            disabled,
+            "aria-label": `\u7F16\u8F91\u5173\u7CFB ${edge.from} \u5230 ${edge.to}`,
+            onClick: () => startDiagramEdge(object, edge)
+          }, "\u7F16\u8F91\u5173\u7CFB")
+        )
+      )))
+    );
+  }
+  function renderDraftForm() {
+    if (!draft || !editable) return null;
+    if (draft.kind === "checklist") {
+      return h(
+        "form",
+        { onSubmit: save, "aria-label": draft.itemId ? "\u7F16\u8F91\u9A8C\u6536\u6761\u76EE" : "\u65B0\u589E\u9A8C\u6536\u6761\u76EE" },
+        h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            `${draft.itemId ? "\u4FEE\u6539" : "\u65B0\u589E"}\u6761\u76EE \xB7 \u57FA\u4E8E v${draft.expectedVersion}`,
+            h("input", {
+              className: "concerto-input",
+              autoFocus: true,
+              disabled,
+              value: draft.label,
+              required: true,
+              maxLength: 500,
+              onKeyDown: imeSafeKeyDown,
+              onChange: (event) => setDraft({ ...draft, label: event.target.value })
+            })
+          )
+        ),
+        renderStaleNotice("\u6E05\u5355"),
+        renderFormActions("\u4FDD\u5B58\u6761\u76EE")
+      );
+    }
+    if (draft.kind === "table_cell") {
+      return h(
+        "form",
+        { onSubmit: save, "aria-label": "\u7F16\u8F91\u8868\u683C\u5355\u5143\u683C" },
+        h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            `\u7B2C ${draft.rowIndex + 1} \u884C \xB7 ${draft.column} \xB7 \u57FA\u4E8E v${draft.expectedVersion}`,
+            h("input", {
+              className: "concerto-input",
+              autoFocus: true,
+              disabled,
+              value: draft.value,
+              required: true,
+              maxLength: 500,
+              onKeyDown: imeSafeKeyDown,
+              onChange: (event) => setDraft({ ...draft, value: event.target.value })
+            })
+          )
+        ),
+        renderStaleNotice("\u8868\u683C"),
+        renderFormActions("\u4FDD\u5B58\u5355\u5143\u683C")
+      );
+    }
+    if (draft.kind === "table_row") {
+      return h(
+        "form",
+        { onSubmit: save, "aria-label": "\u65B0\u589E\u8868\u683C\u884C" },
+        h("p", { className: "concerto-quiet" }, `\u65B0\u589E\u884C \xB7 \u57FA\u4E8E v${draft.expectedVersion}`),
+        draft.columns.map((col, idx) => h(
+          "div",
+          { key: col, className: "concerto-field" },
+          h(
+            "label",
+            null,
+            String(col),
+            h("input", {
+              className: "concerto-input",
+              autoFocus: idx === 0,
+              disabled,
+              value: draft.cells[idx] ?? "",
+              maxLength: 500,
+              onKeyDown: imeSafeKeyDown,
+              onChange: (event) => {
+                const nextCells = [...draft.cells];
+                nextCells[idx] = event.target.value;
+                setDraft({ ...draft, cells: nextCells });
+              }
+            })
+          )
+        )),
+        renderStaleNotice("\u8868\u683C"),
+        renderFormActions("\u4FDD\u5B58\u65B0\u884C")
+      );
+    }
+    if (draft.kind === "graph_node") {
+      const mmNodes = draftObject?.type === "mindmap" ? flattenMindmap(draftObject.data?.root) : [];
+      return h(
+        "form",
+        { onSubmit: save, "aria-label": draft.itemId ? "\u7F16\u8F91\u56FE\u8282\u70B9" : "\u65B0\u589E\u56FE\u8282\u70B9" },
+        !draft.itemId && draftObject?.type === "mindmap" && mmNodes.length > 0 && h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            "\u7236\u8282\u70B9",
+            h("select", {
+              className: "concerto-input",
+              disabled,
+              value: draft.parentId,
+              onChange: (event) => setDraft({ ...draft, parentId: event.target.value })
+            }, mmNodes.map((n) => h("option", { key: n.id, value: n.id }, n.label)))
+          )
+        ),
+        h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            `${draft.itemId ? "\u4FEE\u6539" : "\u65B0\u589E"}\u8282\u70B9 \xB7 \u57FA\u4E8E v${draft.expectedVersion}`,
+            h("input", {
+              className: "concerto-input",
+              autoFocus: true,
+              disabled,
+              value: draft.label,
+              required: true,
+              maxLength: 500,
+              onKeyDown: imeSafeKeyDown,
+              onChange: (event) => setDraft({ ...draft, label: event.target.value })
+            })
+          )
+        ),
+        renderStaleNotice("\u56FE\u8868"),
+        renderFormActions("\u4FDD\u5B58\u8282\u70B9")
+      );
+    }
+    if (draft.kind === "diagram_edge") {
+      const dgNodes = draftObject?.type === "diagram" ? draftObject.data?.nodes ?? [] : [];
+      return h(
+        "form",
+        { onSubmit: save, "aria-label": "\u7F16\u8F91\u56FE\u5173\u7CFB" },
+        !draft.isEdit && dgNodes.length > 0 && h(
+          import_react19.default.Fragment,
+          null,
+          h(
+            "div",
+            { className: "concerto-field" },
+            h(
+              "label",
+              null,
+              "\u8D77\u70B9\u8282\u70B9",
+              h("select", {
+                className: "concerto-input",
+                disabled,
+                value: draft.from,
+                onChange: (event) => setDraft({ ...draft, from: event.target.value })
+              }, dgNodes.map((n) => h("option", { key: n.id, value: n.id }, `${n.label} (${n.id})`)))
+            )
           ),
           h(
             "div",
-            { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)" } },
-            (exec.connectorId || "unknown") + (exec.nativeSessionRef?.sessionId ? " \xB7 Session " + exec.nativeSessionRef.sessionId : "")
-          ),
-          exec.writeScope && h("div", { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", overflowWrap: "anywhere" } }, "\u5DE5\u4F5C\u76EE\u5F55\uFF1A" + exec.writeScope),
-          exec.metrics && Object.keys(exec.metrics).length > 0 && h(
-            "details",
-            { style: { marginTop: 6 } },
-            h("summary", { style: { cursor: "pointer", fontSize: "var(--cc-fs-caption)" } }, "\u9636\u6BB5\u8017\u65F6\u6307\u6807"),
-            h("pre", { style: { fontSize: "var(--cc-fs-code)", whiteSpace: "pre-wrap" } }, JSON.stringify(exec.metrics, null, 2))
+            { className: "concerto-field" },
+            h(
+              "label",
+              null,
+              "\u7EC8\u70B9\u8282\u70B9",
+              h("select", {
+                className: "concerto-input",
+                disabled,
+                value: draft.to,
+                onChange: (event) => setDraft({ ...draft, to: event.target.value })
+              }, dgNodes.map((n) => h("option", { key: n.id, value: n.id }, `${n.label} (${n.id})`)))
+            )
           )
-        )))
-      )
-    )
+        ),
+        h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            `\u5173\u7CFB\u8BF4\u660E (${draft.from} \u2192 ${draft.to}) \xB7 \u57FA\u4E8E v${draft.expectedVersion}`,
+            h("input", {
+              className: "concerto-input",
+              autoFocus: true,
+              disabled,
+              value: draft.label,
+              maxLength: 240,
+              onKeyDown: imeSafeKeyDown,
+              onChange: (event) => setDraft({ ...draft, label: event.target.value })
+            })
+          )
+        ),
+        h(
+          "div",
+          { className: "concerto-field" },
+          h(
+            "label",
+            null,
+            "\u5173\u7CFB\u8BED\u4E49",
+            h(
+              "select",
+              {
+                className: "concerto-input",
+                disabled,
+                value: draft.edgeKind,
+                onChange: (event) => setDraft({ ...draft, edgeKind: event.target.value })
+              },
+              h("option", { value: "normal" }, "\u666E\u901A\u5173\u7CFB"),
+              h("option", { value: "critical" }, "\u5F3A\u8C03\u8DEF\u5F84"),
+              h("option", { value: "error" }, "\u5F02\u5E38\u963B\u65AD")
+            )
+          )
+        ),
+        renderStaleNotice("\u56FE\u8868"),
+        renderFormActions("\u4FDD\u5B58\u5173\u7CFB")
+      );
+    }
+    return null;
+  }
+  return h(
+    "section",
+    { className: "concerto-acc-box concerto-shared-checklist", "aria-label": "\u5171\u7F16\u9A8C\u6536\u6E05\u5355" },
+    h("strong", null, hasNonChecklist ? "\u5171\u7F16\u9A8C\u6536\u6E05\u5355\u4E0E\u4EA4\u4ED8\u6210\u679C" : "\u5171\u7F16\u9A8C\u6536\u6E05\u5355"),
+    sharedObjects.map(renderSharedObject),
+    renderDraftForm(),
+    error && h("p", { role: "alert", className: "concerto-field-error" }, error),
+    h("span", { role: "status", className: "concerto-quiet" }, message),
+    changes.length > 0 && h("ol", { className: "concerto-review-threads", "aria-label": "\u6E05\u5355\u6539\u52A8" }, changes.slice().reverse().map((change) => {
+      const reader = change.reads.at(-1);
+      const report = change.reports.at(-1);
+      const typeLabel = TYPE_LABEL[change.viewType] || "\u6E05\u5355";
+      const status = !change.current ? "\u5386\u53F2\u6539\u52A8" : report?.verification ? "\u5DF2\u9A8C\u8BC1" : report ? "\u5DF2\u63D0\u4EA4\u8BC1\u636E" : reader ? "\u6210\u5458\u5DF2\u8BFB\u53D6" : "\u5DF2\u4FDD\u5B58";
+      return h(
+        "li",
+        { key: change.changeId, className: "concerto-review-thread" },
+        h(
+          "div",
+          { className: "concerto-review-heading" },
+          h("strong", null, change.label),
+          h("span", { className: "concerto-tag" }, status)
+        ),
+        h(
+          "div",
+          { className: "concerto-review-heading concerto-quiet" },
+          h("time", { dateTime: change.at }, `\u7528\u6237 \xB7 ${new Date(change.at).toLocaleString()}`),
+          versionButton(change.viewId, change.fromVersion, `v${change.fromVersion}`, typeLabel),
+          "\u2192",
+          versionButton(change.viewId, change.version, `v${change.version}`, typeLabel)
+        ),
+        change.previousLabel && h(
+          "p",
+          { className: "concerto-review-text concerto-quiet" },
+          `${change.viewType && change.viewType !== "checklist" ? "\u539F\u5185\u5BB9" : "\u539F\u6761\u76EE"} \xB7 `,
+          change.previousLabel
+        ),
+        reader && h("div", { className: "concerto-quiet" }, `${reader.memberId} \xB7 ${new Date(reader.at).toLocaleString()} \u8BFB\u53D6`),
+        report && h(
+          "div",
+          { className: "concerto-review-heading" },
+          h("span", { className: "concerto-quiet" }, `${report.memberId} \u63D0\u4EA4\u8BC1\u636E`),
+          versionButton(report.viewId, report.version, `${typeLabel} v${report.version}`, typeLabel),
+          report.evidence.map((entry, index) => h(
+            "span",
+            { key: index },
+            entry.artifact ? versionButton(entry.artifact.id, entry.artifact.version, `${entry.artifact.title} v${entry.artifact.version}`) : entry.ref
+          )),
+          report.verification && h("span", { className: "concerto-quiet" }, `\u9A8C\u6536 ${report.verification.reviewId}`)
+        )
+      );
+    }))
   );
-  return typeof document !== "undefined" && document.body ? (0, import_react_dom2.createPortal)(dialogNode, document.body) : dialogNode;
+}
+
+// packages/dsh-concerto/src/client/components/renderers/layoutSize.js
+function preferredRendererSize(object, renderer, options = {}) {
+  const fontSize = Number.isFinite(options.fontSize) && options.fontSize > 0 ? options.fontSize : void 0;
+  try {
+    let width = 0;
+    if (renderer === "markmap") {
+      const raw = object?.data?.root ? object.data.root : object?.data?.markdown ? parseMarkdownToMindmap(object.data.markdown) : null;
+      const root = raw ? normalizeMindmapTree(raw) : null;
+      if (!root) return "";
+      const collapsed = new Set(defaultPreviewCollapsedIdsWithinBudget(root, { fontSize }));
+      width = layoutMindmapTree(root, collapsed, { fontSize }).width;
+    } else if (renderer === "svg") {
+      const data = object?.type === "mindmap" ? mindmapToDiagramData(object.data, object.title) : object?.data;
+      width = layoutDiagram(data, { fontSize, semanticKind: object?.semanticKind }).width;
+    } else {
+      return "";
+    }
+    if (width <= 560) return "s";
+    if (width <= 900) return "m";
+    return "l";
+  } catch {
+    return "";
+  }
 }
 
 // packages/dsh-concerto/src/client/components/TeamHome.js
@@ -8534,7 +12476,25 @@ var ARTIFACT_TYPE_OPTIONS = [
   { value: "html", label: "HTML \u5361\u7247" }
 ];
 var BENTO_SPAN = { s: 4, m: 6, l: 12 };
-function balanceBentoSpans(sizes) {
+var HERO_COMPACT_ENTER_TOP = 96;
+var HERO_COMPACT_EXIT_TOP = 32;
+var HERO_COMPACT_MIN_HEADROOM = 16;
+var HERO_COMPACT_FALLBACK_HEIGHT = 60;
+function computeNextHeroCompact({ currentCompact, scrollTop, scrollHeight, clientHeight, expandedHeight, compactHeight }) {
+  if (currentCompact) {
+    return scrollTop > HERO_COMPACT_EXIT_TOP;
+  }
+  if (scrollTop <= HERO_COMPACT_ENTER_TOP) return false;
+  if (clientHeight > 0 && scrollHeight > clientHeight && expandedHeight > 0) {
+    const shrinkDelta = Math.max(0, expandedHeight - (compactHeight || HERO_COMPACT_FALLBACK_HEIGHT));
+    const postCollapseMaxScroll = scrollHeight - clientHeight - shrinkDelta;
+    if (postCollapseMaxScroll < HERO_COMPACT_EXIT_TOP + HERO_COMPACT_MIN_HEADROOM) {
+      return false;
+    }
+  }
+  return true;
+}
+function balanceBentoSpans(sizes, preserveSize = []) {
   const spans = sizes.map((s) => BENTO_SPAN[s] || 6);
   let rowUsed = 0;
   for (const sp of spans) {
@@ -8542,7 +12502,14 @@ function balanceBentoSpans(sizes) {
   }
   const remainder = 12 - rowUsed;
   if (remainder > 0 && remainder < 12 && spans.length > 0) {
-    spans[spans.length - 1] += remainder;
+    let fillIndex = -1;
+    for (let idx = spans.length - 1; idx >= 0; idx -= 1) {
+      if (!preserveSize[idx] && spans[idx] < 12) {
+        fillIndex = idx;
+        break;
+      }
+    }
+    if (fillIndex >= 0) spans[fillIndex] += remainder;
   }
   return spans;
 }
@@ -8563,20 +12530,27 @@ function taskPriorityRank(task) {
   if (task.state === "pending") return 4;
   return 5;
 }
+function humanizeActivityText(text) {
+  return String(text || "").replace(/\b(table|checklist|mindmap|diagram|board|canvas|html):([a-zA-Z0-9][a-zA-Z0-9._-]{0,63})(?:\s*\(v(\d+)\))?/g, (match, type, id, version) => {
+    const ref = parseRefString(`${type}:${id}`);
+    const typeLabel = ARTIFACT_TYPE_OPTIONS.find((option) => option.value === ref.type)?.label || ref.type;
+    return `${typeLabel}${ref.id}${version ? ` v${version}` : ""}`;
+  }).replace(/^发布\s*/, "\u53D1\u5E03\u4E86");
+}
 function deriveMemberActivity(member, snapshot) {
   const tasks = Array.isArray(snapshot?.tasks) ? snapshot.tasks : [];
   const activeTask = tasks.find((t) => t.memberId === member.id && !["completed", "cancelled"].includes(t.state));
   if (activeTask) {
     const latestNote = Array.isArray(activeTask.progress) && activeTask.progress.length > 0 ? activeTask.progress.at(-1).note : "";
-    return activeTask.blockedReason || latestNote || activeTask.title;
+    return humanizeActivityText(activeTask.blockedReason || latestNote || activeTask.title);
   }
   const actList = snapshot?.memberActivitySummary?.[member.id];
   if (Array.isArray(actList) && actList.length > 0 && actList[0].summary) {
-    return actList[0].summary;
+    return humanizeActivityText(actList[0].summary);
   }
   if (member.roleKind === "commander") {
     const first = String(snapshot?.publicView?.summary || "").split(/\r?\n/).find((l) => l.trim());
-    return first ? first.trim() : "\u7EDF\u7B79\u4E50\u56E2\u5206\u5DE5\u4E0E\u516C\u5171\u7B80\u62A5";
+    return first ? humanizeActivityText(first.trim()) : "\u7EDF\u7B79\u4E50\u56E2\u5206\u5DE5\u4E0E\u516C\u5171\u7B80\u62A5";
   }
   return label(memberState(snapshot, member));
 }
@@ -8608,7 +12582,8 @@ function synthesizeAttention(snapshot) {
     });
   }
   for (const task of snapshot?.tasks || []) {
-    if (task.viewState === "review" || task.state === "review") {
+    const manualReviewNeeded = (task.viewState === "review" || task.state === "review") && Boolean(task.reviewPolicy?.requiresReview && task.reviewDispatch?.status === "needs_assignment");
+    if (manualReviewNeeded) {
       items.push({
         id: "review:" + task.taskId,
         kind: "review",
@@ -8673,7 +12648,7 @@ function parseRefString(str) {
   const m = /^(table|checklist|mindmap|diagram|board|html):([a-zA-Z0-9][a-zA-Z0-9._-]{0,63})$/.exec(String(str || "").trim());
   return m ? { type: m[1], id: m[2] } : null;
 }
-function parseCommanderBriefing(summary, stats, attentionItems) {
+function parseCommanderBriefing(summary, stats, attentionItems, dispatchPaused) {
   const lines = String(summary || "").split(/\r?\n/);
   let progress = "";
   let issues = "";
@@ -8713,17 +12688,28 @@ function parseCommanderBriefing(summary, stats, attentionItems) {
   }
   if (!nextStep) {
     if (stats.review > 0) nextStep = `\u4F18\u5148\u9A8C\u6536 ${stats.review} \u9879\u5DF2\u63D0\u4EA4\u7ED3\u679C\u7684\u4EFB\u52A1\u3002`;
-    else if (stats.pending > 0) nextStep = `\u6D3E\u53D1\u6216\u7EE7\u7EED\u63A8\u8FDB ${stats.pending} \u9879\u5F85\u6D3E\u53D1\u4EFB\u52A1\u3002`;
+    else if (stats.pending > 0) nextStep = dispatchPaused ? `\u6062\u590D\u6D3E\u53D1\u540E\u7EE7\u7EED\u5904\u7406 ${stats.pending} \u9879\u5F85\u6D3E\u53D1\u4EFB\u52A1\u3002` : `\u6D3E\u53D1\u6216\u7EE7\u7EED\u63A8\u8FDB ${stats.pending} \u9879\u5F85\u6D3E\u53D1\u4EFB\u52A1\u3002`;
     else if (stats.run > 0) nextStep = "\u5173\u6CE8\u6267\u884C\u4E2D\u7684\u6210\u5458\u4EA7\u51FA\u5E76\u6309\u9700\u68C0\u9605\u4EA7\u7269\u3002";
     else nextStep = stats.total === 0 ? "\u5728\u5E95\u90E8\u8F93\u5165\u6846\u4E0B\u8FBE\u5177\u4F53\u76EE\u6807\u3002" : "\u5168\u90E8\u4EFB\u52A1\u5DF2\u6536\u53E3\uFF0C\u53EF\u5F52\u6863\u6216\u5F00\u542F\u4E0B\u4E00\u9636\u6BB5\u3002";
   }
   return { progress, issues, nextStep, extraText: extraLines.join("\n").trim() };
 }
+function relativeTimeLabel(value, nowValue) {
+  const timestamp = Date.parse(value || "");
+  const now = Date.parse(nowValue || "") || Date.now();
+  if (!Number.isFinite(timestamp)) return "";
+  const minutes = Math.max(0, Math.floor((now - timestamp) / 6e4));
+  if (minutes < 1) return "\u521A\u521A";
+  if (minutes < 60) return `${minutes} \u5206\u949F\u524D`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} \u5C0F\u65F6\u524D`;
+  return `${Math.floor(hours / 24)} \u5929\u524D`;
+}
 function EmptyState2({ icon, text, action = null }) {
   return h(
     "div",
     { className: "concerto-empty" },
-    h("span", { "aria-hidden": true, style: { fontSize: "var(--cc-fs-display)" } }, icon),
+    h("span", { "aria-hidden": true, className: "concerto-empty-icon" }, icon),
     h("p", { style: { margin: 0 } }, text),
     action
   );
@@ -8732,53 +12718,106 @@ function ConcertoTeamView({ sessionId, openView }) {
   useTeamCss();
   const { info, error, refresh } = useTeamSession(sessionId);
   const snapshot = info?.snapshot;
-  const initialView = import_react11.default.useMemo(() => readSessionViewState(sessionId), [sessionId]);
-  const containerRef = import_react11.default.useRef(null);
-  const taskRefs = import_react11.default.useRef(/* @__PURE__ */ new Map());
-  const restoredScrollRef = import_react11.default.useRef(false);
-  const compactRef = import_react11.default.useRef(false);
-  const lastCommand = import_react11.default.useRef(null);
-  const [drawerState, setDrawerState] = import_react11.default.useState({ memberId: "", tab: "messages" });
-  const [activeTab, setActiveTab] = import_react11.default.useState(initialView.activeTab || "overview");
-  const [taskViewMode, setTaskViewMode] = import_react11.default.useState(initialView.taskViewMode || "auto");
-  const [expandedTasks, setExpandedTasks] = import_react11.default.useState(() => new Set(initialView.expandedTaskIds || []));
-  const [artifactFilters, setArtifactFilters] = import_react11.default.useState(initialView.artifactFilters || { taskId: "all", memberId: "all", type: "all" });
-  const [savedFilterBeforeJump, setSavedFilterBeforeJump] = import_react11.default.useState(null);
-  const [jumpOrigin, setJumpOrigin] = import_react11.default.useState(null);
-  const [compact, setCompact] = import_react11.default.useState(false);
-  const [optimisticUserPins, setOptimisticUserPins] = import_react11.default.useState(null);
-  const [highlightTaskId, setHighlightTaskId] = import_react11.default.useState("");
-  const [highlightObjectId, setHighlightObjectId] = import_react11.default.useState("");
-  const [busy, setBusy] = import_react11.default.useState(false);
-  const [actionError, setActionError] = import_react11.default.useState("");
+  const initialView = import_react20.default.useMemo(() => readSessionViewState(sessionId), [sessionId]);
+  const containerRef = import_react20.default.useRef(null);
+  const taskRefs = import_react20.default.useRef(/* @__PURE__ */ new Map());
+  const taskCardRefs = import_react20.default.useRef(/* @__PURE__ */ new Map());
+  const boardColumnRefs = import_react20.default.useRef(/* @__PURE__ */ new Map());
+  const boardScrollRef = import_react20.default.useRef(null);
+  const restoredScrollRef = import_react20.default.useRef(false);
+  const compactRef = import_react20.default.useRef(false);
+  const expandedHeroHeightRef = import_react20.default.useRef(0);
+  const compactHeroHeightRef = import_react20.default.useRef(0);
+  const lastCommand = import_react20.default.useRef(null);
+  const tabsId = import_react20.default.useId();
+  const pinRequestRef = import_react20.default.useRef(null);
+  const [drawerState, setDrawerState] = import_react20.default.useState({ memberId: "", tab: "messages", returnTaskId: "" });
+  const [inspectorStack, setInspectorStack] = import_react20.default.useState([]);
+  const [activeTab, setActiveTab] = import_react20.default.useState(initialView.activeTab || "overview");
+  const [selectedTaskId, setSelectedTaskId] = import_react20.default.useState(initialView.selectedTaskId || "");
+  const [inspectorWide, setInspectorWide] = import_react20.default.useState(false);
+  const [artifactFilters, setArtifactFilters] = import_react20.default.useState(initialView.artifactFilters || { taskId: "all", memberId: "all", type: "all" });
+  const [savedFilterBeforeJump, setSavedFilterBeforeJump] = import_react20.default.useState(null);
+  const [jumpOrigin, setJumpOrigin] = import_react20.default.useState(null);
+  const [compact, setCompact] = import_react20.default.useState(false);
+  const [attentionOpen, setAttentionOpen] = import_react20.default.useState(false);
+  const [activeBoardColumn, setActiveBoardColumn] = import_react20.default.useState("pending");
+  const [optimisticUserPins, setOptimisticUserPins] = import_react20.default.useState(null);
+  const [pinningRef, setPinningRef] = import_react20.default.useState("");
+  const [pinFailure, setPinFailure] = import_react20.default.useState(null);
+  const [highlightTaskId, setHighlightTaskId] = import_react20.default.useState("");
+  const [highlightObjectId, setHighlightObjectId] = import_react20.default.useState("");
+  const [pinnedPreview, setPinnedPreview] = import_react20.default.useState(null);
+  const [filePreview, setFilePreview] = import_react20.default.useState(null);
+  const [reportModal, setReportModal] = import_react20.default.useState(null);
+  const [memoryOpen, setMemoryOpen] = import_react20.default.useState(false);
+  const openCloseoutReport = import_react20.default.useCallback(async () => {
+    setReportModal({ loading: true, error: "", markdown: "", filename: "concerto-report.md", copied: false });
+    try {
+      const res = await request(`/runs/report?sessionId=${encodeURIComponent(sessionId)}`);
+      setReportModal({
+        loading: false,
+        error: "",
+        markdown: res.markdown || "",
+        filename: res.filename || "concerto-report.md",
+        summary: res.summary || null,
+        copied: false
+      });
+    } catch (error2) {
+      setReportModal({ loading: false, error: error2?.message || "\u751F\u6210\u7ED3\u9879\u4EA4\u4ED8\u5355\u5931\u8D25", markdown: "", filename: "concerto-report.md", copied: false });
+    }
+  }, [sessionId]);
+  const [busy, setBusy] = import_react20.default.useState(false);
+  const [actionError, setActionError] = import_react20.default.useState("");
+  const [runLimitsOpen, setRunLimitsOpen] = import_react20.default.useState(false);
+  const [runLimitsError, setRunLimitsError] = import_react20.default.useState("");
   const hostTheme = useHostTheme();
   const isLight = hostTheme.isLight;
   const effectiveTheme = hostTheme.colorScheme;
-  const snapshotViewObjectsRef = import_react11.default.useRef([]);
+  const snapshotViewObjectsRef = import_react20.default.useRef([]);
   snapshotViewObjectsRef.current = Array.isArray(snapshot?.viewObjects) ? snapshot.viewObjects : [];
-  const artifactFiltersRef = import_react11.default.useRef(artifactFilters);
+  const artifactFiltersRef = import_react20.default.useRef(artifactFilters);
   artifactFiltersRef.current = artifactFilters;
-  const activeTabRef = import_react11.default.useRef(activeTab);
+  const activeTabRef = import_react20.default.useRef(activeTab);
   activeTabRef.current = activeTab;
-  import_react11.default.useEffect(() => {
+  const selectedTaskIdRef = import_react20.default.useRef(selectedTaskId);
+  selectedTaskIdRef.current = selectedTaskId;
+  const drawerStateRef = import_react20.default.useRef(drawerState);
+  drawerStateRef.current = drawerState;
+  const inspectorStackRef = import_react20.default.useRef(inspectorStack);
+  inspectorStackRef.current = inspectorStack;
+  import_react20.default.useEffect(() => {
     const vs = readSessionViewState(sessionId);
-    setDrawerState({ memberId: "", tab: "messages" });
+    setDrawerState({ memberId: "", tab: "messages", returnTaskId: "" });
+    setInspectorStack([]);
     setActiveTab(vs.activeTab || "overview");
-    setTaskViewMode(vs.taskViewMode || "auto");
-    setExpandedTasks(new Set(vs.expandedTaskIds || []));
+    setSelectedTaskId(vs.selectedTaskId || "");
     setArtifactFilters(vs.artifactFilters || { taskId: "all", memberId: "all", type: "all" });
     setSavedFilterBeforeJump(null);
     setJumpOrigin(null);
     compactRef.current = false;
+    expandedHeroHeightRef.current = 0;
+    compactHeroHeightRef.current = 0;
     setCompact(false);
     setOptimisticUserPins(null);
+    setPinningRef("");
+    setPinFailure(null);
+    pinRequestRef.current = null;
     setHighlightTaskId("");
     setHighlightObjectId("");
+    setPinnedPreview(null);
     setActionError("");
+    setRunLimitsOpen(false);
+    setRunLimitsError("");
     restoredScrollRef.current = false;
     lastCommand.current = null;
   }, [sessionId]);
-  import_react11.default.useEffect(() => {
+  import_react20.default.useEffect(() => {
+    if (optimisticUserPins && JSON.stringify(snapshot?.userPinnedRefs || []) === JSON.stringify(optimisticUserPins)) {
+      setOptimisticUserPins(null);
+    }
+  }, [snapshot?.userPinnedRefs, optimisticUserPins]);
+  import_react20.default.useEffect(() => {
     const consumePending = () => {
       const pending2 = consumeMemberDrawerOpen(sessionId);
       if (pending2?.memberId) {
@@ -8790,27 +12829,75 @@ function ConcertoTeamView({ sessionId, openView }) {
       if (targetSessionId === sessionId) consumePending();
     });
   }, [sessionId]);
-  import_react11.default.useLayoutEffect(() => {
+  import_react20.default.useLayoutEffect(() => {
     if (restoredScrollRef.current || !snapshot || !containerRef.current) return;
+    const el = containerRef.current;
     const savedTop = readSessionViewState(sessionId).scrollTop;
     if (typeof savedTop === "number" && savedTop > 0) {
-      containerRef.current.scrollTop = savedTop;
-      const isCompact = savedTop > 96;
+      const header = el.querySelector("header");
+      if (header && header.getAttribute("data-compact") !== "true") {
+        const headerHeight = header.getBoundingClientRect().height;
+        if (headerHeight > 0) expandedHeroHeightRef.current = headerHeight;
+      }
+      el.scrollTop = savedTop;
+      const isCompact = computeNextHeroCompact({
+        currentCompact: false,
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        expandedHeight: expandedHeroHeightRef.current,
+        compactHeight: compactHeroHeightRef.current
+      });
       compactRef.current = isCompact;
       setCompact(isCompact);
     }
     restoredScrollRef.current = true;
   }, [sessionId, snapshot]);
-  const changeTab = import_react11.default.useCallback((tab, keepJumpOrigin = false) => {
+  import_react20.default.useLayoutEffect(() => {
+    const root = containerRef.current;
+    const header = root?.querySelector("header");
+    if (!header) return;
+    const update = () => {
+      const headerHeight = header.getBoundingClientRect().height;
+      if (headerHeight > 0) {
+        if (header.getAttribute("data-compact") === "true") {
+          compactHeroHeightRef.current = headerHeight;
+        } else {
+          expandedHeroHeightRef.current = headerHeight;
+        }
+      }
+      root.style.setProperty("--cc-sticky-height", `${headerHeight + 16}px`);
+      setInspectorWide(root.clientWidth >= 1100);
+      if (compactRef.current && root.scrollTop <= HERO_COMPACT_EXIT_TOP) {
+        compactRef.current = false;
+        setAttentionOpen(false);
+        setCompact(false);
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [sessionId, Boolean(snapshot)]);
+  import_react20.default.useEffect(() => {
+    const root = boardScrollRef.current;
+    if (activeTab !== "tasks" || !root || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible?.target?.dataset?.concertoColumn) setActiveBoardColumn(visible.target.dataset.concertoColumn);
+    }, { root, threshold: [0.4, 0.6, 0.8] });
+    for (const element of boardColumnRefs.current.values()) observer.observe(element);
+    return () => observer.disconnect();
+  }, [activeTab, snapshot?.tasks?.length, selectedTaskId, inspectorWide]);
+  const closeAttention = import_react20.default.useCallback(() => setAttentionOpen(false), []);
+  const changeTab = import_react20.default.useCallback((tab, keepJumpOrigin = false) => {
+    setAttentionOpen(false);
     if (!keepJumpOrigin) setJumpOrigin(null);
     setActiveTab(tab);
     writeSessionViewState(sessionId, { activeTab: tab });
   }, [sessionId]);
-  const changeTaskViewMode = import_react11.default.useCallback((mode) => {
-    setTaskViewMode(mode);
-    writeSessionViewState(sessionId, { taskViewMode: mode });
-  }, [sessionId]);
-  const updateFilters = import_react11.default.useCallback((patch) => {
+  const updateFilters = import_react20.default.useCallback((patch) => {
     setSavedFilterBeforeJump(null);
     setArtifactFilters((prev) => {
       const next = { ...prev, ...patch };
@@ -8818,21 +12905,69 @@ function ConcertoTeamView({ sessionId, openView }) {
       return next;
     });
   }, [sessionId]);
-  const restoreSavedFilters = import_react11.default.useCallback(() => {
+  const restoreSavedFilters = import_react20.default.useCallback(() => {
     if (!savedFilterBeforeJump?.filters) return;
     const prevFilters = { ...savedFilterBeforeJump.filters };
     setSavedFilterBeforeJump(null);
     setArtifactFilters(prevFilters);
     writeSessionViewState(sessionId, { artifactFilters: prevFilters });
   }, [sessionId, savedFilterBeforeJump]);
-  const openMemberDrawer = import_react11.default.useCallback((memberId, tab = "messages") => {
+  const goInspectorBack = import_react20.default.useCallback(() => {
+    const stack = [...inspectorStackRef.current];
+    const previous = stack.pop();
+    if (!previous) return false;
+    setInspectorStack(stack);
+    setJumpOrigin(null);
+    setActiveTab(previous.activeTab || "tasks");
+    if (previous.kind === "member") {
+      setSelectedTaskId("");
+      setDrawerState({ memberId: previous.id, tab: previous.tab || "messages", returnTaskId: "" });
+      writeSessionViewState(sessionId, { activeTab: previous.activeTab || "tasks", selectedTaskId: "" });
+      return true;
+    }
+    setDrawerState({ memberId: "", tab: "messages", returnTaskId: "" });
+    setSelectedTaskId(previous.id);
+    writeSessionViewState(sessionId, { activeTab: previous.activeTab || "tasks", selectedTaskId: previous.id });
+    requestAnimationFrame(() => {
+      const target = taskRefs.current.get(previous.id) || taskCardRefs.current.get(previous.id);
+      focusAndReveal(target);
+    });
+    return true;
+  }, [sessionId]);
+  const openMemberDrawer = import_react20.default.useCallback((memberId, tab = "messages") => {
     if (!memberId) return;
-    setDrawerState({ memberId, tab });
-  }, []);
-  const closeMemberDrawer = import_react11.default.useCallback(() => {
-    setDrawerState({ memberId: "", tab: "messages" });
-  }, []);
-  const returnToJumpOrigin = import_react11.default.useCallback(() => {
+    setAttentionOpen(false);
+    const visibleTaskId = activeTabRef.current === "tasks" ? selectedTaskIdRef.current : "";
+    const currentMemberId = drawerStateRef.current.memberId;
+    const stack = [...inspectorStackRef.current];
+    if (currentMemberId && currentMemberId !== memberId) {
+      stack.push({ kind: "member", id: currentMemberId, tab: drawerStateRef.current.tab, activeTab: activeTabRef.current });
+    } else if (visibleTaskId) {
+      stack.push({ kind: "task", id: visibleTaskId, activeTab: "tasks" });
+    }
+    setInspectorStack(stack);
+    if (visibleTaskId) {
+      setSelectedTaskId("");
+      writeSessionViewState(sessionId, { selectedTaskId: "" });
+    }
+    setDrawerState({ memberId, tab, returnTaskId: "" });
+  }, [sessionId]);
+  const closeMemberDrawer = import_react20.default.useCallback((restore = true) => {
+    if (restore && goInspectorBack()) return;
+    setDrawerState({ memberId: "", tab: "messages", returnTaskId: "" });
+    if (restore) setInspectorStack([]);
+  }, [goInspectorBack]);
+  const closeTaskInspector = import_react20.default.useCallback(() => {
+    const taskId = selectedTaskIdRef.current;
+    setSelectedTaskId("");
+    setInspectorStack([]);
+    writeSessionViewState(sessionId, { selectedTaskId: "" });
+    requestAnimationFrame(() => {
+      if (typeof document !== "undefined" && document.querySelector("[data-concerto-member-drawer][open]")) return;
+      taskCardRefs.current.get(taskId)?.focus({ preventScroll: true });
+    });
+  }, [sessionId]);
+  const returnToJumpOrigin = import_react20.default.useCallback(() => {
     if (!jumpOrigin) return;
     const origin = jumpOrigin;
     setJumpOrigin(null);
@@ -8840,16 +12975,37 @@ function ConcertoTeamView({ sessionId, openView }) {
     writeSessionViewState(sessionId, { activeTab: origin.tab });
     if (typeof requestAnimationFrame === "function") {
       requestAnimationFrame(() => {
-        if (containerRef.current) containerRef.current.scrollTop = origin.scrollTop || 0;
+        if (containerRef.current) {
+          document.getElementById(`${tabsId}-panel-${origin.tab}`)?.focus({ preventScroll: true });
+          containerRef.current.scrollTop = origin.scrollTop || 0;
+        }
       });
     }
     if (origin.memberId) {
       openMemberDrawer(origin.memberId, "tasks");
     }
-  }, [jumpOrigin, sessionId, openMemberDrawer]);
-  const jumpToTask = import_react11.default.useCallback((taskId, origin = null) => {
+  }, [jumpOrigin, sessionId, openMemberDrawer, tabsId]);
+  const jumpToTask = import_react20.default.useCallback((taskId, origin = null) => {
     if (!taskId) return;
+    setAttentionOpen(false);
     const curTab = activeTabRef.current;
+    if (curTab === "tasks" && selectedTaskIdRef.current === taskId && !origin?.memberId) {
+      closeTaskInspector();
+      return;
+    }
+    if (origin?.memberId) {
+      setInspectorStack([
+        ...inspectorStackRef.current,
+        { kind: "member", id: origin.memberId, tab: origin.tab || "tasks", activeTab: curTab }
+      ]);
+    } else if (curTab === "tasks" && selectedTaskIdRef.current && selectedTaskIdRef.current !== taskId) {
+      setInspectorStack([
+        ...inspectorStackRef.current,
+        { kind: "task", id: selectedTaskIdRef.current, activeTab: "tasks" }
+      ]);
+    } else if (curTab !== "tasks") {
+      setInspectorStack([]);
+    }
     if (curTab !== "tasks" || origin?.memberId) {
       setJumpOrigin({
         tab: curTab,
@@ -8859,32 +13015,20 @@ function ConcertoTeamView({ sessionId, openView }) {
       });
     }
     setActiveTab("tasks");
-    writeSessionViewState(sessionId, { activeTab: "tasks" });
-    setExpandedTasks((prev) => {
-      const next = new Set(prev);
-      next.add(taskId);
-      writeSessionViewState(sessionId, { expandedTaskIds: [...next] });
-      return next;
-    });
+    setSelectedTaskId(taskId);
+    writeSessionViewState(sessionId, { activeTab: "tasks", selectedTaskId: taskId });
+    setHighlightObjectId("");
     setHighlightTaskId(taskId);
     requestAnimationFrame(() => {
       const el = taskRefs.current.get(taskId) || (typeof document !== "undefined" ? document.querySelector(`[data-concerto-task-id="${taskId}"]`) : null);
-      el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      focusAndReveal(el);
     });
     setTimeout(() => {
       setHighlightTaskId((cur) => cur === taskId ? "" : cur);
     }, 2400);
-  }, [sessionId]);
-  const jumpToAttention = import_react11.default.useCallback(() => {
-    setJumpOrigin(null);
-    setActiveTab("overview");
-    writeSessionViewState(sessionId, { activeTab: "overview" });
-    requestAnimationFrame(() => {
-      const sec = typeof document !== "undefined" ? document.querySelector('[data-concerto-section="attention"]') : null;
-      sec?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-    });
-  }, [sessionId]);
-  const jumpToStageObject = import_react11.default.useCallback((refOrObj, origin = null) => {
+  }, [sessionId, closeTaskInspector]);
+  const jumpToStageObject = import_react20.default.useCallback((refOrObj, origin = null) => {
+    setAttentionOpen(false);
     if (!refOrObj || !refOrObj.id) {
       changeTab("artifacts");
       return;
@@ -8923,47 +13067,107 @@ function ConcertoTeamView({ sessionId, openView }) {
       }
       setActiveTab("artifacts");
     }
+    setHighlightTaskId("");
     setHighlightObjectId(targetId);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         const el = typeof document !== "undefined" ? domId && document.getElementById(domId) || document.querySelector(`[data-concerto-object-id="${targetId}"]`) : null;
-        el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        focusAndReveal(el);
       });
     });
     setTimeout(() => {
       setHighlightObjectId((cur) => cur === targetId ? "" : cur);
     }, 2400);
   }, [sessionId, changeTab]);
-  function toggleTask(taskId) {
-    setExpandedTasks((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId);
-      else next.add(taskId);
-      writeSessionViewState(sessionId, { expandedTaskIds: [...next] });
-      return next;
-    });
+  async function openFilePreview(filePath, taskId = "") {
+    if (!filePath) return;
+    setFilePreview({ loading: true, error: "", relativePath: filePath, path: filePath, content: "", sizeBytes: 0, truncated: false });
+    try {
+      const res = await request("/files/preview", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, path: filePath, ...taskId ? { taskId } : {} })
+      });
+      setFilePreview({
+        loading: false,
+        error: "",
+        relativePath: res.relativePath || filePath,
+        path: res.path || filePath,
+        content: res.content ?? "",
+        sizeBytes: res.sizeBytes ?? 0,
+        truncated: Boolean(res.truncated)
+      });
+    } catch (err) {
+      setFilePreview({
+        loading: false,
+        error: err?.message || "\u8BFB\u53D6\u6587\u4EF6\u5931\u8D25",
+        relativePath: filePath,
+        path: filePath,
+        content: "",
+        sizeBytes: 0,
+        truncated: false
+      });
+    }
   }
-  async function handleTogglePin(obj) {
-    if (!obj?.type || !obj?.id) return;
+  async function openArtifactVersion(id, version, refTitle = "", label2 = "\u56FA\u5B9A\u8BC1\u636E") {
+    const requestedRef = refTitle || `${id}@v${version}`;
+    setPinnedPreview({ loading: true, error: "", object: null, requestedRef, label: label2 });
+    try {
+      const res = await fetchViewObjectVersion(sessionId, id, version);
+      if (!res?.ok) throw new Error(res?.detail || "\u8BFB\u53D6\u56FA\u5B9A\u7248\u672C\u5931\u8D25");
+      setPinnedPreview({ loading: false, error: "", object: res, requestedRef, label: label2 });
+    } catch (err) {
+      setPinnedPreview({ loading: false, error: err?.message || String(err), object: null, requestedRef, label: label2 });
+    }
+  }
+  async function handleTogglePin(obj, desiredPinned) {
+    if (!obj?.type || !obj?.id || pinRequestRef.current) return;
     const refStr = `${obj.type}:${obj.id}`;
+    const operation = { sessionId, refStr };
+    pinRequestRef.current = operation;
+    setPinningRef(refStr);
+    setPinFailure(null);
     const current = optimisticUserPins ?? (Array.isArray(snapshot?.userPinnedRefs) ? snapshot.userPinnedRefs : []);
-    const nextLocal = current.includes(refStr) ? current.filter((r) => r !== refStr) : [...current, refStr];
+    const shouldPin = desiredPinned ?? !current.includes(refStr);
+    const nextLocal = shouldPin ? [.../* @__PURE__ */ new Set([...current, refStr])] : current.filter((r) => r !== refStr);
     setOptimisticUserPins(nextLocal);
     try {
-      const res = await saveUserViewPreferences(sessionId, { toggleRef: refStr });
-      if (res?.ok && Array.isArray(res.userPinnedRefs)) {
-        setOptimisticUserPins(res.userPinnedRefs);
-        refresh();
+      const res = await saveUserViewPreferences(sessionId, { pinnedRefs: nextLocal });
+      if (pinRequestRef.current !== operation) return;
+      if (!res?.ok || !Array.isArray(res.userPinnedRefs)) throw new Error("\u672A\u53D6\u5F97\u670D\u52A1\u5668\u4FDD\u5B58\u7ED3\u679C");
+      setOptimisticUserPins(res.userPinnedRefs);
+      refresh();
+    } catch (err) {
+      if (pinRequestRef.current !== operation) return;
+      setOptimisticUserPins(null);
+      setPinFailure({ object: obj, desiredPinned: shouldPin, message: `\u7F6E\u9876\u4FDD\u5B58\u672A\u786E\u8BA4\uFF1A${err.message}\u3002\u5DF2\u6062\u590D\u6700\u8FD1\u540C\u6B65\u7684\u72B6\u6001\u3002` });
+      refresh();
+    } finally {
+      if (pinRequestRef.current === operation) {
+        pinRequestRef.current = null;
+        setPinningRef("");
       }
-    } catch {
     }
   }
   function handleContainerScroll(e) {
-    const top = e.currentTarget.scrollTop;
+    const el = e.currentTarget;
+    const top = el.scrollTop;
     writeSessionViewState(sessionId, { scrollTop: top });
-    const nextCompact = top > 96;
+    const header = el.querySelector("header");
+    if (header && header.getAttribute("data-compact") !== "true") {
+      const headerHeight = header.getBoundingClientRect().height;
+      if (headerHeight > 0) expandedHeroHeightRef.current = headerHeight;
+    }
+    const nextCompact = computeNextHeroCompact({
+      currentCompact: compactRef.current,
+      scrollTop: top,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      expandedHeight: expandedHeroHeightRef.current,
+      compactHeight: compactHeroHeightRef.current
+    });
     if (nextCompact !== compactRef.current) {
       compactRef.current = nextCompact;
+      setAttentionOpen(false);
       setCompact(nextCompact);
     }
   }
@@ -8973,6 +13177,7 @@ function ConcertoTeamView({ sessionId, openView }) {
       {
         className: "concerto-surface concerto-team-view",
         "data-concerto-team-view": "true",
+        "data-conversation-composer-overlay": "",
         "data-concerto-theme": effectiveTheme,
         style: hostTheme.cssVars,
         "aria-label": "Concerto \u56E2\u961F\u4E3B\u9875"
@@ -8995,7 +13200,11 @@ function ConcertoTeamView({ sessionId, openView }) {
     );
   }
   const canAct = info.roleKind === "commander" && !busy && !error;
-  async function command(path, input) {
+  const planGate = snapshot.planGate;
+  const planBlocksDispatch = Boolean(planGate && planGate.status !== "approved");
+  const dispatchPaused = snapshot.paused === true;
+  const dispatchLimits = snapshot.dispatchLimits ?? {};
+  async function command(path, input, onError = setActionError) {
     setBusy(true);
     setActionError("");
     const signature = JSON.stringify({ path, input, sessionId });
@@ -9016,11 +13225,23 @@ function ConcertoTeamView({ sessionId, openView }) {
       });
       lastCommand.current = null;
       refresh();
+      return true;
     } catch (err) {
-      setActionError(err.message);
+      onError(err.message);
+      return false;
     } finally {
       setBusy(false);
     }
+  }
+  function openRunLimits() {
+    setRunLimitsError("");
+    setRunLimitsOpen(true);
+  }
+  async function saveRunLimits(event) {
+    event.preventDefault();
+    setRunLimitsError("");
+    const values = readDispatchLimitsForm(event.currentTarget);
+    if (await command("/runs/dispatch-limits", { dispatchLimits: values }, setRunLimitsError)) setRunLimitsOpen(false);
   }
   const members = roster(snapshot);
   const tasks = Array.isArray(snapshot.tasks) ? snapshot.tasks : [];
@@ -9043,8 +13264,9 @@ function ConcertoTeamView({ sessionId, openView }) {
   const unreadyCaps = memberCapsList.filter((c) => ["preset_unreloaded", "preset_stale", "preset_broken", "connector_missing"].includes(c.verificationStatus));
   const attentionItems = synthesizeAttention(snapshot);
   const actionableCount = attentionItems.length + blockingMissing.length;
+  const taskAttentionCount = new Set(attentionItems.filter((item) => item.taskId).map((item) => item.taskId)).size;
   const teamGoal = snapshot.metadata?.objective || snapshot.metadata?.goal || "";
-  const briefing = parseCommanderBriefing(publicView.summary, stats, attentionItems);
+  const briefing = parseCommanderBriefing(publicView.summary, stats, attentionItems, dispatchPaused);
   const userPinObjs = userPinnedRefs.map(parseRefString).filter(Boolean).map((ref) => ({ ref, resolved: resolveViewObjectRef(viewObjects, ref, { pinnedRefs: publicView.pinnedRefs }) }));
   const stageSections = Array.isArray(publicView.sections) ? publicView.sections : [];
   const commanderRenderedKeys = /* @__PURE__ */ new Set();
@@ -9063,21 +13285,25 @@ function ConcertoTeamView({ sessionId, openView }) {
   const hiddenArtifactsCount = Math.max(0, viewObjects.length - overviewShownKeys.size - unpinnedFallbackObjs.length);
   const prioritizedTasks = tasks.slice().sort((a, b) => taskPriorityRank(a) - taskPriorityRank(b));
   const keyTasks = prioritizedTasks.slice(0, 4);
-  const resolvedTaskView = taskViewMode === "auto" ? tasks.length <= 3 ? "list" : "kanban" : taskViewMode;
   const kanbanMap = { pending: [], running: [], review: [], done: [] };
   for (const t of tasks) kanbanMap[bucketTaskColumn(t)].push(t);
   kanbanMap.running.sort((a, b) => Number(isTaskException(b)) - Number(isTaskException(a)));
   const filteredArtifacts = viewObjects.filter((o) => matchesArtifactFilters(o, artifactFilters));
   const drawerMember = drawerState.memberId ? members.find((m) => m.id === drawerState.memberId) || null : null;
+  const selectedTask = selectedTaskId ? tasks.find((task) => task.taskId === selectedTaskId) || null : null;
   const renderCountTag = (count) => count > 0 ? h("span", { className: "concerto-tag concerto-num" }, String(count)) : null;
-  function renderTaskDetailModule(task) {
-    const isExpanded = expandedTasks.has(task.taskId);
+  function renderTaskDetailModule(task, isDialog = false) {
     const meta = STATE_META[task.viewState] || STATE_META[task.state] || STATE_META.pending;
     const taskObjects = viewObjects.filter((o) => o.taskId === task.taskId);
     const taskReqViews = requiredViews.filter((v) => v.taskId === task.taskId);
     const taskEvents = events.filter((e) => e.taskId === task.taskId);
     const latestNote = task.blockedReason || task.progress?.at(-1)?.note || "";
     const execSettled = executions.some((e) => e.executionId === task.executionId && ["finished", "stopped"].includes(e.state));
+    const taskRequests = pending.filter((req) => req.taskId === task.taskId);
+    const taskUnknownExecs = unknownExecs.filter((exec) => exec.taskId === task.taskId);
+    const pendingTask = task.state === "pending";
+    const canUnblock = task.state === "blocked" && !task.needsAdjudication && taskUnknownExecs.length === 0;
+    const previousInspector = inspectorStack.at(-1);
     return h(
       "article",
       {
@@ -9087,7 +13313,8 @@ function ConcertoTeamView({ sessionId, openView }) {
           else taskRefs.current.delete(task.taskId);
         },
         className: "concerto-task-module" + (highlightTaskId === task.taskId ? " concerto-task-highlight" : ""),
-        "data-concerto-task-id": task.taskId
+        "data-concerto-task-id": task.taskId,
+        tabIndex: -1
       },
       h(
         "div",
@@ -9095,8 +13322,14 @@ function ConcertoTeamView({ sessionId, openView }) {
         h(
           "div",
           { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0, flex: "1 1 240px" } },
-          h("strong", null, task.title),
-          h("span", { className: "concerto-state-chip " + meta.cls }, meta.icon + " " + meta.label),
+          previousInspector && h("button", {
+            type: "button",
+            className: "concerto-btn concerto-btn--ghost",
+            "aria-label": `\u8FD4\u56DE ${previousInspector.id}`,
+            onClick: goInspectorBack
+          }, `\u2190 ${previousInspector.id}`),
+          h("h3", null, task.title),
+          h(StateChip, { status: task.viewState || task.state, text: meta.label }),
           task.memberId && h("button", {
             type: "button",
             className: "concerto-chip",
@@ -9110,14 +13343,131 @@ function ConcertoTeamView({ sessionId, openView }) {
         ),
         h("button", {
           type: "button",
-          className: "concerto-btn concerto-btn--ghost",
-          "aria-expanded": isExpanded,
-          onClick: () => toggleTask(task.taskId)
-        }, isExpanded ? "\u6536\u8D77\u8BE6\u60C5" : "\u5C55\u5F00\u8BE6\u60C5")
+          autoFocus: isDialog,
+          className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
+          "aria-label": `\u5173\u95ED\u4EFB\u52A1\u8BE6\u60C5\uFF1A${task.title}`,
+          title: "\u5173\u95ED\u4EFB\u52A1\u8BE6\u60C5",
+          onClick: closeTaskInspector
+        }, h(UiIcon, { name: "close" }))
       ),
-      isExpanded && h(
+      (taskRequests.length > 0 || taskUnknownExecs.length > 0 || pendingTask || canUnblock || task.state === "review" && task.result) && h(
+        "section",
+        {
+          className: "concerto-inspector-actions",
+          "aria-label": "\u4EFB\u52A1\u64CD\u4F5C"
+        },
+        taskRequests.map((req) => h(RequestCard, {
+          key: req.requestId,
+          item: req,
+          bare: true,
+          disabled: !canAct,
+          onAnswer: (it2, ans) => command("/requests/respond", { requestId: it2.requestId, answer: ans })
+        })),
+        taskUnknownExecs.map((exec) => h(AdjudicationCard, {
+          key: exec.executionId,
+          execution: exec,
+          bare: true,
+          disabled: !canAct,
+          onSubmit: (input) => command("/executions/adjudicate", input)
+        })),
+        pendingTask && !task.raceGroup && members.filter((m) => m.roleKind === "worker").length >= 2 && h(RaceLauncherBar, {
+          sessionId,
+          taskId: task.taskId,
+          workers: members.filter((m) => m.roleKind === "worker"),
+          disabled: !canAct || planBlocksDispatch || dispatchPaused,
+          onStarted: () => refresh()
+        }),
+        canUnblock && h(UnblockTaskForm, {
+          key: task.taskId,
+          task,
+          disabled: !canAct,
+          onSubmit: (input) => command("/tasks/unblock", input)
+        }),
+        pendingTask && task.worktreeWarning && h(
+          "section",
+          {
+            className: "concerto-acc-box",
+            role: "status",
+            "aria-label": "\u5DE5\u4F5C\u533A\u672A\u63D0\u4EA4\u53D8\u66F4\u63D0\u793A",
+            style: { width: "100%", fontSize: "var(--cc-fs-caption)", borderColor: "var(--cc-state-attention)" }
+          },
+          h(
+            "div",
+            { style: { fontWeight: "var(--cc-fw-strong)", color: "var(--cc-state-attention)", marginBottom: 4 } },
+            `\u6E90 Git \u5DE5\u4F5C\u533A\u5B58\u5728\u672A\u63D0\u4EA4/\u672A\u8DDF\u8E2A\u53D8\u66F4\uFF08\u5DF2\u6682\u5B58 ${task.worktreeWarning.stagedCount ?? 0} \xB7 \u5DF2\u4FEE\u6539 ${task.worktreeWarning.unstagedCount ?? 0} \xB7 \u672A\u8DDF\u8E2A ${task.worktreeWarning.untrackedCount ?? 0}\uFF09`
+          ),
+          h(
+            "div",
+            { style: { color: "var(--cc-text-secondary)", marginBottom: 6, overflowWrap: "anywhere" } },
+            task.worktreeWarning.detail
+          ),
+          Array.isArray(task.worktreeWarning.dirtyFiles) && task.worktreeWarning.dirtyFiles.length > 0 && h(
+            "div",
+            { style: { color: "var(--cc-text-muted)", marginBottom: 6, overflowWrap: "anywhere" } },
+            "\u6D89\u53CA\u6587\u4EF6\uFF1A",
+            h("code", null, task.worktreeWarning.dirtyFiles.slice(0, 6).map((f) => f.path).join("\u3001") + ((task.worktreeWarning.totalDirtyCount || 0) > 6 ? ` \u7B49 ${task.worktreeWarning.totalDirtyCount} \u9879` : ""))
+          ),
+          h(
+            "div",
+            { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+            h("button", {
+              type: "button",
+              className: "concerto-btn concerto-btn--primary",
+              disabled: !canAct || dispatchPaused || planBlocksDispatch || Boolean(task.dispatchBudget?.blockedReason) || active.length > 0 || unknownExecs.length > 0,
+              onClick: () => command("/tasks/dispatch", { taskId: task.taskId, worktreeMode: "isolated_clean", callerKind: "ui" })
+            }, "\u6309\u5E72\u51C0 Worktree \u6D3E\u53D1\uFF08\u4E0D\u590D\u5236\u672A\u63D0\u4EA4\u6587\u4EF6\uFF09"),
+            h("button", {
+              type: "button",
+              className: "concerto-btn",
+              disabled: !canAct || dispatchPaused || planBlocksDispatch || Boolean(task.dispatchBudget?.blockedReason) || active.length > 0 || unknownExecs.length > 0,
+              onClick: () => command("/tasks/dispatch", { taskId: task.taskId, worktreeMode: "shared", callerKind: "ui" })
+            }, "\u6539\u7528\u5171\u4EAB\u76EE\u5F55\u987A\u5E8F\u6D3E\u53D1")
+          )
+        ),
+        pendingTask && h("button", {
+          type: "button",
+          className: "concerto-btn",
+          disabled: !canAct || taskUnknownExecs.length > 0,
+          onClick: () => command("/tasks/cancel", { taskId: task.taskId })
+        }, "\u53D6\u6D88\u5F85\u6D3E\u4EFB\u52A1"),
+        pendingTask && h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--primary",
+          disabled: !canAct || dispatchPaused || planBlocksDispatch || Boolean(task.dispatchBudget?.blockedReason) || active.length > 0 || unknownExecs.length > 0,
+          onClick: () => command("/tasks/dispatch", { taskId: task.taskId, callerKind: "ui" })
+        }, "\u6D3E\u53D1\u4EFB\u52A1"),
+        task.state === "review" && task.result && !task.reviewPolicy?.requiresReview && h("p", {
+          className: "concerto-field-hint",
+          style: { margin: "0 0 6px" }
+        }, "\u666E\u901A\u4EFB\u52A1\u7531\u6307\u6325\u8005\u81EA\u52A8\u6838\u9A8C\u95ED\u73AF\uFF0C\u65E0\u9700\u624B\u52A8\u64CD\u4F5C\uFF08\u4F60\u4E5F\u53EF\u5728\u6B64\u76F4\u63A5\u4EBA\u5DE5\u786E\u8BA4\uFF09\uFF1A"),
+        task.state === "review" && task.result && h(ReviewCard, {
+          task,
+          bare: true,
+          disabled: !canAct || !execSettled,
+          onReview: (tk, verdict, reason) => command("/tasks/review", {
+            taskId: tk.taskId,
+            executionId: tk.executionId,
+            resultId: tk.result.resultId,
+            verdict,
+            reason,
+            evidenceRefs: tk.result.artifactRefs ?? []
+          })
+        })
+      ),
+      h(
         "div",
-        { style: { marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--cc-border-subtle)" } },
+        { className: "concerto-task-inspector-body", style: { marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--cc-border-subtle)" } },
+        task.dispatchBudget && h(
+          "div",
+          { style: { ...styles.muted, marginBottom: 8 } },
+          `\u6267\u884C ${task.dispatchBudget.attempts} / ${dispatchLimits.maxAttempts ?? "\u4E0D\u9650"} \xB7 \u8FD4\u5DE5 ${task.dispatchBudget.reworks} / ${dispatchLimits.maxReworks ?? "\u4E0D\u9650"}`,
+          task.dispatchBudget.blockedReason && info.roleKind === "commander" && h("button", {
+            type: "button",
+            className: "concerto-link",
+            disabled: !canAct,
+            onClick: openRunLimits
+          }, "\u8C03\u6574\u672C\u6B21\u8FD0\u884C\u7684\u4E0A\u9650")
+        ),
         h(
           "div",
           { className: "concerto-acc-cols" },
@@ -9136,6 +13486,52 @@ function ConcertoTeamView({ sessionId, openView }) {
               { style: { fontSize: "var(--cc-fs-caption)", marginBottom: 6, overflowWrap: "anywhere" } },
               h("strong", null, "\u5199\u5165\u8303\u56F4\uFF1A"),
               h("code", null, task.writeScope)
+            ),
+            task.worktree && h(WorktreeActionBar, {
+              sessionId,
+              taskId: task.taskId,
+              worktree: task.worktree,
+              disabled: !canAct
+            }),
+            task.lastVerification && h(
+              "div",
+              {
+                className: "concerto-acc-box",
+                "data-concerto-verification-gate": task.lastVerification.ok ? "passed" : "failed",
+                style: {
+                  marginBottom: 6,
+                  padding: "6px 8px",
+                  fontSize: "var(--cc-fs-caption)",
+                  borderColor: task.lastVerification.ok ? "var(--cc-state-done)" : "var(--cc-state-blocked)"
+                }
+              },
+              h(
+                "div",
+                { style: { fontWeight: "var(--cc-fw-strong)", color: task.lastVerification.ok ? "var(--cc-state-done)" : "var(--cc-state-blocked)" } },
+                task.lastVerification.ok ? `\u2705 \u81EA\u52A8\u9A8C\u8BC1\u95E8\u7981\u901A\u8FC7\uFF08exit 0 \xB7 ${task.lastVerification.durationMs ?? 0}ms\uFF09` : `\u274C \u81EA\u52A8\u9A8C\u8BC1\u95E8\u7981\u672A\u901A\u8FC7\uFF08exit ${task.lastVerification.exitCode ?? "?"} \xB7 ${task.lastVerification.durationMs ?? 0}ms\uFF09`
+              ),
+              h(
+                "div",
+                { style: { color: "var(--cc-text-secondary)", marginTop: 2 } },
+                "\u547D\u4EE4\uFF1A",
+                h("code", null, task.lastVerification.command)
+              ),
+              task.lastVerification.output && h(
+                "details",
+                { style: { marginTop: 4 } },
+                h("summary", { style: { cursor: "pointer", color: "var(--cc-text-muted)" } }, "\u67E5\u770B\u9A8C\u8BC1\u65E5\u5FD7\u8F93\u51FA"),
+                h(
+                  "pre",
+                  { style: { margin: "4px 0 0", padding: 6, maxHeight: 180, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", background: "var(--cc-card-nested-bg)", borderRadius: "var(--cc-radius-ctrl)" } },
+                  task.lastVerification.output
+                )
+              )
+            ),
+            !task.worktree && task.worktreeFallback && h(
+              "div",
+              { style: { fontSize: "var(--cc-fs-caption)", marginBottom: 6, overflowWrap: "anywhere", color: "var(--cc-text-muted)" } },
+              h("strong", null, "\u5DE5\u4F5C\u533A\u6A21\u5F0F\uFF1A"),
+              `\u5171\u4EAB\u76EE\u5F55\u987A\u5E8F\u6267\u884C\uFF08\u672A\u542F\u7528 Git Worktree \u57FA\u7EBF \xB7 ${task.worktreeFallback.reason}\uFF09`
             ),
             Array.isArray(task.acceptance) && task.acceptance.length > 0 && h(
               "div",
@@ -9222,72 +13618,272 @@ function ConcertoTeamView({ sessionId, openView }) {
               onViewAllArtifacts: () => changeTab("artifacts"),
               isLight
             })
-          )
+          ),
+          Array.isArray(task.result.artifactRefs) && (() => {
+            const fileRefs = task.result.artifactRefs.filter((r) => typeof r === "string" && r.trim() && !/^(table|checklist|mindmap|diagram|board|html):|^event-|^view-/i.test(r.trim()));
+            if (fileRefs.length === 0) return null;
+            return h(
+              "div",
+              { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" } },
+              h("span", { className: "concerto-group-label" }, "\u4EA4\u4ED8\u6587\u4EF6\u9884\u89C8\uFF1A"),
+              fileRefs.map((ref) => h("button", {
+                key: ref,
+                type: "button",
+                className: "concerto-chip",
+                "data-concerto-file-preview": ref,
+                onClick: () => openFilePreview(ref, task.taskId)
+              }, `\u{1F4C4} ${ref}`))
+            );
+          })()
         ),
         task.review && h(
-          "p",
+          "div",
           { style: { marginTop: 6, fontSize: "var(--cc-fs-meta)" } },
-          h("strong", null, "\u5BA1\u67E5\u7ED3\u8BBA\uFF1A"),
-          label(task.review.verdict) + (task.review.reason ? " \xB7 " + task.review.reason : "")
+          h(
+            "p",
+            { style: { margin: 0 } },
+            h("strong", null, "\u5BA1\u67E5\u7ED3\u8BBA\uFF1A"),
+            label(task.review.verdict),
+            task.review.reviewId ? ` (${task.review.reviewId})` : "",
+            task.review.actor?.id ? ` \xB7 \u5BA1\u67E5\u8005 ${task.review.actor.id}` : "",
+            task.review.reason ? " \xB7 " + task.review.reason : ""
+          ),
+          Array.isArray(task.review.pinnedObjectVersions) && task.review.pinnedObjectVersions.length > 0 && h(
+            "div",
+            { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6, alignItems: "center" } },
+            h("span", { className: "concerto-group-label" }, "\u56FA\u5B9A\u8BC1\u636E\u7248\u672C\uFF1A"),
+            task.review.pinnedObjectVersions.map((pv) => h("button", {
+              key: `pin-${pv.id}-v${pv.version}`,
+              type: "button",
+              className: "concerto-chip",
+              "data-concerto-pinned-evidence": `${pv.id}@v${pv.version}`,
+              title: `\u67E5\u770B\u5BA1\u67E5\u65F6\u523B\u56FA\u5B9A\u7684 ${pv.type}:${pv.id} v${pv.version}`,
+              onClick: () => openArtifactVersion(pv.id, pv.version, `${pv.type}:${pv.id}@v${pv.version}`)
+            }, `${pv.title || pv.id} `, h("span", { className: "concerto-id" }, `v${pv.version} (\u56FA\u5B9A)`), h(UiIcon, { name: "expand" })))
+          )
         ),
+        h(SharedAcceptanceChecklist, {
+          key: task.taskId,
+          task,
+          taskObjects,
+          canWrite: info.roleKind === "commander",
+          disabled: !canAct,
+          onSave: (input, onError) => command("/view-objects/acceptance-checklist", input, onError),
+          onOpenVersion: openArtifactVersion
+        }),
+        h(TaskReviewFeedback, {
+          key: `${task.taskId}:${task.result?.resultId ?? task.executionId ?? ""}`,
+          task,
+          taskObjects,
+          executions,
+          canWrite: info.roleKind === "commander",
+          disabled: !canAct,
+          onSave: (input, onError) => command("/tasks/review-feedback", input, onError),
+          onOpenVersion: openArtifactVersion
+        }),
         taskObjects.length > 0 && h(
           "div",
           { style: { marginTop: 10 } },
           h(
             "div",
             { className: "concerto-group-label", style: { marginBottom: 6 } },
-            "\u5173\u8054\u4EA7\u7269\uFF08\u70B9\u51FB\u524D\u5F80\u6210\u679C\u9875\u7B7E\u67E5\u770B\uFF09"
+            "\u5173\u8054\u4EA7\u7269\uFF08\u70B9\u51FB\u524D\u5F80\u6210\u679C\u9875\u7B7E\u67E5\u770B\u5F53\u524D\u7248\u672C\uFF09"
           ),
           h(
             "div",
             { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
-            taskObjects.map((obj) => h("button", {
-              key: "pill-" + obj.id,
-              type: "button",
-              className: "concerto-chip",
-              "data-concerto-object-id": obj.id,
-              "data-concerto-object-version": obj.version,
-              title: `${obj.type}:${obj.id}`,
-              onClick: () => jumpToStageObject(obj)
-            }, `${obj.title || obj.id} `, h("span", { className: "concerto-id" }, `v${obj.version}`), " \u203A"))
-          )
-        ),
-        (task.state === "pending" || task.state === "review") && h(
-          "div",
-          { style: { marginTop: 10 } },
-          task.state === "pending" && h("button", {
-            type: "button",
-            className: "concerto-btn concerto-btn--primary",
-            disabled: !canAct || active.length > 0 || unknownExecs.length > 0,
-            onClick: () => command("/tasks/dispatch", { taskId: task.taskId, callerKind: "ui" })
-          }, "\u6D3E\u53D1\u4EFB\u52A1"),
-          task.state === "review" && task.result && h(ReviewCard, {
-            task,
-            bare: true,
-            disabled: !canAct || !execSettled,
-            onReview: (tk, verdict, reason) => command("/tasks/review", {
-              taskId: tk.taskId,
-              executionId: tk.executionId,
-              resultId: tk.result.resultId,
-              verdict,
-              reason
+            taskObjects.map((obj) => {
+              const roleTag = obj.layer === "review" || obj.roleKind === "reviewer" ? "\u5BA1\u67E5" : "\u4EFB\u52A1";
+              return h("button", {
+                key: "pill-" + obj.id,
+                type: "button",
+                className: "concerto-chip",
+                "data-concerto-object-id": obj.id,
+                "data-concerto-object-version": obj.version,
+                title: `${obj.type}:${obj.id} \xB7 \u4F5C\u8005 ${obj.authorId || "\u672A\u77E5"}`,
+                onClick: () => jumpToStageObject(obj)
+              }, `[${roleTag}] ${obj.title || obj.id} \xB7 ${obj.authorId || ""} `, h("span", { className: "concerto-id" }, `v${obj.version}`), " \u203A");
             })
-          })
+          )
         )
       )
     );
   }
+  function renderHeroStatus() {
+    const connection = error ? compact ? "\u8FDE\u63A5\u4E2D\u65AD" : "\u8FDE\u63A5\u4E2D\u65AD \xB7 \u4FDD\u7559\u4E0A\u6B21\u5FEB\u7167" : "\u5B9E\u65F6\u540C\u6B65";
+    return h("span", {
+      className: "concerto-live-dot",
+      "data-offline": error ? "true" : void 0,
+      role: "status",
+      title: "\u6700\u540E\u540C\u6B65\uFF1A" + new Date(snapshot.serverTime).toLocaleString()
+    }, connection, dispatchPaused && " \xB7 \u6D3E\u53D1\u5DF2\u6682\u505C");
+  }
+  function renderPlanConfirmation() {
+    if (!planGate?.planRef || snapshot.goalCompletion) return null;
+    const { planRef, proposalId, status, commanderWake } = planGate;
+    const label2 = `${planRef.title} v${planRef.version}`;
+    const message = status === "pending" ? "\u7B49\u5F85\u786E\u8BA4\u5F00\u5DE5" : status === "stale" ? "\u8BA1\u5212\u5DF2\u66F4\u65B0\uFF0C\u7B49\u5F85\u6307\u6325\u8005\u63D0\u4EA4\u65B0\u7248\u672C" : commanderWake === "accepted" ? "\u5DF2\u786E\u8BA4\u5F00\u5DE5\uFF0C\u7EED\u63A5\u6D88\u606F\u5DF2\u63D0\u4EA4" : commanderWake === "manual" ? "\u5DF2\u786E\u8BA4\u5F00\u5DE5\uFF0C\u8BF7\u5728\u5BF9\u8BDD\u4E2D\u624B\u52A8\u7EE7\u7EED" : "\u5DF2\u786E\u8BA4\u5F00\u5DE5";
+    return h(
+      "section",
+      { className: "concerto-feedback concerto-plan-confirmation", "data-state": status, "aria-label": "\u5F00\u5DE5\u8BA1\u5212" },
+      h("span", { role: "status" }, h("strong", null, label2), " \xB7 ", message),
+      h(
+        "div",
+        { className: "concerto-plan-actions" },
+        h("button", {
+          type: "button",
+          className: "concerto-btn",
+          onClick: () => openArtifactVersion(planRef.id, planRef.version, label2, "\u5F00\u5DE5\u8BA1\u5212")
+        }, `\u67E5\u770B\u8BA1\u5212 v${planRef.version}`),
+        status === "pending" && info.roleKind === "commander" && h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--primary",
+          disabled: !canAct,
+          onClick: () => command("/runs/approve-plan", { proposalId })
+        }, `\u786E\u8BA4\u5F00\u5DE5 v${planRef.version}`),
+        status === "approved" && openView && h("button", {
+          type: "button",
+          className: "concerto-btn",
+          onClick: () => openView("chat")
+        }, commanderWake === "accepted" ? "\u67E5\u770B\u6307\u6325\u8005\u5BF9\u8BDD" : "\u56DE\u5230\u5BF9\u8BDD\u7EE7\u7EED")
+      )
+    );
+  }
+  function renderHeroActionsMenu() {
+    return h(
+      "details",
+      { className: "concerto-hero-actions-menu" },
+      h("summary", { className: "concerto-btn concerto-btn--ghost concerto-btn--icon", "aria-label": "\u66F4\u591A\u56E2\u961F\u64CD\u4F5C", title: "\u66F4\u591A\u56E2\u961F\u64CD\u4F5C" }, "\u22EF"),
+      h(
+        "div",
+        { className: "concerto-hero-menu-list" },
+        h("span", { className: "concerto-tag concerto-id", title: "\u8BA1\u5212\u4FEE\u8BA2\u7248\u672C" }, `plan v${snapshot.planRevision}`),
+        info.roleKind === "commander" && h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          disabled: !canAct,
+          onClick: (event) => {
+            const menu = event.currentTarget.closest("details");
+            menu.open = false;
+            menu.querySelector("summary").focus();
+            command("/runs/halt", { paused: !dispatchPaused });
+          }
+        }, dispatchPaused ? "\u6062\u590D\u6D3E\u53D1" : "\u6682\u505C\u6D3E\u53D1"),
+        info.roleKind === "commander" && h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          disabled: !canAct,
+          onClick: (event) => {
+            const menu = event.currentTarget.closest("details");
+            menu.open = false;
+            menu.querySelector("summary").focus();
+            openRunLimits();
+          }
+        }, "\u6D3E\u53D1\u6B21\u6570\u9650\u5236"),
+        h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          onClick: (event) => {
+            event.currentTarget.closest("details")?.removeAttribute("open");
+            setMemoryOpen(true);
+          }
+        }, `\u{1F9E0} \u56E2\u961F\u8BB0\u5FC6${snapshot.memoryCount > 0 ? ` (${snapshot.memoryCount})` : ""}`),
+        h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          onClick: (event) => {
+            event.currentTarget.closest("details")?.removeAttribute("open");
+            openCloseoutReport();
+          }
+        }, "\u{1F4CB} \u5BFC\u51FA\u4EA4\u4ED8\u590D\u76D8\u5355"),
+        h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          onClick: (event) => {
+            event.currentTarget.closest("details")?.removeAttribute("open");
+            refresh();
+          }
+        }, h(UiIcon, { name: "refresh" }), "\u5237\u65B0\u5FEB\u7167"),
+        openView && h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          onClick: (event) => {
+            event.currentTarget.closest("details")?.removeAttribute("open");
+            openView("chat");
+          }
+        }, "\u67E5\u770B\u5BF9\u8BDD")
+      )
+    );
+  }
+  function renderPrimaryTabs(className = "") {
+    return h(
+      "div",
+      { className: `concerto-tabbar ${className}`.trim() },
+      h(TabList, { id: tabsId, label: "\u56E2\u961F\u5DE5\u4F5C\u533A\u5BFC\u822A", value: activeTab, onChange: changeTab, tabs: [
+        { value: "overview", label: "\u6982\u89C8" },
+        { value: "tasks", label: "\u4EFB\u52A1", count: tasks.length, attentionCount: taskAttentionCount },
+        { value: "artifacts", label: "\u6210\u679C", count: viewObjects.length }
+      ] })
+    );
+  }
+  function renderAttentionControl() {
+    if (actionableCount === 0) {
+      return h("span", {
+        className: "concerto-quiet",
+        "data-has-pending": "false",
+        "data-concerto-pending-badge": "true"
+      }, h(UiIcon, { name: "check" }), " \u65E0\u5F85\u5904\u7406");
+    }
+    return h(AttentionPopover, {
+      open: attentionOpen && actionableCount > 0,
+      onClose: closeAttention,
+      count: actionableCount,
+      trigger: h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--attn concerto-num",
+        "data-has-pending": "true",
+        "data-concerto-pending-badge": "true",
+        onClick: () => setAttentionOpen((open) => !open)
+      }, `\u5F85\u5904\u7406 ${actionableCount}`, h("span", { className: "concerto-pending-unit" }, "\u9879"))
+    }, h(AttentionContent, {
+      attentionItems,
+      blockingMissing,
+      pending,
+      unknownExecs,
+      tasks,
+      executions,
+      canAct,
+      command,
+      jumpToTask,
+      openMemberDrawer
+    }));
+  }
   function renderBentoGroup(items, keyPrefix) {
-    const spans = balanceBentoSpans(items.map((item) => item.effSize));
+    const preserveSize = [];
+    const sizes = items.map((item, idx) => {
+      const obj = item.cardProps.object;
+      const renderer = item.cardProps.rendererOverride || obj?.renderer || DEFAULT_RENDERER[obj?.type];
+      const graph = renderer === "markmap" || renderer === "svg";
+      const preferred = obj && graph ? preferredRendererSize(obj, renderer, { fontSize: hostTheme.fontSize }) : "";
+      preserveSize[idx] = Boolean(preferred);
+      return preferred || (graph ? "l" : item.effSize);
+    });
+    const spans = balanceBentoSpans(sizes, preserveSize);
     return h(
       "div",
       { className: "concerto-bento-grid" },
       items.map((item, idx) => h("div", {
         key: keyPrefix + ":" + item.key,
         className: "concerto-bento-item",
-        "data-size": item.effSize,
+        "data-size": sizes[idx],
         style: { "--cc-span": String(spans[idx]) }
-      }, h(StructuredObjectCard, item.cardProps)))
+      }, h(StructuredObjectCard, {
+        ...item.cardProps,
+        sizeHint: sizes[idx],
+        pinBusy: Boolean(pinningRef),
+        isApprovedPlan: Boolean(planGate?.planRef?.id && item.cardProps.object?.id === planGate.planRef.id && planGate.status === "approved"),
+        goalCompleted: snapshot.goalCompletion?.state === "completed"
+      })))
     );
   }
   return h(
@@ -9295,8 +13891,13 @@ function ConcertoTeamView({ sessionId, openView }) {
     {
       ref: containerRef,
       onScroll: handleContainerScroll,
+      onPointerDown: (event) => {
+        if (event.target.closest(".concerto-hero-actions-menu")) return;
+        event.currentTarget.querySelectorAll(".concerto-hero-actions-menu[open]").forEach((menu) => menu.removeAttribute("open"));
+      },
       className: "concerto-surface concerto-team-view",
       "data-concerto-team-view": "true",
+      "data-conversation-composer-overlay": "",
       "data-concerto-theme": effectiveTheme,
       style: hostTheme.cssVars,
       "aria-label": "Concerto \u56E2\u961F\u4E3B\u9875"
@@ -9305,130 +13906,149 @@ function ConcertoTeamView({ sessionId, openView }) {
     h(
       "header",
       { className: "concerto-hero", "data-concerto-section": "header", "data-compact": compact ? "true" : void 0 },
-      h(
-        "div",
-        { className: "concerto-hero-top" },
+      !compact && h(
+        import_react20.default.Fragment,
+        null,
         h(
           "div",
-          { style: { minWidth: 0, flex: "1 1 260px" } },
+          { className: "concerto-hero-top" },
           h(
             "div",
-            { className: "concerto-hero-title" },
-            h("span", null, info.teamName),
-            h("span", { className: "concerto-badge concerto-id", title: "\u8BA1\u5212\u4FEE\u8BA2\u7248\u672C" }, `plan v${snapshot.planRevision}`),
-            h("span", {
-              className: "concerto-live-dot",
-              "data-offline": error ? "true" : void 0,
-              title: "\u8BA1\u5212\u7B2C " + snapshot.planRevision + " \u7248"
-            }, error ? "\u8FDE\u63A5\u4E2D\u65AD \xB7 \u4FDD\u7559\u4E0A\u6B21\u5FEB\u7167" : "\u5B9E\u65F6\u540C\u6B65 \xB7 " + new Date(snapshot.serverTime).toLocaleTimeString())
+            { className: "concerto-hero-heading" },
+            h(
+              "div",
+              { className: "concerto-hero-title" },
+              h("h2", { title: info.teamName }, info.teamName),
+              renderHeroStatus()
+            ),
+            teamGoal && h("p", { className: "concerto-hero-goal", title: teamGoal }, teamGoal)
           ),
-          teamGoal && h("p", { className: "concerto-hero-goal", title: teamGoal }, "\u76EE\u6807\uFF1A" + teamGoal)
+          h(
+            "div",
+            { className: "concerto-hero-actions" },
+            renderAttentionControl(),
+            renderHeroActionsMenu()
+          )
+        ),
+        stats.total > 0 && h(
+          "div",
+          { className: "concerto-hero-status" },
+          h(
+            "div",
+            { className: "concerto-progress-wrap" },
+            h(
+              "div",
+              { className: "concerto-progress-bar", role: "progressbar", "aria-label": "\u56E2\u961F\u4EFB\u52A1\u603B\u4F53\u8FDB\u5EA6", "aria-valuemin": 0, "aria-valuemax": stats.total, "aria-valuenow": stats.done, "aria-valuetext": `\u5DF2\u5B8C\u6210 ${stats.done} / ${stats.total} \u9879` },
+              stats.donePct > 0 && h("div", { className: "concerto-seg-done", style: { width: stats.donePct + "%" } }),
+              stats.reviewPct > 0 && h("div", { className: "concerto-seg-review", style: { width: stats.reviewPct + "%" } }),
+              stats.runPct > 0 && h("div", { className: "concerto-seg-run", style: { width: stats.runPct + "%" } }),
+              stats.blockPct > 0 && h("div", { className: "concerto-seg-block", style: { width: stats.blockPct + "%" } })
+            ),
+            h(
+              "span",
+              { className: "concerto-progress-label concerto-num" },
+              "\u5DF2\u5B8C\u6210 ",
+              h("span", { className: "concerto-kpi-accent" }, `${stats.done}/${stats.total}`)
+            )
+          ),
+          h(
+            "ul",
+            { className: "concerto-hero-legend", "aria-label": "\u4EFB\u52A1\u72B6\u6001\u56FE\u4F8B" },
+            [
+              ["done", "\u5B8C\u6210", stats.done],
+              ["running", "\u8FDB\u884C\u4E2D", stats.run],
+              ["review", "\u5F85\u9A8C\u6536", stats.review],
+              ["blocked", "\u963B\u585E", stats.block],
+              ["pending", "\u5F85\u6D3E\u53D1", stats.pending]
+            ].filter(([, , count]) => count > 0).map(([status, text, count]) => h("li", {
+              key: status,
+              className: "concerto-legend-item",
+              "data-status": status
+            }, text, " ", h("b", null, String(count))))
+          )
+        ),
+        // 实时演奏乐团舞台（指挥者居中 + 点对点协作光脉 + 验收通过轻跳）
+        h(LiveOrchestraStage, {
+          members,
+          snapshot,
+          tasks,
+          pending,
+          capByMemberId,
+          selectedMemberId: drawerState.memberId,
+          onOpenMember: (mid) => openMemberDrawer(mid, "messages")
+        }),
+        renderPrimaryTabs()
+      ),
+      compact && h(
+        "div",
+        { className: "concerto-hero-compact" },
+        h(
+          "div",
+          { className: "concerto-hero-compact-title" },
+          h("strong", { title: info.teamName }, info.teamName),
+          renderHeroStatus()
         ),
         h(
           "div",
-          { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
-          actionableCount > 0 ? h("button", {
-            type: "button",
-            className: "concerto-btn concerto-btn--attn concerto-num",
-            "data-has-pending": "true",
-            "data-concerto-pending-badge": "true",
-            onClick: jumpToAttention
-          }, `\u5F85\u5904\u7406 ${actionableCount} \u9879`) : h("span", {
-            className: "concerto-quiet",
-            "data-has-pending": "false",
-            "data-concerto-pending-badge": "true"
-          }, "\u2713 \u65E0\u5F85\u5904\u7406"),
-          h("button", {
-            type: "button",
-            className: "concerto-btn concerto-btn--icon",
-            "aria-label": "\u5237\u65B0",
-            title: "\u5237\u65B0\u5FEB\u7167",
-            onClick: refresh
-          }, "\u27F3"),
-          openView && h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => openView("chat") }, "\u67E5\u770B\u5BF9\u8BDD")
+          { className: "concerto-hero-compact-actions" },
+          renderPrimaryTabs("concerto-compact-tabbar"),
+          renderAttentionControl(),
+          renderHeroActionsMenu(),
+          h(
+            "div",
+            { className: "concerto-compact-roster", "data-concerto-section": "roster", "aria-label": "\u4E50\u56E2\u6210\u5458" },
+            members.map((member) => h("button", {
+              key: member.id,
+              type: "button",
+              className: "concerto-compact-member",
+              "aria-label": `\u67E5\u770B\u6210\u5458 ${member.id}`,
+              "aria-pressed": drawerState.memberId === member.id,
+              title: member.id,
+              onClick: () => openMemberDrawer(member.id, "messages")
+            }, h(MemberGlyph, { member, state: memberState(snapshot, member), size: 24 })))
+          )
         )
       ),
-      stats.total > 0 && h(
+      actionError && h("p", { role: "alert", className: "concerto-field-error" }, actionError),
+      renderPlanConfirmation(),
+      snapshot?.goalCompletion && h(CloseoutReportBar, {
+        sessionId,
+        goalCompletion: snapshot.goalCompletion,
+        onPreview: openCloseoutReport
+      }),
+      ["api", "external"].includes(snapshot?.metadata?.commander?.source) ? h(NonHostedCommanderBar, {
+        sessionId,
+        commander: snapshot.metadata.commander,
+        disabled: !canAct,
+        onSent: () => refresh()
+      }) : !snapshot?.goalCompletion && h(LiveSuggestionBar, {
+        sessionId,
+        disabled: !canAct,
+        onSent: () => refresh()
+      }),
+      pinningRef && h("p", { role: "status", className: "concerto-quiet" }, "\u6B63\u5728\u4FDD\u5B58\u7F6E\u9876\u2026"),
+      pinFailure && h(
         "div",
-        { className: "concerto-progress-wrap" },
-        h(
-          "div",
-          { className: "concerto-progress-bar", "aria-label": "\u56E2\u961F\u4EFB\u52A1\u603B\u4F53\u8FDB\u5EA6" },
-          stats.donePct > 0 && h("div", { className: "concerto-seg-done", style: { width: stats.donePct + "%" } }),
-          stats.reviewPct > 0 && h("div", { className: "concerto-seg-review", style: { width: stats.reviewPct + "%" } }),
-          stats.runPct > 0 && h("div", { className: "concerto-seg-run", style: { width: stats.runPct + "%" } }),
-          stats.blockPct > 0 && h("div", { className: "concerto-seg-block", style: { width: stats.blockPct + "%" } })
-        ),
-        h(
-          "span",
-          { className: "concerto-num", style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)" } },
-          "\u5DF2\u5B8C\u6210 ",
-          h("span", { className: "concerto-kpi-accent" }, `${stats.done}/${stats.total}`),
-          ` (${Math.round(stats.donePct)}%)`,
-          (stats.review ? ` \xB7 \u5F85\u9A8C\u6536 ${stats.review}` : "") + (stats.run ? ` \xB7 \u8FDB\u884C\u4E2D ${stats.run}` : "") + (stats.block ? ` \xB7 \u5F02\u5E38 ${stats.block}` : "")
-        )
-      ),
-      // 常驻成员小精灵条（单行横向滚动，不折行）
-      h(
-        "div",
-        { className: "concerto-roster-strip", "data-concerto-section": "roster", "aria-label": "\u4E50\u56E2\u6210\u5458" },
-        members.map((member) => {
-          const st2 = memberState(snapshot, member);
-          const count = pending.filter((r) => r.memberId === member.id).length;
-          const capInfo = capByMemberId.get(member.id);
-          const capBadge = capInfo ? formatCapabilitySummary(capInfo).badge : "";
-          const actLine = deriveMemberActivity(member, snapshot) || capBadge;
-          return h(MemberSprite, {
-            key: member.id,
-            member,
-            state: st2,
-            activityLine: actLine,
-            count,
-            selected: drawerState.memberId === member.id,
-            onClick: () => openMemberDrawer(member.id, "messages")
-          });
-        })
-      ),
-      // 下划线主导航页签
-      h(
-        "div",
-        { className: "concerto-tabbar" },
-        h(
-          "div",
-          { className: "concerto-tabs", role: "tablist", "aria-label": "\u56E2\u961F\u5DE5\u4F5C\u533A\u5BFC\u822A" },
-          h("button", {
-            type: "button",
-            role: "tab",
-            className: "concerto-tab-btn",
-            "data-concerto-tab": "overview",
-            "aria-selected": activeTab === "overview",
-            onClick: () => changeTab("overview")
-          }, "\u6982\u89C8"),
-          h("button", {
-            type: "button",
-            role: "tab",
-            className: "concerto-tab-btn",
-            "data-concerto-tab": "tasks",
-            "aria-selected": activeTab === "tasks",
-            onClick: () => changeTab("tasks")
-          }, "\u4EFB\u52A1", renderCountTag(tasks.length)),
-          h("button", {
-            type: "button",
-            role: "tab",
-            className: "concerto-tab-btn",
-            "data-concerto-tab": "artifacts",
-            "aria-selected": activeTab === "artifacts",
-            onClick: () => changeTab("artifacts")
-          }, "\u6210\u679C", renderCountTag(viewObjects.length))
-        ),
-        actionError && h("p", { role: "alert", style: { ...styles.error, margin: 0 } }, actionError)
+        { role: "alert", className: "concerto-feedback" },
+        h("span", null, pinFailure.message),
+        h("button", { type: "button", className: "concerto-btn", onClick: () => handleTogglePin(pinFailure.object, pinFailure.desiredPinned) }, "\u91CD\u8BD5\u4FDD\u5B58")
       )
     ),
     // ② 概览页签
     activeTab === "overview" && h(
       "div",
-      { style: { display: "flex", flexDirection: "column", gap: "var(--cc-space-6)" }, "data-concerto-tabpanel": "overview" },
-      unreadyCaps.length > 0 && h(
+      { ...tabPanelProps(tabsId, "overview"), className: "concerto-tab-content", "data-concerto-tabpanel": "overview" },
+      tasks.filter((t) => t.raceGroup?.role === "parent").map((parentTask) => h(RaceCompareBoard, {
+        key: parentTask.raceGroup.raceId,
+        sessionId,
+        parentTask,
+        tasks,
+        members,
+        disabled: !canAct,
+        onOpenFilePreview: openFilePreview,
+        onPicked: () => refresh()
+      })),
+      stats.total > 0 && unreadyCaps.length > 0 && h(
         "div",
         { className: "concerto-attn-card", "data-concerto-capability-warning": "true" },
         h("strong", null, `\u6210\u5458\u6267\u884C\u80FD\u529B\u5C1A\u672A\u5C31\u7EEA\uFF08${unreadyCaps.length}\uFF09`),
@@ -9438,140 +14058,28 @@ function ConcertoTeamView({ sessionId, openView }) {
           unreadyCaps.map((c) => `${c.memberId}: ${formatCapabilitySummary(c).summary}`).join("\uFF1B") + "\uFF08\u8BF7\u524D\u5F80\u8BBE\u7F6E \u2192 Concerto \u751F\u6210\u5E76\u91CD\u8F7D\u56E2\u961F\uFF09"
         )
       ),
-      // 待处理事项（仅包含审批 / 提问 / 阻塞 / 未知执行 / 待验收 / 阻塞验收的必需视图）
-      actionableCount > 0 && h(
+      stats.total === 0 && !planGate?.planRef && h(
         "section",
-        { "aria-label": "\u5F85\u5904\u7406\u4E8B\u9879", "data-concerto-section": "attention" },
+        { "aria-label": "\u65B0\u56E2\u961F\u5F15\u5BFC", "data-concerto-section": "briefing" },
         h(
           "div",
-          { className: "concerto-section-head" },
+          { className: "concerto-empty-guide" },
+          h("div", { className: "concerto-section-title" }, h("h2", null, "\u4ECE\u7B2C\u4E00\u4E2A\u56E2\u961F\u76EE\u6807\u5F00\u59CB")),
+          h("p", null, info.goal || "\u544A\u8BC9\u6307\u6325\u8005\u4F60\u8981\u5B8C\u6210\u4EC0\u4E48\uFF0C\u56E2\u961F\u4F1A\u62C6\u89E3\u4EFB\u52A1\u3001\u540C\u6B65\u8FDB\u5C55\u5E76\u63D0\u4EA4\u7ED3\u6784\u5316\u6210\u679C\u3002"),
+          h(
+            "p",
+            { className: "concerto-empty-guide-readiness" },
+            `${members.length} \u540D\u6210\u5458 \xB7 ${unreadyCaps.length === 0 ? "\u6267\u884C\u80FD\u529B\u5DF2\u5C31\u7EEA" : `${unreadyCaps.length} \u540D\u6210\u5458\u80FD\u529B\u5C1A\u672A\u5C31\u7EEA`}`
+          ),
           h(
             "div",
-            { className: "concerto-section-title" },
-            h("span", null, "\u5F85\u5904\u7406\u4E8B\u9879"),
-            h("span", { className: "concerto-tag concerto-num" }, String(actionableCount))
-          )
-        ),
-        blockingMissing.length > 0 && h(
-          "div",
-          { className: "concerto-attn-card", "data-concerto-missing-required": "true", style: { marginBottom: attentionItems.length > 0 ? 12 : 0 } },
-          h("strong", null, `\u7F3A\u5C11\u9A8C\u6536\u5FC5\u9700\u89C6\u56FE\uFF08${blockingMissing.length}\uFF09`),
-          h(
-            "div",
-            { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
-            blockingMissing.map((rv) => h(
-              "span",
-              {
-                key: `${rv.taskId || "team"}:${rv.type}:${rv.id}`,
-                className: "concerto-req-view-pill",
-                "data-missing": "true"
-              },
-              h("span", { className: "concerto-id" }, `${rv.type}:${rv.id}`),
-              rv.taskId && h("button", {
-                type: "button",
-                className: "concerto-chip concerto-id",
-                onClick: () => jumpToTask(rv.taskId)
-              }, rv.taskId)
-            ))
-          )
-        ),
-        attentionItems.length > 0 && h(
-          "div",
-          { className: "concerto-attn-grid" },
-          attentionItems.map((item) => {
-            if (item.kind === "request" || item.kind === "approval" || item.kind === "question") {
-              const req = pending.find((r) => r.requestId === item.requestId);
-              if (!req) return null;
-              return h(
-                "div",
-                { key: item.id, className: "concerto-attn-card", "data-kind": item.kind },
-                h(
-                  "div",
-                  { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 } },
-                  h("strong", null, (req.kind === "approval" ? "\u8BF7\u6C42\u6279\u51C6" : "\u5411\u4F60\u63D0\u95EE") + " \xB7 " + (req.memberId || "\u6210\u5458")),
-                  req.taskId && h("span", { className: "concerto-tag concerto-id" }, req.taskId)
-                ),
-                h(RequestCard, {
-                  item: req,
-                  bare: true,
-                  disabled: !canAct,
-                  onAnswer: (it2, ans) => command("/requests/respond", { requestId: it2.requestId, answer: ans })
-                })
-              );
-            }
-            if (item.kind === "unknown") {
-              const exec = unknownExecs.find((e) => e.executionId === item.executionId);
-              if (!exec) return null;
-              return h(
-                "div",
-                { key: item.id, className: "concerto-attn-card", "data-kind": "unknown" },
-                h(
-                  "div",
-                  { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 } },
-                  h("strong", null, "\u9700\u8981\u4F60\u88C1\u51B3 \xB7 " + exec.taskId),
-                  h("button", { type: "button", className: "concerto-link concerto-id", onClick: () => jumpToTask(exec.taskId) }, `\u5B9A\u4F4D ${exec.taskId} \u203A`)
-                ),
-                h(AdjudicationCard, {
-                  execution: exec,
-                  bare: true,
-                  disabled: !canAct,
-                  onSubmit: (input) => command("/executions/adjudicate", input)
-                })
-              );
-            }
-            if (item.kind === "review") {
-              const task = tasks.find((t) => t.taskId === item.taskId);
-              if (!task) return null;
-              const execSettled = executions.some((e) => e.executionId === task.executionId && ["finished", "stopped"].includes(e.state));
-              return h(
-                "div",
-                { key: item.id, className: "concerto-attn-card", "data-kind": "review" },
-                h(
-                  "div",
-                  { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 } },
-                  h("strong", null, "\u5F85\u4F60\u9A8C\u6536 \xB7 " + task.title),
-                  h("button", { type: "button", className: "concerto-link concerto-id", onClick: () => jumpToTask(task.taskId) }, `\u5B9A\u4F4D ${task.taskId} \u203A`)
-                ),
-                task.result?.summary && h("p", { style: { margin: 0, fontSize: "var(--cc-fs-meta)", color: "var(--cc-text-secondary)" } }, task.result.summary),
-                task.result && h(ReviewCard, {
-                  task,
-                  bare: true,
-                  disabled: !canAct || !execSettled,
-                  onReview: (tk, verdict, reason) => command("/tasks/review", {
-                    taskId: tk.taskId,
-                    executionId: tk.executionId,
-                    resultId: tk.result.resultId,
-                    verdict,
-                    reason
-                  })
-                })
-              );
-            }
-            return h(
-              "div",
-              { key: item.id, className: "concerto-attn-card", "data-kind": item.kind || "blocked" },
-              h(
-                "div",
-                { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 } },
-                h("strong", null, item.title),
-                item.taskId && h("button", { type: "button", className: "concerto-link concerto-id", onClick: () => jumpToTask(item.taskId) }, `\u5B9A\u4F4D ${item.taskId} \u203A`)
-              ),
-              item.detail && h("p", { style: { margin: 0, fontSize: "var(--cc-fs-meta)", color: "var(--cc-text-secondary)" } }, item.detail),
-              item.memberId && h(
-                "div",
-                null,
-                h(
-                  "button",
-                  { type: "button", className: "concerto-chip", onClick: () => openMemberDrawer(item.memberId, "messages") },
-                  "\u67E5\u770B " + item.memberId + " \u8BE6\u60C5 \u203A"
-                )
-              )
-            );
-          })
+            { className: "concerto-empty-guide-examples", "aria-label": "\u76EE\u6807\u793A\u4F8B" },
+            ["\u62C6\u89E3\u4E00\u6B21\u7248\u672C\u5347\u7EA7\u5E76\u9A8C\u8BC1\u7ED3\u679C", "\u534F\u8C03\u6210\u5458\u5B8C\u6210\u63A5\u53E3\u5951\u7EA6\u4E0E\u6D4B\u8BD5", "\u6C47\u603B\u98CE\u9669\u3001\u8BC1\u636E\u548C\u4E0B\u4E00\u6B65\u8BA1\u5212"].map((example) => h("span", { key: example, className: "concerto-chip" }, example))
+          ),
+          openView && h("button", { type: "button", className: "concerto-btn concerto-btn--primary", onClick: () => openView("chat") }, "\u524D\u5F80\u5E95\u90E8\u8F93\u5165\u6846\u4E0B\u8FBE\u76EE\u6807")
         )
       ),
-      // 指挥者简报（无多余外框，按有无卡点切换状态强调）
-      h(
+      stats.total > 0 && h(
         "section",
         { "aria-label": "\u6307\u6325\u8005\u7B80\u62A5", "data-concerto-section": "briefing" },
         h(
@@ -9580,22 +14088,27 @@ function ConcertoTeamView({ sessionId, openView }) {
           h(
             "div",
             { className: "concerto-section-title" },
-            h("span", null, "\u6307\u6325\u8005\u7B80\u62A5"),
+            h("h2", null, "\u6307\u6325\u8005\u7B80\u62A5"),
             publicView.updatedBy && h("span", { className: "concerto-tag" }, "\u7531 " + publicView.updatedBy + " \u7EF4\u62A4")
           )
         ),
         h(
           "div",
-          { className: "concerto-briefing-grid" },
+          { className: "concerto-briefing-grid", "data-has-issues": actionableCount > 0 ? "true" : "false" },
           h(
             "div",
             { className: "concerto-briefing-cell" },
-            h("div", { className: "concerto-group-label" }, "\u5F53\u524D\u8FDB\u5C55"),
+            h(
+              "div",
+              { className: "concerto-group-label" },
+              "\u5F53\u524D\u8FDB\u5C55",
+              actionableCount === 0 && h("span", { className: "concerto-state-chip concerto-state-done" }, h(UiIcon, { name: "check", size: 12 }), "\u65E0\u963B\u585E")
+            ),
             h(InlineTextWithRefs, { text: briefing.progress, onJumpObject: jumpToStageObject, viewObjects, onViewAllArtifacts: () => changeTab("artifacts") })
           ),
-          h(
+          actionableCount > 0 && h(
             "div",
-            { className: "concerto-briefing-cell", "data-tone": actionableCount > 0 ? "attention" : "calm" },
+            { className: "concerto-briefing-cell", "data-tone": "attention" },
             h("div", { className: "concerto-group-label" }, "\u5173\u952E\u95EE\u9898"),
             h(InlineTextWithRefs, { text: briefing.issues, onJumpObject: jumpToStageObject, viewObjects, onViewAllArtifacts: () => changeTab("artifacts") })
           ),
@@ -9624,8 +14137,7 @@ function ConcertoTeamView({ sessionId, openView }) {
           })
         )
       ),
-      // 重点任务
-      h(
+      stats.total > 0 && h(
         "section",
         { "aria-label": "\u91CD\u70B9\u4EFB\u52A1", "data-concerto-section": "key-tasks" },
         h(
@@ -9634,7 +14146,7 @@ function ConcertoTeamView({ sessionId, openView }) {
           h(
             "div",
             { className: "concerto-section-title" },
-            h("span", null, "\u91CD\u70B9\u4EFB\u52A1"),
+            h("h2", null, "\u91CD\u70B9\u4EFB\u52A1"),
             renderCountTag(tasks.length)
           ),
           tasks.length > 0 && h("button", {
@@ -9659,15 +14171,16 @@ function ConcertoTeamView({ sessionId, openView }) {
               },
               h(
                 "span",
-                { style: { display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 } },
+                { className: "concerto-key-task-main" },
+                tk.memberId ? h(MemberGlyph, { member: members.find((m) => m.id === tk.memberId) || { id: tk.memberId, roleKind: "worker" }, state: tk.viewState || tk.state, size: 22 }) : h("span", { className: "concerto-empty-avatar", "aria-hidden": "true" }),
                 h("strong", null, tk.title),
-                h("span", { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } }, tk.memberId || "\u5F85\u5206\u914D")
+                h("span", { className: "concerto-key-task-member" }, tk.memberId || "\u5F85\u5206\u914D")
               ),
               h(
                 "span",
-                { style: { display: "inline-flex", alignItems: "center", gap: 8 } },
-                h("span", { className: "concerto-state-chip " + meta.cls }, meta.icon + " " + meta.label),
-                h("span", { className: "concerto-id", style: { color: "var(--cc-text-muted)" } }, tk.taskId)
+                { className: "concerto-key-task-side" },
+                h(StateChip, { status: tk.viewState || tk.state, text: meta.label }),
+                h("span", { className: "concerto-id" }, tk.taskId)
               )
             );
           })
@@ -9683,7 +14196,7 @@ function ConcertoTeamView({ sessionId, openView }) {
           h(
             "div",
             { className: "concerto-section-title" },
-            h("span", null, "\u7CBE\u9009\u4EA7\u7269\u9884\u89C8"),
+            h("h2", null, "\u7CBE\u9009\u4EA7\u7269\u9884\u89C8"),
             renderCountTag(viewObjects.length)
           ),
           viewObjects.length > 0 && h("button", {
@@ -9782,10 +14295,10 @@ function ConcertoTeamView({ sessionId, openView }) {
         )
       )
     ),
-    // ③ 任务页签：分段切换（列表 / 看板）+ 看板下仅渲染展开的详情，避免重复列表
+    // ③ 任务页签：固定看板，仅在看板下呈现用户展开的任务详情
     activeTab === "tasks" && h(
       "div",
-      { style: { display: "flex", flexDirection: "column", gap: "var(--cc-space-4)" }, "data-concerto-tabpanel": "tasks" },
+      { ...tabPanelProps(tabsId, "tasks"), className: "concerto-tab-content", "data-concerto-tabpanel": "tasks" },
       jumpOrigin && h(
         "div",
         { className: "concerto-jump-banner", "data-concerto-nav-banner": "true" },
@@ -9799,133 +14312,175 @@ function ConcertoTeamView({ sessionId, openView }) {
       h(
         "div",
         { className: "concerto-section-head", style: { marginBottom: 0 } },
-        h(
-          "div",
-          { className: "concerto-section-title" },
-          h("span", null, "\u4EFB\u52A1\u7BA1\u7406"),
-          renderCountTag(tasks.length)
-        ),
-        h(
-          "div",
-          { className: "concerto-seg", role: "group", "aria-label": "\u4EFB\u52A1\u5C55\u793A\u6A21\u5F0F" },
-          h("button", {
-            type: "button",
-            className: "concerto-seg-btn",
-            "data-concerto-task-view": "list",
-            "aria-pressed": resolvedTaskView === "list",
-            onClick: () => changeTaskViewMode("list")
-          }, "\u5217\u8868\u89C6\u56FE"),
-          h("button", {
-            type: "button",
-            className: "concerto-seg-btn",
-            "data-concerto-task-view": "kanban",
-            "aria-pressed": resolvedTaskView === "kanban",
-            onClick: () => changeTaskViewMode("kanban")
-          }, "\u770B\u677F\u89C6\u56FE")
-        )
+        h("h2", { className: "concerto-sr-only" }, "\u4EFB\u52A1\u7BA1\u7406"),
+        taskAttentionCount > 0 && h("button", {
+          type: "button",
+          className: "concerto-kanban-attention-summary",
+          onClick: () => setAttentionOpen(true)
+        }, `${taskAttentionCount} \u9879\u5F85\u5904\u7406${stats.block > 0 ? ` \xB7 ${stats.block} \u9879\u963B\u585E` : ""}`)
       ),
       tasks.length === 0 ? h(EmptyState2, { icon: "\u{1F9ED}", text: "\u6682\u65E0\u4EFB\u52A1\uFF0C\u53EF\u901A\u8FC7\u5E95\u90E8\u8F93\u5165\u6846\u5411\u6307\u6325\u8005\u63D0\u51FA\u76EE\u6807\u3002" }) : h(
-        import_react11.default.Fragment,
+        import_react20.default.Fragment,
         null,
-        resolvedTaskView === "kanban" && h(
-          "section",
-          { "aria-label": "\u56E2\u961F\u8FDB\u5EA6\u770B\u677F", "data-concerto-section": "kanban" },
+        h(
+          "div",
+          {
+            className: "concerto-task-workspace",
+            "data-has-inspector": selectedTask && inspectorWide ? "true" : void 0
+          },
           h(
-            "div",
-            { className: "concerto-board-cols" },
-            KANBAN_COLUMNS.map((col) => {
-              const list = kanbanMap[col.id];
-              return h(
-                "div",
-                {
-                  key: col.id,
-                  className: "concerto-board-col",
-                  "data-concerto-column": col.id,
-                  "data-empty": list.length === 0 ? "true" : void 0
-                },
-                h(
-                  "div",
-                  { className: "concerto-board-col-head" },
-                  h("span", null, col.title),
-                  h("span", { className: "concerto-tag concerto-num" }, String(list.length))
-                ),
-                list.length > 0 && list.map((task) => {
-                  const meta = STATE_META[task.viewState] || STATE_META[task.state] || STATE_META.pending;
-                  const blocked = task.viewState === "blocked" || task.viewState === "failed" || task.state === "failed" || Boolean(task.blockedReason);
-                  const unknown = task.viewState === "unknown";
-                  const line = task.blockedReason || task.progress?.at(-1)?.note || task.objective || "";
-                  return h(
-                    "button",
-                    {
-                      key: task.taskId,
-                      type: "button",
-                      className: "concerto-kcard",
-                      "data-concerto-kanban-task": task.taskId,
-                      "data-blocked": blocked ? "true" : void 0,
-                      "data-unknown": unknown ? "true" : void 0,
-                      onClick: () => jumpToTask(task.taskId)
+            "section",
+            { "aria-label": "\u56E2\u961F\u8FDB\u5EA6\u770B\u677F", "data-concerto-section": "kanban" },
+            h(
+              "nav",
+              { className: "concerto-board-jump", "aria-label": "\u770B\u677F\u5217\u8DF3\u8F6C" },
+              KANBAN_COLUMNS.map((col) => h("button", {
+                key: col.id,
+                type: "button",
+                className: "concerto-board-jump-btn",
+                "data-column": col.id,
+                "aria-pressed": activeBoardColumn === col.id,
+                onClick: () => {
+                  setActiveBoardColumn(col.id);
+                  boardColumnRefs.current.get(col.id)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+                }
+              }, `${col.title} ${kanbanMap[col.id].length}`))
+            ),
+            h(
+              "div",
+              {
+                ref: boardScrollRef,
+                className: "concerto-board-cols",
+                style: !(selectedTask && inspectorWide) ? {
+                  gridTemplateColumns: KANBAN_COLUMNS.map((col) => kanbanMap[col.id].length === 0 ? "minmax(104px, 120px)" : "minmax(0, 1fr)").join(" ")
+                } : void 0,
+                tabIndex: 0,
+                role: "region",
+                "aria-label": "\u4EFB\u52A1\u770B\u677F\uFF0C\u7A84\u7A97\u53E3\u53EF\u6A2A\u5411\u6EDA\u52A8"
+              },
+              KANBAN_COLUMNS.map((col) => {
+                const list = kanbanMap[col.id];
+                return h(
+                  "section",
+                  {
+                    key: col.id,
+                    ref: (element) => {
+                      if (element) boardColumnRefs.current.set(col.id, element);
+                      else boardColumnRefs.current.delete(col.id);
                     },
-                    h(
-                      "div",
-                      { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 } },
-                      h("strong", { style: { fontSize: "var(--cc-fs-meta)", lineHeight: 1.35 } }, task.title),
-                      h("span", { className: "concerto-state-chip " + meta.cls }, meta.icon + " " + meta.label)
-                    ),
-                    line && h("div", {
-                      style: {
-                        fontSize: "var(--cc-fs-caption)",
-                        color: "var(--dsw-alias-label-secondary)",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden"
-                      }
-                    }, line),
-                    h(
-                      "div",
-                      { className: "concerto-kcard-foot" },
+                    className: "concerto-board-col",
+                    "data-concerto-column": col.id,
+                    "data-empty": list.length === 0 ? "true" : void 0
+                  },
+                  h(
+                    "div",
+                    { className: "concerto-board-col-head", "data-state": col.id },
+                    h("h3", null, `${col.title} ${list.length}`)
+                  ),
+                  list.length === 0 && h("p", { className: "concerto-board-empty" }, "\u6682\u65E0\u4EFB\u52A1"),
+                  list.length > 0 && h("ol", { className: "concerto-board-card-list", "aria-label": `${col.title}\uFF0C${list.length} \u9879` }, list.map((task) => {
+                    const blocked = task.viewState === "blocked" || task.viewState === "failed" || task.state === "failed" || Boolean(task.blockedReason);
+                    const unknown = task.viewState === "unknown";
+                    const latestProgress = task.progress?.at(-1);
+                    const line = task.blockedReason || latestProgress?.note || task.objective || "";
+                    const timeLabel = relativeTimeLabel(latestProgress?.at, snapshot.serverTime);
+                    const sourceLabel = latestProgress?.memberId && latestProgress.memberId !== task.memberId ? latestProgress.memberId : "";
+                    const progressContext = [sourceLabel, timeLabel].filter(Boolean).join(" \xB7 ");
+                    const member = members.find((m) => m.id === task.memberId);
+                    const needsAttention = attentionItems.some((item) => item.taskId === task.taskId) || blocked || unknown;
+                    const meta = STATE_META[task.viewState] || STATE_META[task.state] || STATE_META.pending;
+                    return h("li", { key: task.taskId }, h(
+                      "article",
+                      {
+                        className: "concerto-kcard",
+                        "data-concerto-kanban-task": task.taskId,
+                        "data-status": col.id,
+                        "data-attention": needsAttention ? "true" : void 0,
+                        "data-selected": selectedTaskId === task.taskId ? "true" : void 0,
+                        "data-blocked": blocked ? "true" : void 0,
+                        "data-unknown": unknown ? "true" : void 0
+                      },
                       h(
-                        "span",
-                        { style: { display: "inline-flex", alignItems: "center", gap: 5 } },
-                        task.memberId && h(MemberGlyph, {
-                          member: members.find((m) => m.id === task.memberId) || { id: task.memberId, roleKind: "worker" },
-                          state: task.viewState || task.state,
-                          size: 20
-                        }),
-                        h("span", null, task.memberId || "\u5F85\u5206\u914D")
+                        "h4",
+                        null,
+                        h("button", {
+                          ref: (el) => {
+                            if (el) taskCardRefs.current.set(task.taskId, el);
+                            else taskCardRefs.current.delete(task.taskId);
+                          },
+                          type: "button",
+                          className: "concerto-kcard-title",
+                          "aria-pressed": selectedTaskId === task.taskId,
+                          onClick: () => jumpToTask(task.taskId)
+                        }, task.title)
+                      ),
+                      line && col.id !== "done" && h("p", { className: "concerto-kcard-summary" }, line),
+                      progressContext && col.id !== "done" && h("span", { className: "concerto-kcard-context" }, progressContext),
+                      needsAttention && h(
+                        "div",
+                        { className: "concerto-kcard-action" },
+                        h(StateChip, { status: task.viewState || task.state, text: meta.label }),
+                        h("button", { type: "button", className: "concerto-link", onClick: () => jumpToTask(task.taskId) }, "\u53BB\u5904\u7406")
+                      ),
+                      task.dependsOn?.length > 0 && h(
+                        "div",
+                        { className: "concerto-kcard-deps", "aria-label": "\u524D\u7F6E\u4F9D\u8D56" },
+                        task.dependsOn.map((depId) => {
+                          const dependency = tasks.find((item) => item.taskId === depId);
+                          const satisfied = dependency?.state === "completed";
+                          return h("button", {
+                            key: depId,
+                            type: "button",
+                            className: "concerto-dependency-chip concerto-id",
+                            title: `\u524D\u7F6E\u4F9D\u8D56\uFF1A${depId}${dependency?.title ? ` \xB7 ${dependency.title}` : ""}`,
+                            onClick: () => jumpToTask(depId)
+                          }, h(UiIcon, { name: satisfied ? "check" : "attention", size: 12 }), depId);
+                        })
                       ),
                       h(
-                        "span",
-                        { className: "concerto-id" },
-                        (task.dependsOn?.length ? "\u4F9D\u8D56 " + task.dependsOn.join(",") + " \xB7 " : "") + task.taskId
+                        "footer",
+                        { className: "concerto-kcard-foot" },
+                        h(
+                          "span",
+                          { className: "concerto-kcard-member" },
+                          task.memberId ? h(MemberGlyph, {
+                            member: member || { id: task.memberId, roleKind: "worker" },
+                            state: task.viewState || task.state,
+                            size: 20
+                          }) : h("span", { className: "concerto-empty-avatar", "aria-hidden": "true" }),
+                          h("span", null, member?.name || task.memberId || "\u5F85\u5206\u914D")
+                        ),
+                        h("span", { className: "concerto-id concerto-kcard-id" }, task.taskId)
                       )
-                    )
-                  );
-                })
-              );
-            })
-          )
+                    ));
+                  }))
+                );
+              })
+            )
+          ),
+          selectedTask && inspectorWide && h("aside", {
+            className: "concerto-task-inspector concerto-task-inspector--inline",
+            "aria-label": `\u4EFB\u52A1\u8BE6\u60C5\uFF1A${selectedTask.title}`,
+            "data-concerto-section": "tasks",
+            onKeyDown: (event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                closeTaskInspector();
+              }
+            }
+          }, renderTaskDetailModule(selectedTask))
         ),
-        resolvedTaskView === "list" && h(
-          "section",
-          { "aria-label": "\u4EFB\u52A1\u5217\u8868\u4E0E\u8BE6\u60C5", "data-concerto-section": "tasks" },
-          tasks.map((task) => renderTaskDetailModule(task))
-        ),
-        resolvedTaskView === "kanban" && (() => {
-          const expandedList = tasks.filter((t) => expandedTasks.has(t.taskId));
-          return expandedList.length > 0 && h(
-            "section",
-            { "aria-label": "\u5DF2\u5C55\u5F00\u7684\u4EFB\u52A1", "data-concerto-section": "tasks" },
-            h("div", { className: "concerto-group-label" }, "\u5DF2\u5C55\u5F00\u7684\u4EFB\u52A1"),
-            expandedList.map((task) => renderTaskDetailModule(task))
-          );
-        })()
+        selectedTask && !inspectorWide && h(TaskInspectorDialog, {
+          key: selectedTask.taskId,
+          title: selectedTask.title,
+          onClose: closeTaskInspector
+        }, renderTaskDetailModule(selectedTask, true))
       )
     ),
     // ④ 成果页签：筛选栏 + 必需视图清单（含建议补充）+ Bento 网格 + 返回入口
     activeTab === "artifacts" && h(
       "div",
-      { style: { display: "flex", flexDirection: "column", gap: "var(--cc-space-3)" }, "data-concerto-tabpanel": "artifacts" },
+      { ...tabPanelProps(tabsId, "artifacts"), className: "concerto-tab-content", "data-concerto-tabpanel": "artifacts" },
       jumpOrigin && !savedFilterBeforeJump && h(
         "div",
         { className: "concerto-jump-banner", "data-concerto-nav-banner": "true" },
@@ -9942,17 +14497,25 @@ function ConcertoTeamView({ sessionId, openView }) {
         h(
           "div",
           { className: "concerto-section-title" },
-          h("span", null, "\u5168\u90E8\u7ED3\u6784\u5316\u4EA7\u7269"),
+          h("h2", null, "\u5168\u90E8\u7ED3\u6784\u5316\u4EA7\u7269"),
           h("span", { className: "concerto-tag concerto-num" }, `${filteredArtifacts.length} / ${viewObjects.length}`)
-        )
+        ),
+        info.roleKind === "commander" && h(ExcalidrawImport, {
+          key: sessionId,
+          sessionId,
+          disabled: !canAct,
+          viewObjects,
+          refresh,
+          onLocate: jumpToStageObject
+        })
       ),
       requiredViews.length > 0 && h(
         "div",
-        { style: { display: "flex", flexDirection: "column", gap: 6 }, "data-concerto-required-views": "true" },
+        { className: "concerto-req-views", "data-concerto-required-views": "true" },
         suggestedMissing.length > 0 && h("div", { className: "concerto-group-label" }, `\u5FC5\u9700\u89C6\u56FE\u68C0\u67E5\uFF08${suggestedMissing.length} \u9879\u5EFA\u8BAE\u8865\u5145\u672A\u963B\u585E\uFF09`),
         h(
           "div",
-          { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+          { className: "concerto-req-view-list" },
           requiredViews.map((rv) => h(
             "span",
             {
@@ -9971,7 +14534,7 @@ function ConcertoTeamView({ sessionId, openView }) {
         { className: "concerto-filter-bar", "data-concerto-artifact-filters": "true" },
         h(
           "label",
-          { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)" } },
+          null,
           "\u4EFB\u52A1 ",
           h(
             "select",
@@ -9988,7 +14551,7 @@ function ConcertoTeamView({ sessionId, openView }) {
         ),
         h(
           "label",
-          { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)" } },
+          null,
           "\u6210\u5458 ",
           h(
             "select",
@@ -10005,7 +14568,7 @@ function ConcertoTeamView({ sessionId, openView }) {
         ),
         h(
           "label",
-          { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)" } },
+          null,
           "\u7C7B\u578B ",
           h(
             "select",
@@ -10062,6 +14625,128 @@ function ConcertoTeamView({ sessionId, openView }) {
         };
       }), "art")
     ),
+    pinnedPreview && h(
+      CanvasModal,
+      {
+        title: `${pinnedPreview.label}\u5FEB\u7167 \xB7 ${pinnedPreview.requestedRef}`,
+        onClose: () => setPinnedPreview(null)
+      },
+      pinnedPreview.loading ? h("p", { style: styles.muted }, "\u6B63\u5728\u8BFB\u53D6\u56FA\u5B9A\u7248\u672C\u5FEB\u7167\u2026") : pinnedPreview.error ? h("p", { role: "alert", style: styles.error }, pinnedPreview.error) : h(StructuredObjectCard, {
+        object: pinnedPreview.object,
+        tasks,
+        sessionId,
+        badgeLabel: `${pinnedPreview.label} v${pinnedPreview.object?.version ?? ""}\uFF08\u5F53\u524D\u6700\u65B0 v${pinnedPreview.object?.latestVersion ?? ""}\uFF09`
+      })
+    ),
+    filePreview && h(
+      InspectorDialog,
+      { title: `\u6587\u4EF6\u9884\u89C8 \xB7 ${filePreview.relativePath}`, onClose: () => setFilePreview(null) },
+      h(
+        "div",
+        { className: "concerto-drawer-body", style: { display: "flex", flexDirection: "column", gap: 10 } },
+        h(
+          "div",
+          { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+          h("code", { style: { fontSize: "var(--cc-fs-code)", overflowWrap: "anywhere" } }, filePreview.path),
+          h(
+            "div",
+            { style: { display: "flex", gap: 6 } },
+            h("button", {
+              type: "button",
+              className: "concerto-btn",
+              onClick: () => {
+                try {
+                  navigator.clipboard?.writeText?.(filePreview.path);
+                } catch {
+                }
+              }
+            }, "\u590D\u5236\u8DEF\u5F84"),
+            h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setFilePreview(null) }, "\u5173\u95ED")
+          )
+        ),
+        filePreview.loading && h("p", { className: "concerto-quiet" }, "\u8BFB\u53D6\u6587\u4EF6\u4E2D\u2026"),
+        filePreview.error && h("p", { role: "alert", className: "concerto-field-error" }, filePreview.error),
+        !filePreview.loading && !filePreview.error && h(
+          import_react20.default.Fragment,
+          null,
+          h("div", { className: "concerto-quiet" }, `${filePreview.sizeBytes} \u5B57\u8282${filePreview.truncated ? "\uFF08\u4EC5\u663E\u793A\u524D 48 KiB\uFF09" : ""}`),
+          h("pre", { style: { margin: 0, maxHeight: "60vh", overflow: "auto", padding: 12, borderRadius: "var(--cc-radius-ctrl)", background: "var(--cc-card-nested-bg)", fontFamily: "var(--cc-font-mono)", fontSize: "var(--cc-fs-code)", whiteSpace: "pre-wrap" } }, filePreview.content)
+        )
+      )
+    ),
+    memoryOpen && h(TeamMemoryDialog, {
+      sessionId,
+      disabled: !canAct,
+      onClose: () => setMemoryOpen(false),
+      onChanged: () => refresh()
+    }),
+    reportModal && h(
+      InspectorDialog,
+      { title: "\u7ED3\u9879\u4EA4\u4ED8\u590D\u76D8\u5355", onClose: () => setReportModal(null) },
+      h(
+        "div",
+        { className: "concerto-drawer-body", style: { display: "flex", flexDirection: "column", gap: 10 } },
+        h(
+          "div",
+          { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+          h("span", { className: "concerto-quiet" }, reportModal.filename),
+          h(
+            "div",
+            { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+            !reportModal.loading && !reportModal.error && h("button", {
+              type: "button",
+              className: "concerto-btn concerto-btn--primary",
+              onClick: async () => {
+                try {
+                  await navigator.clipboard?.writeText?.(reportModal.markdown);
+                  setReportModal((prev) => prev ? { ...prev, copied: true } : prev);
+                } catch {
+                }
+              }
+            }, reportModal.copied ? "\u2713 \u5DF2\u590D\u5236 Markdown" : "\u{1F4CB} \u590D\u5236 Markdown"),
+            !reportModal.loading && !reportModal.error && h("button", {
+              type: "button",
+              className: "concerto-btn",
+              onClick: () => downloadTextFile(reportModal.filename, reportModal.markdown, "text/markdown;charset=utf-8")
+            }, "\u2B07 \u5BFC\u51FA .md"),
+            h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setReportModal(null) }, "\u5173\u95ED")
+          )
+        ),
+        reportModal.loading && h("p", { className: "concerto-quiet" }, "\u6B63\u5728\u6C47\u603B\u6539\u52A8\u6587\u4EF6\u3001\u8017\u65F6\u3001\u8FD4\u5DE5\u4E0E\u9A8C\u8BC1\u8BB0\u5F55\u2026"),
+        reportModal.error && h("p", { role: "alert", className: "concerto-field-error" }, reportModal.error),
+        !reportModal.loading && !reportModal.error && h("pre", {
+          style: {
+            margin: 0,
+            maxHeight: "62vh",
+            overflow: "auto",
+            padding: 12,
+            borderRadius: "var(--cc-radius-ctrl)",
+            background: "var(--cc-card-nested-bg)",
+            fontFamily: "var(--cc-font-mono)",
+            fontSize: "var(--cc-fs-code)",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word"
+          }
+        }, reportModal.markdown)
+      )
+    ),
+    runLimitsOpen && h(
+      InspectorDialog,
+      { title: "\u672C\u6B21\u8FD0\u884C\u7684\u6D3E\u53D1\u6B21\u6570\u9650\u5236", onClose: () => setRunLimitsOpen(false) },
+      h(
+        "form",
+        { className: "concerto-drawer-body", method: "post", action: "/concerto/runs/dispatch-limits", onSubmit: saveRunLimits },
+        h("h2", { className: "concerto-dialog-title" }, "\u672C\u6B21\u8FD0\u884C\u7684\u6D3E\u53D1\u6B21\u6570\u9650\u5236"),
+        h(DispatchLimitFields, { limits: dispatchLimits, disabled: busy }),
+        runLimitsError && h("p", { role: "alert", className: "concerto-field-error" }, runLimitsError),
+        h(
+          "div",
+          { style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+          h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled: !canAct }, "\u4FDD\u5B58\u4E0A\u9650"),
+          h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setRunLimitsOpen(false) }, "\u5173\u95ED")
+        )
+      )
+    ),
     // 右侧滑出成员详情抽屉（按 memberId key 挂载以保证切换成员重置焦点）
     drawerMember && h(MemberDrawer, {
       key: drawerMember.id,
@@ -10070,22 +14755,884 @@ function ConcertoTeamView({ sessionId, openView }) {
       sessionId,
       snapshot,
       initialTab: drawerState.tab,
+      canManageDuties: info.roleKind === "commander",
       onClose: closeMemberDrawer,
       onJumpTask: jumpToTask,
       onOpenMember: (mid) => openMemberDrawer(mid, "messages"),
       onJumpObject: jumpToStageObject,
+      returnTaskId: inspectorStack.at(-1)?.id || "",
+      onBack: goInspectorBack,
       isLight
     })
   );
 }
+function NonHostedCommanderBar({ sessionId, commander, disabled = false, onSent }) {
+  const [text, setText] = import_react20.default.useState("");
+  const [sending, setSending] = import_react20.default.useState(false);
+  const [reply, setReply] = import_react20.default.useState("");
+  const [err, setErr] = import_react20.default.useState("");
+  const labelText = commander?.source === "api" ? `\u81EA\u5B9A\u4E49 API \u6307\u6325\u8005\uFF08${commander.model || "API"}\uFF09` : `\u5916\u90E8 Agent \u6307\u6325\u8005\uFF08${commander?.connector || "external"}\uFF09`;
+  async function onSubmit(event) {
+    event?.preventDefault?.();
+    if (!text.trim() || sending || disabled) return;
+    setSending(true);
+    setErr("");
+    setReply("");
+    try {
+      const res = await request("/commander/prompt", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, prompt: text.trim() })
+      });
+      setText("");
+      if (res?.text) setReply(res.text);
+      onSent?.();
+    } catch (error) {
+      setErr(error.message || "\u53D1\u9001\u5931\u8D25");
+    } finally {
+      setSending(false);
+    }
+  }
+  return h(
+    "form",
+    {
+      className: "concerto-attn-card",
+      style: { marginTop: 8, display: "flex", flexDirection: "column", gap: 6 },
+      "data-concerto-nonhosted-commander-bar": "true",
+      onSubmit
+    },
+    h(
+      "div",
+      { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 } },
+      h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, labelText),
+      sending && h("span", { className: "concerto-quiet" }, "\u6307\u6325\u8005\u6267\u884C\u4E2D\u2026")
+    ),
+    h(
+      "div",
+      { style: { display: "flex", gap: 8 } },
+      h("input", {
+        className: "concerto-input",
+        style: { flex: 1 },
+        disabled: disabled || sending,
+        value: text,
+        placeholder: "\u76F4\u63A5\u5411\u5916\u90E8/API \u6307\u6325\u8005\u4E0B\u8FBE\u4EFB\u52A1\u6216\u8FFD\u95EE\u2026",
+        onChange: (e) => setText(e.target.value)
+      }),
+      h("button", {
+        type: "submit",
+        className: "concerto-btn concerto-btn--primary",
+        disabled: disabled || sending || !text.trim()
+      }, sending ? "\u6267\u884C\u4E2D\u2026" : "\u53D1\u9001\u6307\u4EE4")
+    ),
+    err && h("div", { role: "alert", className: "concerto-field-error" }, err),
+    reply && h("div", { style: { fontSize: "var(--cc-fs-meta)", whiteSpace: "pre-wrap", color: "var(--cc-text-secondary)" } }, reply)
+  );
+}
+function LiveSuggestionBar({ sessionId, disabled = false, onSent }) {
+  const [text, setText] = import_react20.default.useState("");
+  const [sending, setSending] = import_react20.default.useState(false);
+  const [notice, setNotice] = import_react20.default.useState("");
+  const [err, setErr] = import_react20.default.useState("");
+  async function onSubmit(event) {
+    event?.preventDefault?.();
+    if (!text.trim() || sending || disabled) return;
+    setSending(true);
+    setErr("");
+    setNotice("");
+    try {
+      await request("/runs/suggest", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, text: text.trim(), commandId: `suggest-${crypto.randomUUID()}` })
+      });
+      setText("");
+      setNotice("\u5DF2\u53D1\u9001\u7ED9\u6307\u6325\u8005\u961F\u5217");
+      onSent?.();
+    } catch (error) {
+      setErr(error.message || "\u53D1\u9001\u5EFA\u8BAE\u5931\u8D25");
+    } finally {
+      setSending(false);
+    }
+  }
+  return h(
+    "form",
+    {
+      style: { marginTop: 8, display: "flex", flexDirection: "column", gap: 4 },
+      "data-concerto-live-suggestion-bar": "true",
+      onSubmit
+    },
+    h(
+      "div",
+      { style: { display: "flex", gap: 8, alignItems: "center" } },
+      h("input", {
+        className: "concerto-input",
+        style: { flex: 1 },
+        disabled: disabled || sending,
+        value: text,
+        "aria-label": "\u7ED9\u8FD0\u884C\u4E2D\u7684\u6307\u6325\u8005\u63D0\u5EFA\u8BAE",
+        placeholder: "\u56E2\u961F\u8FD0\u884C\u4E2D\u968F\u65F6\u63D2\u8BDD / \u7ED9\u6307\u6325\u8005\u8865\u5145\u5EFA\u8BAE\u2026",
+        onChange: (e) => {
+          setText(e.target.value);
+          if (notice) setNotice("");
+        }
+      }),
+      h("button", {
+        type: "submit",
+        className: "concerto-btn",
+        disabled: disabled || sending || !text.trim()
+      }, sending ? "\u53D1\u9001\u4E2D\u2026" : "\u63D0\u5EFA\u8BAE")
+    ),
+    err && h("div", { role: "alert", className: "concerto-field-error" }, err),
+    notice && h("div", { role: "status", className: "concerto-quiet" }, notice)
+  );
+}
+function WorktreeActionBar({ sessionId, taskId, worktree, disabled = false }) {
+  const [busy, setBusy] = import_react20.default.useState("");
+  const [diffResult, setDiffResult] = import_react20.default.useState(null);
+  const [statusMsg, setStatusMsg] = import_react20.default.useState("");
+  const [errMsg, setErrMsg] = import_react20.default.useState("");
+  async function runAction(kind) {
+    setBusy(kind);
+    setErrMsg("");
+    setStatusMsg("");
+    try {
+      const res = await request(`/worktree/${kind}`, {
+        method: "POST",
+        body: JSON.stringify({ sessionId, taskId })
+      });
+      if (kind === "diff") {
+        setDiffResult(res);
+      } else if (kind === "merge") {
+        setStatusMsg(res.noop ? res.detail : `\u5DF2\u5408\u5E76\u5230\u4E3B\u5206\u652F\uFF08${String(res.mergedCommit || "").slice(0, 7)}\uFF09`);
+      } else if (kind === "cleanup") {
+        setDiffResult(null);
+        setStatusMsg("\u4E34\u65F6 Worktree \u5DF2\u6E05\u7406");
+      }
+    } catch (error) {
+      setErrMsg(error.message || "\u64CD\u4F5C\u5931\u8D25");
+    } finally {
+      setBusy("");
+    }
+  }
+  return h(
+    "div",
+    { style: { fontSize: "var(--cc-fs-caption)", marginBottom: 8, display: "flex", flexDirection: "column", gap: 6, color: "var(--cc-text-secondary)" }, "data-concerto-worktree-actions": taskId },
+    h(
+      "div",
+      { style: { overflowWrap: "anywhere" } },
+      h("strong", null, "Git Worktree \u9694\u79BB\uFF1A"),
+      h("code", null, `${worktree.branch || ""} @ ${String(worktree.baseCommit || "").slice(0, 7)}${worktree.headCommit && worktree.headCommit !== worktree.baseCommit ? `..${String(worktree.headCommit).slice(0, 7)}` : ""}`),
+      worktree.repositoryRoot && `\uFF08\u6E90\u4ED3\u5E93\uFF1A${worktree.repositoryRoot}\uFF09`
+    ),
+    h(
+      "div",
+      { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
+      h("button", { type: "button", className: "concerto-btn", disabled: disabled || Boolean(busy), onClick: () => runAction("diff") }, busy === "diff" ? "\u8BFB\u53D6\u4E2D\u2026" : "\u67E5\u770B Diff"),
+      h("button", { type: "button", className: "concerto-btn concerto-btn--primary", disabled: disabled || Boolean(busy), onClick: () => runAction("merge") }, busy === "merge" ? "\u5408\u5E76\u4E2D\u2026" : "\u5408\u5E76\u5230\u4E3B\u5206\u652F"),
+      h("button", { type: "button", className: "concerto-btn concerto-btn--danger", disabled: disabled || Boolean(busy), onClick: () => runAction("cleanup") }, busy === "cleanup" ? "\u6E05\u7406\u4E2D\u2026" : "\u6E05\u7406 Worktree")
+    ),
+    statusMsg && h("div", { role: "status", className: "concerto-quiet" }, statusMsg),
+    errMsg && h("div", { role: "alert", className: "concerto-field-error" }, errMsg),
+    diffResult && h(
+      "details",
+      { open: true, className: "concerto-set-fold" },
+      h("summary", null, `Diff \u9884\u89C8${diffResult.untrackedFiles?.length ? `\uFF08\u542B ${diffResult.untrackedFiles.length} \u4E2A\u672A\u8DDF\u8E2A\u6587\u4EF6\uFF09` : ""}`),
+      diffResult.stat && h("pre", { style: { margin: "4px 0", whiteSpace: "pre-wrap", fontFamily: "var(--cc-font-mono)", fontSize: "var(--cc-fs-code)" } }, diffResult.stat),
+      h(
+        "pre",
+        { style: { margin: "4px 0", maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap", fontFamily: "var(--cc-font-mono)", fontSize: "var(--cc-fs-code)", padding: 8, borderRadius: "var(--cc-radius-ctrl)", background: "var(--cc-card-nested-bg)" } },
+        diffResult.diff || (diffResult.untrackedFiles?.length ? `\u672A\u8DDF\u8E2A\u6587\u4EF6\uFF1A
+${diffResult.untrackedFiles.join("\n")}` : "\u65E0\u6539\u52A8")
+      )
+    )
+  );
+}
+function RaceLauncherBar({ sessionId, taskId, workers = [], disabled = false, onStarted }) {
+  const [open, setOpen] = import_react20.default.useState(false);
+  const [memberA, setMemberA] = import_react20.default.useState(workers[0]?.id || "");
+  const [memberB, setMemberB] = import_react20.default.useState(workers[1]?.id || workers[0]?.id || "");
+  const [busy, setBusy] = import_react20.default.useState(false);
+  const [err, setErr] = import_react20.default.useState("");
+  async function onStart() {
+    if (!memberA || !memberB || memberA === memberB) {
+      setErr("\u8BF7\u9009\u62E9\u4E24\u4F4D\u4E0D\u540C\u7684\u6267\u884C\u8005\u8FDB\u884C\u8D5B\u9A6C");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    try {
+      await request("/tasks/race", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, taskId, memberA, memberB, commandId: `race-${taskId}-${crypto.randomUUID()}` })
+      });
+      setOpen(false);
+      onStarted?.();
+    } catch (error) {
+      setErr(error.message || "\u542F\u52A8\u8D5B\u9A6C\u5931\u8D25");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return h(
+    "div",
+    { className: "concerto-acc-box", style: { width: "100%" }, "data-concerto-race-launcher": taskId },
+    !open ? h(
+      "div",
+      { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" } },
+      h("span", { style: { fontSize: "var(--cc-fs-meta)" } }, "\u{1F3C1} \u60F3\u5BF9\u6BD4\u4E0D\u540C Agent \u7684\u89E3\u6CD5\uFF1F\u53EF\u4E34\u65F6\u53D1\u8D77\u4E00\u6B21\u53CC\u89E3\u8D5B\u9A6C\uFF08\u72EC\u7ACB Worktree \u5E76\u884C\uFF09\u3002"),
+      h("button", { type: "button", className: "concerto-btn", disabled, onClick: () => setOpen(true) }, "\u542F\u52A8\u53CC\u89E3\u8D5B\u9A6C (A/B)")
+    ) : h(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: 8 } },
+      h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, "\u{1F3C1} \u9009\u62E9\u4E24\u4F4D\u53C2\u8D5B\u6210\u5458\uFF08\u5404\u81EA\u72EC\u7ACB Worktree \u5E76\u884C\u6267\u884C\uFF09"),
+      h(
+        "div",
+        { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+        h(
+          "label",
+          { style: { display: "flex", alignItems: "center", gap: 4, fontSize: "var(--cc-fs-caption)" } },
+          "\u65B9\u6848 A",
+          h(
+            "select",
+            { className: "concerto-input", disabled: busy, value: memberA, onChange: (e) => setMemberA(e.target.value) },
+            workers.map((w) => h("option", { key: w.id, value: w.id }, `${w.id}${w.connector ? ` (${w.connector})` : ""}`))
+          )
+        ),
+        h("span", { className: "concerto-quiet" }, "VS"),
+        h(
+          "label",
+          { style: { display: "flex", alignItems: "center", gap: 4, fontSize: "var(--cc-fs-caption)" } },
+          "\u65B9\u6848 B",
+          h(
+            "select",
+            { className: "concerto-input", disabled: busy, value: memberB, onChange: (e) => setMemberB(e.target.value) },
+            workers.map((w) => h("option", { key: w.id, value: w.id }, `${w.id}${w.connector ? ` (${w.connector})` : ""}`))
+          )
+        ),
+        h("button", { type: "button", className: "concerto-btn concerto-btn--primary", disabled: busy || disabled, onClick: onStart }, busy ? "\u542F\u52A8\u4E2D\u2026" : "\u5F00\u59CB\u8D5B\u9A6C"),
+        h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", disabled: busy, onClick: () => setOpen(false) }, "\u53D6\u6D88")
+      ),
+      err && h("div", { role: "alert", className: "concerto-field-error" }, err)
+    )
+  );
+}
+function RaceCompareBoard({ sessionId, parentTask, tasks = [], members = [], disabled = false, onOpenFilePreview, onPicked }) {
+  const [busyId, setBusyId] = import_react20.default.useState("");
+  const [mergeWinner, setMergeWinner] = import_react20.default.useState(false);
+  const [err, setErr] = import_react20.default.useState("");
+  const race = parentTask.raceGroup;
+  const candidates = (race?.candidates ?? []).map((c) => ({
+    ...c,
+    task: tasks.find((t) => t.taskId === c.taskId) || null,
+    member: members.find((m) => m.id === c.memberId) || { id: c.memberId, roleKind: "worker" }
+  }));
+  async function pick(winnerTaskId) {
+    setBusyId(winnerTaskId);
+    setErr("");
+    try {
+      await request("/tasks/race/pick", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId,
+          raceId: race.raceId,
+          winnerTaskId,
+          mergeWinner,
+          commandId: `race-pick-${race.raceId}-${winnerTaskId}`
+        })
+      });
+      onPicked?.();
+    } catch (error) {
+      setErr(error.message || "\u91C7\u7EB3\u65B9\u6848\u5931\u8D25");
+    } finally {
+      setBusyId("");
+    }
+  }
+  return h(
+    "section",
+    { className: "concerto-attn-card", style: { marginBottom: 12, display: "flex", flexDirection: "column", gap: 8 }, "data-concerto-race-board": race.raceId },
+    h(
+      "div",
+      { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+      h("strong", null, `\u{1F3C1} \u5F02\u6784\u53CC\u89E3\u8D5B\u9A6C \xB7 ${parentTask.title}`),
+      h("span", { className: "concerto-chip" }, race.status === "resolved" ? `\u5DF2\u91C7\u7EB3\u80DC\u8005 ${race.winnerTaskId}` : "\u53CC\u65B9\u6848\u5E76\u884C\u5BF9\u6BD4\u4E2D")
+    ),
+    race.status !== "resolved" && h(
+      "label",
+      { className: "concerto-set-check" },
+      h("input", { type: "checkbox", checked: mergeWinner, onChange: (e) => setMergeWinner(e.target.checked) }),
+      h("span", null, "\u91C7\u7EB3\u65F6\u987A\u4FBF\u5C06\u80DC\u8005\u7684 Git Worktree \u5408\u5E76\u56DE\u4E3B\u5206\u652F\uFF08\u672A\u5165\u9009\u65B9\u6848\u7684\u4E34\u65F6\u76EE\u5F55\u4F1A\u81EA\u52A8\u6E05\u7406\uFF09")
+    ),
+    h(
+      "div",
+      { className: "concerto-race-grid" },
+      candidates.map(({ label: lbl, task: ct2, member }) => {
+        const isWinner = race.winnerTaskId === ct2?.taskId;
+        const meta = STATE_META[ct2?.viewState || ct2?.state || "pending"] || STATE_META.pending;
+        const fileRefs = Array.isArray(ct2?.result?.artifactRefs) ? ct2.result.artifactRefs.filter((r) => typeof r === "string" && !/^(table|checklist|mindmap|diagram|board|html):|^event-|^view-/i.test(r)) : [];
+        return h(
+          "div",
+          { key: lbl, className: "concerto-race-col", "data-winner": isWinner ? "true" : void 0 },
+          h(
+            "div",
+            { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 } },
+            h(
+              "div",
+              { style: { display: "flex", alignItems: "center", gap: 6 } },
+              h(MemberGlyph, { member, state: ct2?.state || "idle", size: 28 }),
+              h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, `\u65B9\u6848 ${lbl} \xB7 ${member.id}`)
+            ),
+            h(StateChip, { status: ct2?.viewState || ct2?.state || "pending", text: isWinner ? "\u{1F3C6} \u5DF2\u91C7\u7EB3" : meta.label })
+          ),
+          ct2?.result?.summary ? h("p", { style: { margin: 0, fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)", whiteSpace: "pre-wrap" } }, ct2.result.summary) : h("p", { style: { margin: 0, fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } }, "\u7B49\u5F85\u8BE5\u6210\u5458\u63D0\u4EA4\u7ED3\u679C\u2026"),
+          fileRefs.length > 0 && h(
+            "div",
+            { style: { display: "flex", flexWrap: "wrap", gap: 4 } },
+            fileRefs.map((ref) => h("button", { key: ref, type: "button", className: "concerto-chip", onClick: () => onOpenFilePreview?.(ref, ct2.taskId) }, `\u{1F4C4} ${ref}`))
+          ),
+          ct2?.worktree && h(WorktreeActionBar, { sessionId, taskId: ct2.taskId, worktree: ct2.worktree, disabled }),
+          race.status !== "resolved" && ct2 && h("button", {
+            type: "button",
+            className: "concerto-btn concerto-btn--primary",
+            disabled: disabled || Boolean(busyId) || ct2.state === "cancelled",
+            onClick: () => pick(ct2.taskId)
+          }, busyId === ct2.taskId ? "\u91C7\u7EB3\u4E2D\u2026" : `\u{1F3C6} \u91C7\u7EB3\u65B9\u6848 ${lbl}`)
+        );
+      })
+    ),
+    err && h("div", { role: "alert", className: "concerto-field-error" }, err)
+  );
+}
+function CloseoutReportBar({ sessionId, goalCompletion, onPreview }) {
+  const [busy, setBusy] = import_react20.default.useState("");
+  const [notice, setNotice] = import_react20.default.useState("");
+  async function quickAction(kind) {
+    setBusy(kind);
+    setNotice("");
+    try {
+      const res = await request(`/runs/report?sessionId=${encodeURIComponent(sessionId)}`);
+      if (kind === "copy") {
+        await navigator.clipboard?.writeText?.(res.markdown || "");
+        setNotice("\u5DF2\u590D\u5236 Markdown \u7ED3\u9879\u4EA4\u4ED8\u5355\u5230\u526A\u8D34\u677F");
+      } else {
+        downloadTextFile(res.filename || "concerto-report.md", res.markdown || "", "text/markdown;charset=utf-8");
+        setNotice(`\u5DF2\u5BFC\u51FA ${res.filename || "concerto-report.md"}`);
+      }
+    } catch (error) {
+      setNotice(error?.message || "\u5BFC\u51FA\u5931\u8D25");
+    } finally {
+      setBusy("");
+    }
+  }
+  return h(
+    "div",
+    {
+      "data-concerto-closeout-report-bar": "true",
+      style: {
+        marginTop: 8,
+        padding: "8px 12px",
+        borderRadius: "var(--cc-radius-ctrl)",
+        border: "1px solid var(--cc-state-done)",
+        background: "var(--cc-card-nested-bg)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        flexWrap: "wrap"
+      }
+    },
+    h(
+      "div",
+      { style: { fontSize: "var(--cc-fs-meta)", display: "flex", flexDirection: "column", gap: 2 } },
+      h("strong", null, "\u{1F389} \u76EE\u6807\u5DF2\u7ED3\u9879 \xB7 \u4E00\u952E\u751F\u6210\u4EA4\u4ED8\u590D\u76D8\u5355"),
+      notice && h("span", { role: "status", className: "concerto-quiet" }, notice)
+    ),
+    h(
+      "div",
+      { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+      h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--primary",
+        disabled: Boolean(busy),
+        onClick: () => quickAction("copy")
+      }, busy === "copy" ? "\u6C47\u603B\u4E2D\u2026" : "\u{1F4CB} \u590D\u5236\u590D\u76D8\u5355"),
+      h("button", {
+        type: "button",
+        className: "concerto-btn",
+        disabled: Boolean(busy),
+        onClick: () => quickAction("download")
+      }, busy === "download" ? "\u5BFC\u51FA\u4E2D\u2026" : "\u2B07 \u5BFC\u51FA .md"),
+      h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--ghost",
+        disabled: Boolean(busy),
+        onClick: () => onPreview?.()
+      }, "\u9884\u89C8")
+    )
+  );
+}
+function TeamMemoryDialog({ sessionId, disabled = false, onClose, onChanged }) {
+  const [tab, setTab] = import_react20.default.useState("skills");
+  const [loading, setLoading] = import_react20.default.useState(true);
+  const [data, setData] = import_react20.default.useState({ projectId: "", skills: [], experiences: [] });
+  const [err, setErr] = import_react20.default.useState("");
+  const [notice, setNotice] = import_react20.default.useState("");
+  const [editingSkill, setEditingSkill] = import_react20.default.useState(null);
+  const [editingExp, setEditingExp] = import_react20.default.useState(null);
+  const [saving, setSaving] = import_react20.default.useState(false);
+  const fileInputRef = import_react20.default.useRef(null);
+  const load = import_react20.default.useCallback(async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await request(`/memory?sessionId=${encodeURIComponent(sessionId)}`);
+      setData({
+        projectId: res.projectId || "",
+        skills: Array.isArray(res.skills) ? res.skills : [],
+        experiences: Array.isArray(res.experiences) ? res.experiences : []
+      });
+    } catch (error) {
+      setErr(error?.message || "\u8BFB\u53D6\u56E2\u961F\u8BB0\u5FC6\u5931\u8D25");
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionId]);
+  import_react20.default.useEffect(() => {
+    load();
+  }, [load]);
+  async function saveSkill(e) {
+    e.preventDefault();
+    if (!editingSkill?.title?.trim() || !editingSkill?.body?.trim()) return;
+    setSaving(true);
+    setErr("");
+    try {
+      await request("/memory/skill", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, ...editingSkill })
+      });
+      setEditingSkill(null);
+      setNotice("\u5DF2\u4FDD\u5B58\u9879\u76EE\u89C4\u8303");
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u4FDD\u5B58\u89C4\u8303\u5931\u8D25");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeSkill(skillId) {
+    setSaving(true);
+    setErr("");
+    try {
+      await request("/memory/skill/delete", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, skillId })
+      });
+      setNotice("\u5DF2\u5220\u9664\u89C4\u8303");
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u5220\u9664\u89C4\u8303\u5931\u8D25");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function saveExp(e) {
+    e.preventDefault();
+    if (!editingExp?.summary?.trim()) return;
+    setSaving(true);
+    setErr("");
+    try {
+      await request("/memory/experience", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, ...editingExp })
+      });
+      setEditingExp(null);
+      setNotice("\u5DF2\u4FDD\u5B58\u8E29\u5751\u7ECF\u9A8C");
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u4FDD\u5B58\u7ECF\u9A8C\u5931\u8D25");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeExp(id) {
+    setSaving(true);
+    setErr("");
+    try {
+      await request("/memory/experience/delete", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, id })
+      });
+      setNotice("\u5DF2\u79FB\u9664\u7ECF\u9A8C\u8BB0\u5F55");
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u79FB\u9664\u7ECF\u9A8C\u5931\u8D25");
+    } finally {
+      setSaving(false);
+    }
+  }
+  function exportMemoryJson() {
+    const payload = {
+      format: "concerto-team-memory/v1",
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      projectId: data.projectId,
+      skills: data.skills,
+      experiences: data.experiences
+    };
+    const slug = String(data.projectId || "project").replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 40);
+    downloadTextFile(`concerto-memory-${slug}.json`, JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
+    setNotice("\u5DF2\u5BFC\u51FA\u56E2\u961F\u8BB0\u5FC6\u5305\uFF0C\u53EF\u5728\u65B0\u9879\u76EE\u4E2D\u70B9\u51FB\u300C\u5BFC\u5165\u300D\u76F4\u63A5\u590D\u7528");
+  }
+  async function onImportFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setSaving(true);
+    setErr("");
+    try {
+      const parsed = JSON.parse(await file.text());
+      const res = await request("/memory/import", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId,
+          skills: Array.isArray(parsed?.skills) ? parsed.skills : [],
+          experiences: Array.isArray(parsed?.experiences) ? parsed.experiences : []
+        })
+      });
+      setNotice(`\u5DF2\u5BFC\u5165 ${res.importedSkills ?? 0} \u6761\u9879\u76EE\u89C4\u8303\u3001${res.importedExperiences ?? 0} \u6761\u8E29\u5751\u7ECF\u9A8C`);
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u5BFC\u5165\u5931\u8D25\uFF1A\u8BF7\u786E\u8BA4\u662F\u6709\u6548\u7684 Concerto \u56E2\u961F\u8BB0\u5FC6 JSON \u6587\u4EF6");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return h(
+    InspectorDialog,
+    { title: "\u{1F9E0} \u56E2\u961F\u8BB0\u5FC6\u4E0E\u7ECF\u9A8C\u5E93", onClose },
+    h(
+      "div",
+      { className: "concerto-drawer-body", style: { display: "flex", flexDirection: "column", gap: 10 }, "data-concerto-team-memory": "true" },
+      h(
+        "div",
+        { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+        h(
+          "div",
+          { style: { display: "flex", gap: 6 } },
+          h("button", {
+            type: "button",
+            className: tab === "skills" ? "concerto-btn concerto-btn--primary" : "concerto-btn",
+            onClick: () => setTab("skills")
+          }, `\u9879\u76EE\u89C4\u8303 / Skill (${data.skills.length})`),
+          h("button", {
+            type: "button",
+            className: tab === "experiences" ? "concerto-btn concerto-btn--primary" : "concerto-btn",
+            onClick: () => setTab("experiences")
+          }, `\u8E29\u5751\u7ECF\u9A8C (${data.experiences.length})`)
+        ),
+        h(
+          "div",
+          { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+          h("button", { type: "button", className: "concerto-btn", disabled: loading || data.skills.length === 0 && data.experiences.length === 0, onClick: exportMemoryJson }, "\u2B07 \u5BFC\u51FA\u5E26\u5230\u65B0\u9879\u76EE"),
+          h("button", { type: "button", className: "concerto-btn", disabled: disabled || saving, onClick: () => fileInputRef.current?.click() }, "\u2B06 \u5BFC\u5165\u8BB0\u5FC6"),
+          h("input", { ref: fileInputRef, type: "file", accept: ".json,application/json", style: { display: "none" }, onChange: onImportFile })
+        )
+      ),
+      err && h("p", { role: "alert", className: "concerto-field-error" }, err),
+      notice && h("p", { role: "status", className: "concerto-quiet" }, notice),
+      loading && h("p", { className: "concerto-quiet" }, "\u6B63\u5728\u8BFB\u53D6\u56E2\u961F\u8BB0\u5FC6\u2026"),
+      !loading && tab === "skills" && h(
+        "div",
+        { style: { display: "flex", flexDirection: "column", gap: 8 } },
+        !editingSkill && h(
+          "div",
+          { style: { display: "flex", justifyContent: "flex-end" } },
+          h("button", {
+            type: "button",
+            className: "concerto-btn",
+            disabled: disabled || saving,
+            onClick: () => setEditingSkill({ id: "", title: "", whenToUse: "", body: "" })
+          }, "+ \u65B0\u589E\u9879\u76EE\u89C4\u8303")
+        ),
+        editingSkill && h(
+          "form",
+          { onSubmit: saveSkill, className: "concerto-acc-box", style: { display: "flex", flexDirection: "column", gap: 6 } },
+          h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, editingSkill.id ? `\u7F16\u8F91\u89C4\u8303\uFF1A${editingSkill.id}` : "\u65B0\u589E\u9879\u76EE\u89C4\u8303 / Skill"),
+          h("input", { className: "concerto-input", placeholder: "\u89C4\u8303\u6807\u9898\uFF08\u4F8B\u5982\uFF1AAPI \u9519\u8BEF\u7801\u4E0E\u9274\u6743\u7EA6\u5B9A\uFF09", value: editingSkill.title, onChange: (e) => setEditingSkill({ ...editingSkill, title: e.target.value }) }),
+          h("input", { className: "concerto-input", placeholder: "\u9002\u7528\u573A\u666F\uFF08\u53EF\u9009\uFF0C\u4F8B\u5982\uFF1A\u65B0\u589E\u6216\u4FEE\u6539\u8DEF\u7531\u65F6\uFF09", value: editingSkill.whenToUse, onChange: (e) => setEditingSkill({ ...editingSkill, whenToUse: e.target.value }) }),
+          h("textarea", { className: "concerto-input", rows: 4, placeholder: "\u5177\u4F53\u89C4\u8303\u5185\u5BB9\uFF08\u5C06\u81EA\u52A8\u5728\u540E\u7EED\u4EFB\u52A1\u6D3E\u53D1\u65F6\u6CE8\u5165\u7ED9\u56E2\u961F\u6210\u5458\uFF09\u2026", value: editingSkill.body, onChange: (e) => setEditingSkill({ ...editingSkill, body: e.target.value }) }),
+          h(
+            "div",
+            { style: { display: "flex", gap: 6 } },
+            h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled: saving || !editingSkill.title.trim() || !editingSkill.body.trim() }, saving ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u89C4\u8303"),
+            h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setEditingSkill(null) }, "\u53D6\u6D88")
+          )
+        ),
+        data.skills.length === 0 && !editingSkill ? h("p", { className: "concerto-quiet" }, "\u6682\u65E0\u9879\u76EE\u89C4\u8303\u3002\u56E2\u961F\u7ED3\u9879\u6C89\u6DC0\u7684 Skill \u6216\u4F60\u624B\u52A8\u6DFB\u52A0\u7684\u89C4\u8303\u90FD\u4F1A\u5C55\u793A\u5728\u8FD9\u91CC\u3002") : data.skills.map((sk) => h(
+          "div",
+          { key: sk.id, className: "concerto-acc-box", style: { display: "flex", flexDirection: "column", gap: 4 } },
+          h(
+            "div",
+            { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 } },
+            h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, sk.title, " ", h("span", { className: "concerto-tag" }, `v${sk.version}`)),
+            h(
+              "div",
+              { style: { display: "flex", gap: 4 } },
+              h("button", { type: "button", className: "concerto-link", disabled: disabled || saving, onClick: () => setEditingSkill({ id: sk.id, title: sk.title, whenToUse: sk.whenToUse || "", body: sk.body || "" }) }, "\u7F16\u8F91"),
+              h("button", { type: "button", className: "concerto-link", disabled: disabled || saving, onClick: () => removeSkill(sk.id) }, "\u5220\u9664")
+            )
+          ),
+          sk.whenToUse && h("div", { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } }, `\u9002\u7528\uFF1A${sk.whenToUse}`),
+          h("pre", { style: { margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)" } }, sk.body)
+        ))
+      ),
+      !loading && tab === "experiences" && h(
+        "div",
+        { style: { display: "flex", flexDirection: "column", gap: 8 } },
+        !editingExp && h(
+          "div",
+          { style: { display: "flex", justifyContent: "flex-end" } },
+          h("button", {
+            type: "button",
+            className: "concerto-btn",
+            disabled: disabled || saving,
+            onClick: () => setEditingExp({ id: "", kind: "lesson", summary: "", detail: "" })
+          }, "+ \u8BB0\u5F55\u8E29\u5751\u7ECF\u9A8C")
+        ),
+        editingExp && h(
+          "form",
+          { onSubmit: saveExp, className: "concerto-acc-box", style: { display: "flex", flexDirection: "column", gap: 6 } },
+          h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, editingExp.id ? "\u7F16\u8F91\u8E29\u5751\u7ECF\u9A8C" : "\u65B0\u589E\u8E29\u5751\u7ECF\u9A8C"),
+          h("input", { className: "concerto-input", placeholder: "\u4E00\u53E5\u8BDD\u7ED3\u8BBA\uFF08\u4F8B\u5982\uFF1APowerShell 5.1 \u4E0D\u652F\u6301 &&\uFF0C\u9700\u7528 ; \u8FDE\u63A5\uFF09", value: editingExp.summary, onChange: (e) => setEditingExp({ ...editingExp, summary: e.target.value }) }),
+          h("textarea", { className: "concerto-input", rows: 3, placeholder: "\u8865\u5145\u80CC\u666F\u6216\u9A8C\u8BC1\u8BC1\u636E\uFF08\u53EF\u9009\uFF09\u2026", value: editingExp.detail, onChange: (e) => setEditingExp({ ...editingExp, detail: e.target.value }) }),
+          h(
+            "div",
+            { style: { display: "flex", gap: 6 } },
+            h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled: saving || !editingExp.summary.trim() }, saving ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u7ECF\u9A8C"),
+            h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setEditingExp(null) }, "\u53D6\u6D88")
+          )
+        ),
+        data.experiences.length === 0 && !editingExp ? h("p", { className: "concerto-quiet" }, "\u6682\u65E0\u8E29\u5751\u7ECF\u9A8C\u8BB0\u5F55\u3002\u6267\u884C\u8FC7\u7A0B\u4E2D\u9A8C\u8BC1\u8FC7\u7684\u7ECF\u9A8C\u6216\u624B\u52A8\u8BB0\u5F55\u90FD\u4F1A\u96C6\u4E2D\u5728\u6B64\u3002") : data.experiences.map((exp) => h(
+          "div",
+          { key: exp.id, className: "concerto-acc-box", style: { display: "flex", flexDirection: "column", gap: 4 } },
+          h(
+            "div",
+            { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 } },
+            h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, exp.verified ? "\u2705 " : "\u{1F4DD} ", exp.summary),
+            h(
+              "div",
+              { style: { display: "flex", gap: 4 } },
+              h("button", { type: "button", className: "concerto-link", disabled: disabled || saving, onClick: () => setEditingExp({ id: exp.id, kind: exp.kind || "lesson", summary: exp.summary, detail: exp.detail || "" }) }, "\u7F16\u8F91"),
+              h("button", { type: "button", className: "concerto-link", disabled: disabled || saving, onClick: () => removeExp(exp.id) }, "\u5220\u9664")
+            )
+          ),
+          exp.detail && h("div", { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)", whiteSpace: "pre-wrap" } }, exp.detail)
+        ))
+      )
+    )
+  );
+}
+function LiveOrchestraStage({ members = [], snapshot, tasks = [], pending = [], capByMemberId, selectedMemberId, onOpenMember }) {
+  const stageRef = import_react20.default.useRef(null);
+  const nodeRefs = import_react20.default.useRef(/* @__PURE__ */ new Map());
+  const [coords, setCoords] = import_react20.default.useState({ width: 0, height: 0, points: {} });
+  const seenCompletedRef = import_react20.default.useRef(null);
+  const [celebrating, setCelebrating] = import_react20.default.useState(() => /* @__PURE__ */ new Set());
+  const cmdMember = members.find((m) => m.roleKind === "commander") || null;
+  const workerMembers = members.filter((m) => m.roleKind === "worker");
+  const reviewerMembers = members.filter((m) => m.roleKind === "reviewer");
+  import_react20.default.useEffect(() => {
+    const completedIds = new Set(tasks.filter((t) => t.state === "completed").map((t) => t.taskId));
+    if (seenCompletedRef.current === null) {
+      seenCompletedRef.current = completedIds;
+      return;
+    }
+    const newlyDone = tasks.filter((t) => t.state === "completed" && !seenCompletedRef.current.has(t.taskId));
+    seenCompletedRef.current = completedIds;
+    if (newlyDone.length === 0) return;
+    const execs2 = Array.isArray(snapshot?.executions) ? snapshot.executions : [];
+    const winners = /* @__PURE__ */ new Set();
+    for (const t of newlyDone) {
+      if (t.memberId) winners.add(t.memberId);
+      const lastExec = [...execs2].reverse().find((e) => e.taskId === t.taskId && e.memberId);
+      if (lastExec?.memberId) winners.add(lastExec.memberId);
+    }
+    if (winners.size === 0) return;
+    setCelebrating((prev) => /* @__PURE__ */ new Set([...prev, ...winners]));
+    const timer = setTimeout(() => {
+      setCelebrating((prev) => {
+        const next = new Set(prev);
+        for (const id of winners) next.delete(id);
+        return next;
+      });
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [tasks, snapshot?.executions]);
+  const measure = import_react20.default.useCallback(() => {
+    const stageEl = stageRef.current;
+    if (!stageEl) return;
+    const sr2 = stageEl.getBoundingClientRect();
+    if (!sr2.width || !sr2.height) return;
+    const pts = {};
+    for (const [id, el] of nodeRefs.current.entries()) {
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      pts[id] = {
+        x: r.left - sr2.left + r.width / 2,
+        y: r.top - sr2.top + r.height / 2,
+        top: r.top - sr2.top,
+        bottom: r.bottom - sr2.top
+      };
+    }
+    setCoords({ width: sr2.width, height: sr2.height, points: pts });
+  }, []);
+  import_react20.default.useLayoutEffect(() => {
+    measure();
+    const stageEl = stageRef.current;
+    if (!stageEl || typeof ResizeObserver !== "function") return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(stageEl);
+    return () => ro.disconnect();
+  }, [measure, members.length, tasks.length]);
+  const renderSprite = (member) => {
+    const st2 = memberState(snapshot, member);
+    const count = pending.filter((r) => r.memberId === member.id).length;
+    const capInfo = capByMemberId.get(member.id);
+    const capBadge = capInfo ? formatCapabilitySummary(capInfo).badge : "";
+    const actLine = deriveMemberActivity(member, snapshot) || capInfo?.persona || capBadge;
+    const isHopping = celebrating.has(member.id);
+    return h("div", {
+      key: member.id,
+      ref: (el) => {
+        if (el) nodeRefs.current.set(member.id, el);
+        else nodeRefs.current.delete(member.id);
+      },
+      className: `concerto-live-node-wrap${isHopping ? " concerto-live-node--celebrate" : ""}`,
+      "data-concerto-stage-member": member.id
+    }, h(MemberSprite, {
+      member,
+      state: st2,
+      activityLine: actLine,
+      count,
+      selected: selectedMemberId === member.id,
+      onClick: () => onOpenMember?.(member.id)
+    }));
+  };
+  if (!cmdMember || workerMembers.length === 0 && reviewerMembers.length === 0) {
+    return h(
+      "div",
+      { className: "concerto-roster-strip", "data-concerto-section": "roster", "aria-label": "\u4E50\u56E2\u6210\u5458" },
+      members.map(renderSprite)
+    );
+  }
+  const activePulses = [];
+  const seenPulseKeys = /* @__PURE__ */ new Set();
+  const addPulse = (fromId, toId, kind) => {
+    const key = `${fromId}->${toId}:${kind}`;
+    if (!fromId || !toId || fromId === toId || seenPulseKeys.has(key)) return;
+    seenPulseKeys.add(key);
+    activePulses.push({ key, fromId, toId, kind });
+  };
+  const execs = Array.isArray(snapshot?.executions) ? snapshot.executions : [];
+  for (const w of workerMembers) {
+    if (["running", "waiting_input", "waiting_approval"].includes(memberState(snapshot, w))) {
+      addPulse(cmdMember.id, w.id, "dispatch");
+    }
+  }
+  for (const t of tasks) {
+    if (t.state === "review") {
+      const workerExec = [...execs].reverse().find((e) => e.taskId === t.taskId && e.kind !== "reviewer" && e.memberId);
+      const revExec = t.reviewExecutionId ? execs.find((e) => e.executionId === t.reviewExecutionId) : [...execs].reverse().find((e) => e.taskId === t.taskId && e.kind === "reviewer" && e.memberId);
+      const fromWorker = workerExec?.memberId || t.memberId;
+      const toReviewer = revExec?.memberId || reviewerMembers[0]?.id;
+      if (fromWorker && toReviewer) {
+        addPulse(fromWorker, toReviewer, "handoff");
+      } else if (toReviewer) {
+        addPulse(cmdMember.id, toReviewer, "handoff");
+      }
+    }
+  }
+  const makeCurve = (a, b, kind) => {
+    if (!a || !b) return "";
+    if (kind === "handoff") {
+      const midX = (a.x + b.x) / 2;
+      const liftY = Math.min(a.y, b.y) - 24;
+      return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${midX.toFixed(1)} ${liftY.toFixed(1)}, ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+    }
+    const startY = a.bottom ?? a.y;
+    const endY = b.top ?? b.y;
+    const midY = (startY + endY) / 2;
+    return `M ${a.x.toFixed(1)} ${startY.toFixed(1)} C ${a.x.toFixed(1)} ${midY.toFixed(1)}, ${b.x.toFixed(1)} ${midY.toFixed(1)}, ${b.x.toFixed(1)} ${endY.toFixed(1)}`;
+  };
+  const cmdPt = coords.points[cmdMember.id];
+  return h(
+    "div",
+    {
+      ref: stageRef,
+      className: "concerto-live-stage",
+      "data-concerto-section": "roster",
+      "data-concerto-live-stage": "true",
+      "aria-label": "\u4E50\u56E2\u5B9E\u65F6\u6F14\u594F\u821E\u53F0"
+    },
+    coords.width > 0 && coords.height > 0 && h(
+      "svg",
+      {
+        className: "concerto-live-stage-overlay",
+        viewBox: `0 0 ${coords.width} ${coords.height}`,
+        "aria-hidden": true
+      },
+      // 静态拓扑参考线（指挥者 -> 各成员）
+      cmdPt && [...workerMembers, ...reviewerMembers].map((m) => {
+        const pt2 = coords.points[m.id];
+        const d = makeCurve(cmdPt, pt2, "idle");
+        return d ? h("path", { key: `idle-${m.id}`, className: "concerto-stage-arc--idle", d }) : null;
+      }),
+      // 实时点对点协作光脉 + 滑动光点
+      activePulses.map((p) => {
+        const a = coords.points[p.fromId];
+        const b = coords.points[p.toId];
+        const d = makeCurve(a, b, p.kind);
+        if (!d) return null;
+        const pathId = `concerto-pulse-${p.key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+        return h(
+          "g",
+          { key: p.key, "data-concerto-pulse": p.kind, "data-pulse-from": p.fromId, "data-pulse-to": p.toId },
+          h("path", {
+            id: pathId,
+            className: p.kind === "handoff" ? "concerto-stage-arc--handoff" : "concerto-stage-arc--dispatch",
+            d
+          }),
+          h("circle", {
+            r: 3.5,
+            className: p.kind === "handoff" ? "concerto-stage-pulse-dot--handoff" : "concerto-stage-pulse-dot"
+          }, h("animateMotion", { dur: p.kind === "handoff" ? "1.4s" : "1.6s", repeatCount: "indefinite", path: d }))
+        );
+      })
+    ),
+    h("div", { className: "concerto-live-stage-row" }, renderSprite(cmdMember)),
+    h(
+      "div",
+      { className: "concerto-live-stage-wings" },
+      workerMembers.length > 0 && h("div", { className: "concerto-live-stage-wing" }, workerMembers.map(renderSprite)),
+      reviewerMembers.length > 0 && h("div", { className: "concerto-live-stage-wing" }, reviewerMembers.map(renderSprite))
+    )
+  );
+}
 
 // packages/dsh-concerto/src/client/components/ChatIntegration.js
-var import_react12 = __toESM(require_react(), 1);
+var import_react21 = __toESM(require_react(), 1);
 var import_react_dom3 = __toESM(require_react_dom(), 1);
 var TOOL_LABELS = {
   get_team_status: "\u8BFB\u53D6\u56E2\u961F\u72B6\u6001",
   submit_decision: "\u63D0\u4EA4\u56E2\u961F\u51B3\u7B56",
   dispatch_task: "\u6D3E\u53D1\u4EFB\u52A1",
+  dispatch_review: "\u6D3E\u53D1\u72EC\u7ACB\u5BA1\u67E5",
+  list_skills: "\u67E5\u770B\u65B9\u6CD5\u7D22\u5F15",
+  read_skill: "\u8BFB\u53D6\u65B9\u6CD5\u6B63\u6587",
+  publish_project_skill: "\u53D1\u5E03\u9879\u76EE\u65B9\u6CD5",
+  manage_member_duties: "\u7BA1\u7406\u6210\u5458\u804C\u8D23",
+  read_project_skill: "\u8BFB\u53D6\u9879\u76EE\u65B9\u6CD5",
   get_task: "\u8BFB\u53D6\u4EFB\u52A1\u8BE6\u60C5",
   report_progress: "\u6C47\u62A5\u4EFB\u52A1\u8FDB\u5C55",
   submit_result: "\u63D0\u4EA4\u4EFB\u52A1\u4EA4\u4ED8",
@@ -10096,42 +15643,83 @@ var TOOL_LABELS = {
   read_view_object: "\u6309\u9700\u8BFB\u53D6\u4EA7\u7269",
   update_team_view: "\u66F4\u65B0\u6307\u6325\u53F0\u7B80\u62A5"
 };
+function ChatPlanConfirmation({ snapshot, info, canAct, onApprove, sessionId, showTeamLink, onAfterJump }) {
+  const planGate = snapshot?.planGate;
+  if (!planGate?.planRef || snapshot?.goalCompletion) return null;
+  const { planRef, proposalId, status, commanderWake } = planGate;
+  if (status === "approved" && (snapshot.tasks?.length ?? 0) > 0) return null;
+  const planLabel = `${planRef.title || planRef.id} v${planRef.version}`;
+  const message = status === "pending" ? "\u7B49\u5F85\u786E\u8BA4\u5F00\u5DE5" : status === "stale" ? "\u8BA1\u5212\u5DF2\u66F4\u65B0\uFF0C\u7B49\u5F85\u6307\u6325\u8005\u63D0\u4EA4\u65B0\u7248\u672C" : commanderWake === "accepted" ? "\u5DF2\u786E\u8BA4\u5F00\u5DE5\uFF0C\u7EED\u63A5\u6D88\u606F\u5DF2\u63D0\u4EA4" : commanderWake === "manual" ? "\u5DF2\u786E\u8BA4\u5F00\u5DE5\uFF0C\u8BF7\u5728\u5BF9\u8BDD\u4E2D\u624B\u52A8\u7EE7\u7EED" : "\u5DF2\u786E\u8BA4\u5F00\u5DE5";
+  return h(
+    "section",
+    {
+      className: "concerto-feedback concerto-plan-confirmation",
+      "data-state": status,
+      "data-concerto-chat-plan-gate": status,
+      "aria-label": "\u5F00\u5DE5\u8BA1\u5212"
+    },
+    h("span", { role: "status" }, h("strong", null, planLabel), " \xB7 ", message),
+    h(
+      "div",
+      { className: "concerto-plan-actions" },
+      status === "pending" && info?.roleKind === "commander" && h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--primary",
+        disabled: !canAct,
+        onClick: () => onApprove(proposalId)
+      }, `\u786E\u8BA4\u5F00\u5DE5 v${planRef.version}`),
+      showTeamLink && h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--ghost",
+        onClick: () => {
+          onAfterJump?.();
+          selectHostTeamTab(sessionId, true);
+        }
+      }, "\u5728\u56E2\u961F\u9875\u67E5\u770B\u8BA1\u5212")
+    )
+  );
+}
 function ConcertoDock({ sessionId }) {
   useTeamCss();
   const hostTheme = useHostTheme();
-  const { info, error, refresh } = useTeamSession(sessionId);
-  const [teamTabAvailable, setTeamTabAvailable] = import_react12.default.useState(false);
+  const { info, error, loaded, refresh } = useTeamSession(sessionId);
+  const [teamTabAvailable, setTeamTabAvailable] = import_react21.default.useState(false);
   const snapshot = info?.snapshot;
-  import_react12.default.useEffect(() => {
-    if (!info || typeof requestAnimationFrame === "undefined") return;
+  import_react21.default.useEffect(() => {
+    if (!loaded || typeof requestAnimationFrame === "undefined") return;
     const frame = requestAnimationFrame(() => {
-      selectHostTeamTab(sessionId, false);
-      setTeamTabAvailable(Boolean(findTeamTab()));
+      syncHostTeamTabVisibility(Boolean(info));
+      if (info) {
+        selectHostTeamTab(sessionId, false);
+        setTeamTabAvailable(Boolean(findTeamTab()));
+      } else {
+        setTeamTabAvailable(false);
+      }
     });
     return () => cancelAnimationFrame(frame);
-  }, [sessionId, Boolean(info)]);
-  const [actionError, setActionError] = import_react12.default.useState("");
-  const [busy, setBusy] = import_react12.default.useState(false);
-  const [open, setOpen] = import_react12.default.useState(false);
-  const [filter, setFilter] = import_react12.default.useState("");
-  const [selectedMember, setSelectedMember] = import_react12.default.useState("");
-  const button = import_react12.default.useRef(null);
-  const lastCommand = import_react12.default.useRef(null);
-  import_react12.default.useEffect(() => {
+  }, [sessionId, loaded, Boolean(info)]);
+  const [actionError, setActionError] = import_react21.default.useState("");
+  const [busy, setBusy] = import_react21.default.useState(false);
+  const [open, setOpen] = import_react21.default.useState(false);
+  const [filter, setFilter] = import_react21.default.useState("");
+  const [selectedMember, setSelectedMember] = import_react21.default.useState("");
+  const button = import_react21.default.useRef(null);
+  const lastCommand = import_react21.default.useRef(null);
+  import_react21.default.useEffect(() => {
     setOpen(false);
     setFilter("");
     setSelectedMember("");
     setActionError("");
     lastCommand.current = null;
   }, [sessionId]);
-  const close = import_react12.default.useCallback(() => {
+  const close = import_react21.default.useCallback(() => {
     setOpen(false);
     button.current?.focus?.();
   }, []);
-  import_react12.default.useEffect(() => {
+  import_react21.default.useEffect(() => {
     if (!open || typeof document === "undefined") return;
     const escape = (event) => {
-      if (event.key === "Escape") close();
+      if (event.key === "Escape" && !document.querySelector(".concerto-surface:modal")) close();
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
@@ -10144,7 +15732,7 @@ function ConcertoDock({ sessionId }) {
     const signature = JSON.stringify({ path, input, sessionId });
     if (lastCommand.current?.signature !== signature) lastCommand.current = { signature, id: crypto.randomUUID() };
     try {
-      await request(path, { method: "POST", body: JSON.stringify({ ...input, sessionId, commandId: lastCommand.current.id }) });
+      await request2(path, { method: "POST", body: JSON.stringify({ ...input, sessionId, commandId: lastCommand.current.id }) });
       lastCommand.current = null;
       refresh();
     } catch (err) {
@@ -10157,7 +15745,7 @@ function ConcertoDock({ sessionId }) {
   const active = snapshot.executions.filter((e) => ["running", "waiting_input", "waiting_approval", "interrupting"].includes(e.state));
   const unknown = snapshot.executions.filter((e) => e.state === "unknown" && !e.quarantined);
   const members = roster(snapshot);
-  const summary = active.length + " \u4E2A\u6267\u884C \xB7 " + pending.length + " \u9879\u5F85\u5904\u7406" + (unknown.length ? " \xB7 " + unknown.length + " \u9879\u72B6\u6001\u672A\u77E5" : "");
+  const summary = active.length + " \u4E2A\u6267\u884C \xB7 " + pending.length + " \u9879\u5F85\u5904\u7406" + (snapshot.planGate?.status === "pending" && !snapshot.goalCompletion ? " \xB7 \u5F85\u786E\u8BA4\u8BA1\u5212" : "") + (unknown.length ? " \xB7 " + unknown.length + " \u9879\u72B6\u6001\u672A\u77E5" : "");
   const sprite = (member) => {
     const state = memberState(snapshot, member);
     return h(MemberSprite, {
@@ -10204,6 +15792,15 @@ function ConcertoDock({ sessionId }) {
     h("div", { style: styles.muted }, "\u6700\u540E\u540C\u6B65 " + new Date(snapshot.serverTime).toLocaleTimeString()),
     error && h("p", { role: "status" }, error + "\uFF1B\u4FDD\u7559\u6700\u540E\u4E00\u6B21\u6210\u529F\u5FEB\u7167"),
     actionError && h("p", { role: "alert" }, actionError),
+    h(ChatPlanConfirmation, {
+      snapshot,
+      info,
+      canAct,
+      sessionId,
+      showTeamLink: teamTabAvailable,
+      onAfterJump: close,
+      onApprove: (proposalId) => command("/runs/approve-plan", { proposalId })
+    }),
     pending.length > 0 && h("h3", null, "\u9700\u8981\u5904\u7406"),
     pending.filter((r) => !selectedMember || r.memberId === selectedMember).map((item) => h(RequestCard, {
       key: item.requestId,
@@ -10306,7 +15903,7 @@ function ConcertoDock({ sessionId }) {
   const hasTeamViewOrTab = teamTabAvailable || typeof document !== "undefined" && (Boolean(document.querySelector("[data-concerto-team-view]")) || Boolean(findTeamTab()));
   if (hasTeamViewOrTab) return null;
   return h(
-    import_react12.default.Fragment,
+    import_react21.default.Fragment,
     null,
     h(
       "div",
@@ -10396,8 +15993,8 @@ function bindMessageAvatars(flow, binding) {
   return () => manager.remove(binding);
 }
 function useMessageAvatars(anchor, turn, memberId, enabled) {
-  const [placement, setPlacement] = import_react12.default.useState({ mounts: [], latest: false, error: "" });
-  import_react12.default.useEffect(() => {
+  const [placement, setPlacement] = import_react21.default.useState({ mounts: [], latest: false, error: "" });
+  import_react21.default.useEffect(() => {
     if (!enabled || typeof document === "undefined") return;
     const flow = anchor.current?.closest('[data-slot="conversation.chat.flow"]');
     if (!flow || !Number.isInteger(turn)) {
@@ -10418,15 +16015,15 @@ function ConcertoTurnCard({ sessionId, turn }) {
   useTeamCss();
   const hostTheme = useHostTheme();
   const { info, error, refresh } = useTeamSession(sessionId);
-  const anchor = import_react12.default.useRef(null);
-  const card = import_react12.default.useRef(null);
-  const [opened, setOpened] = import_react12.default.useState(false);
-  const [selected, setSelected] = import_react12.default.useState("");
-  const [busy, setBusy] = import_react12.default.useState(false);
-  const [actionError, setActionError] = import_react12.default.useState("");
-  const lastCommand = import_react12.default.useRef(null);
+  const anchor = import_react21.default.useRef(null);
+  const card = import_react21.default.useRef(null);
+  const [opened, setOpened] = import_react21.default.useState(false);
+  const [selected, setSelected] = import_react21.default.useState("");
+  const [busy, setBusy] = import_react21.default.useState(false);
+  const [actionError, setActionError] = import_react21.default.useState("");
+  const lastCommand = import_react21.default.useRef(null);
   const snapshot = info?.snapshot;
-  import_react12.default.useEffect(() => {
+  import_react21.default.useEffect(() => {
     setOpened(false);
     setSelected("");
     setActionError("");
@@ -10445,14 +16042,14 @@ function ConcertoTurnCard({ sessionId, turn }) {
       });
     }
   }
-  async function answer(item, ans) {
+  async function command(path, bodyInput) {
     setBusy(true);
     setActionError("");
-    const input = { sessionId, requestId: item.requestId, answer: ans };
-    const signature = JSON.stringify(input);
+    const input = { sessionId, ...bodyInput };
+    const signature = JSON.stringify({ path, input });
     if (lastCommand.current?.signature !== signature) lastCommand.current = { signature, id: crypto.randomUUID() };
     try {
-      await request("/requests/respond", { method: "POST", body: JSON.stringify({ ...input, commandId: lastCommand.current.id }) });
+      await request2(path, { method: "POST", body: JSON.stringify({ ...input, commandId: lastCommand.current.id }) });
       lastCommand.current = null;
       refresh();
     } catch (err) {
@@ -10461,6 +16058,7 @@ function ConcertoTurnCard({ sessionId, turn }) {
       setBusy(false);
     }
   }
+  const answer = (item, ans) => command("/requests/respond", { requestId: item.requestId, answer: ans });
   if (!info || !snapshot) return h("div", { ref: anchor, className: "concerto-turn-anchor" });
   const pending = pendingRequests(snapshot);
   const tasks = snapshot.tasks.filter((task) => !selected || task.memberId === selected);
@@ -10538,6 +16136,14 @@ function ConcertoTurnCard({ sessionId, turn }) {
         );
       })),
       selected && h("button", { type: "button", className: "concerto-btn", style: { marginTop: 10 }, onClick: () => setSelected("") }, "\u67E5\u770B\u5168\u90E8\u6210\u5458"),
+      h(ChatPlanConfirmation, {
+        snapshot,
+        info,
+        canAct,
+        sessionId,
+        showTeamLink: true,
+        onApprove: (proposalId) => command("/runs/approve-plan", { proposalId })
+      }),
       tasks.length === 0 && h("p", { style: styles.muted }, selected ? selected + " \u5F53\u524D\u6CA1\u6709\u5206\u914D\u7684\u4EFB\u52A1\u3002" : "\u6682\u65E0\u4EFB\u52A1\uFF0C\u56E2\u961F\u5DF2\u5C31\u7EEA\u3002"),
       tasks.slice(-4).map((task) => h(
         "article",

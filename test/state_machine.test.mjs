@@ -103,6 +103,20 @@ test('execution: stop_confirmed needs backend evidence', () => {
   assert.equal(good.next, EXEC_STATE.stopped)
 })
 
+test('execution: force_released_unverified requires unknown state and userRiskAccepted', () => {
+  const missingRisk = transitionExecution(exec('unknown'), { type: 'force_released_unverified' })
+  assert.equal(missingRisk.kind, 'rejected')
+  assert.equal(missingRisk.code, REJECT.missingEvidence)
+
+  const wrongState = transitionExecution(exec('running'), { type: 'force_released_unverified', userRiskAccepted: true })
+  assert.equal(wrongState.kind, 'rejected')
+  assert.equal(wrongState.code, REJECT.invalidTransition)
+
+  const released = transitionExecution(exec('unknown'), { type: 'force_released_unverified', userRiskAccepted: true })
+  assert.equal(released.kind, 'ok')
+  assert.equal(released.next, EXEC_STATE.stopped)
+})
+
 test('view: approval surfaces without mutating task', () => {
   const task = { state: 'running' }
   assert.equal(taskViewState(task, { state: 'waiting_approval' }), TASK_VIEW.waiting_approval)

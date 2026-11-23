@@ -75,6 +75,25 @@ test('waiting for human input suspends completion timeout', async () => {
   assert.equal((await handle.completion).status, 'completed')
 })
 
+test('opt-in Plan replies to the native request in the same turn before starting the task turn', { timeout: 5000 }, async () => {
+  const question = Promise.withResolvers()
+  const events = []
+  const adapter = createCodexAdapter({ planModel: 'fixture-model', timeoutMs: 3000,
+    spawnProcess: (_bin, _args, options) => spawn(process.execPath, [fixture, 'plan_question'], options) })
+  const handle = adapter.start({ prompt: 'Do the eligible task', onEvent(event) {
+    events.push(event)
+    if (event.type === 'question.requested') question.resolve(event)
+  } })
+  const request = await question.promise
+  assert.equal(request.responseMode, 'same_turn')
+  assert.equal(request.payload.turnId, 'plan-turn')
+  await handle.respond(request.requestId, { answers: { q1: { answers: ['GLB'] } } })
+  const completed = await handle.completion
+  assert.equal(completed.status, 'completed', completed.detail)
+  assert.equal(completed.threadId, 'thread-fixture')
+  assert.deepEqual(events.filter((event) => event.phase === 'turn.ack').map((event) => event.turnId), ['plan-turn', 'task-turn'])
+})
+
 test('adapter timestamps request receipt and separates handshake / turn phases', async () => {
   const events = [], ready = Promise.withResolvers()
   const handle = adapterFor('item/commandExecution/requestApproval').start({cwd:process.cwd(),prompt:'fixture',onEvent:event=>{

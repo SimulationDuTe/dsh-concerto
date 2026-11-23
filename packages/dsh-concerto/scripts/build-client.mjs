@@ -5,7 +5,7 @@
  *   Externalizes `react` and `react-dom` so DSH `__ModuleLoader__` supplies the host runtime.
  *   Shares geometry helpers directly from `lib/domain/view_layout.mjs` and `lib/domain/view_objects.mjs`.
  *   Remains safe to evaluate under Node `vm.runInNewContext` without `document`.
- * - Lazy vendor chunks -> `lib/vendor/markmap.js`, `lib/vendor/rough.js`:
+ * - Lazy vendor chunks -> Rough.js and the focusgroup fallback:
  *   Loaded on demand in the browser via `/concerto/assets/<name>`.
  */
 import { build } from 'esbuild'
@@ -22,6 +22,10 @@ mkdirSync(vendorDir, { recursive: true })
 const hostDepsPlugin = {
   name: 'concerto-dsh-host-deps',
   setup(b) {
+    b.onResolve({ filter: /^@microsoft\/focusgroup-polyfill$/ }, () => ({
+      path: '/concerto/assets/focusgroup.js',
+      external: true,
+    }))
     b.onResolve({ filter: /^react(-dom)?$/ }, (args) => ({
       path: args.path,
       namespace: 'dsh-host-dep',
@@ -68,17 +72,6 @@ await build({
 })
 
 await build({
-  entryPoints: [resolve(pkgRoot, 'src/client/vendor/markmap-chunk.js')],
-  outfile: resolve(vendorDir, 'markmap.js'),
-  bundle: true,
-  platform: 'browser',
-  target: ['es2022'],
-  format: 'esm',
-  minify: true,
-  legalComments: 'none',
-})
-
-await build({
   entryPoints: [resolve(pkgRoot, 'src/client/vendor/rough-chunk.js')],
   outfile: resolve(vendorDir, 'rough.js'),
   bundle: true,
@@ -89,10 +82,21 @@ await build({
   legalComments: 'none',
 })
 
+await build({
+  entryPoints: [resolve(pkgRoot, 'src/client/vendor/focusgroup-chunk.js')],
+  outfile: resolve(vendorDir, 'focusgroup.js'),
+  bundle: true,
+  platform: 'browser',
+  target: ['es2022'],
+  format: 'esm',
+  minify: true,
+  legalComments: 'none',
+})
+
 const report = [
   'lib/client.js',
-  'lib/vendor/markmap.js',
   'lib/vendor/rough.js',
+  'lib/vendor/focusgroup.js',
 ].map((rel) => {
   const bytes = statSync(resolve(pkgRoot, rel)).size
   return `${rel}: ${bytes} B (${(bytes / 1024).toFixed(1)} KiB)`
