@@ -221,6 +221,12 @@ const server = createServer(async (req, res) => {
       res.setHeader('content-type', 'text/html; charset=utf-8')
       return res.end(html)
     }
+    if (url.pathname === '/concerto/events') {
+      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache', connection: 'keep-alive' })
+      res.write(': connected\n\n')
+      req.on('close', () => { try { res.end() } catch {} })
+      return
+    }
     if (url.pathname === '/concerto/session') {
       const sid = url.searchParams.get('sessionId') || ''
       const found = sessions[sid]

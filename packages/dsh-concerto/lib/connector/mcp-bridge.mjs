@@ -78,7 +78,7 @@ export async function startExecutionMcpBridge({ dynamicTools = [], onToolCall, s
         body: jsonRpcResult(msg.id, {
           protocolVersion,
           capabilities: { tools: {} },
-          serverInfo: { name: 'concerto-team-tools', version: '0.0.6' },
+          serverInfo: { name: 'concerto-team-tools', version: '0.1.0' },
         }),
       }
     }
