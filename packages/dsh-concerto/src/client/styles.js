@@ -964,11 +964,20 @@ export const TEAM_CSS = `
   @keyframes concerto-stage-flow { to { stroke-dashoffset: -20; } }
   @keyframes concerto-stage-expand { from { opacity: 0; transform: translateY(-6px) scale(0.985); } to { opacity: 1; transform: none; } }
   /* TeamHome Live Orchestra Performance Stage */
-  .concerto-live-stage { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: var(--cc-space-3) var(--cc-space-3) var(--cc-space-2); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: radial-gradient(ellipse 60% 55% at 50% 15%, color-mix(in srgb, var(--cc-accent) 9%, transparent), transparent 72%), var(--cc-card-nested-bg); }
-  .concerto-live-stage-svg { width: 100%; max-width: 460px; height: 30px; margin: -4px 0 -4px; pointer-events: none; overflow: visible; }
-  .concerto-live-stage-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); width: 100%; }
-  .concerto-live-stage-wings { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); width: 100%; }
+  .concerto-live-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: var(--cc-space-3) var(--cc-space-3) var(--cc-space-2); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: radial-gradient(ellipse 60% 55% at 50% 15%, color-mix(in srgb, var(--cc-accent) 9%, transparent), transparent 72%), var(--cc-card-nested-bg); }
+  .concerto-live-stage-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 1; }
+  .concerto-live-stage-row { position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); width: 100%; }
+  .concerto-live-stage-wings { position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); width: 100%; }
   .concerto-live-stage-wing { flex: 1 1 180px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); }
+  .concerto-live-node-wrap { display: inline-flex; position: relative; }
+  .concerto-live-node--celebrate { animation: concerto-sprite-hop 0.85s var(--cc-ease) 2; }
+  .concerto-live-node--celebrate .concerto-sprite { box-shadow: 0 0 0 2px var(--cc-state-done), 0 4px 14px color-mix(in srgb, var(--cc-state-done) 35%, transparent); }
+  @keyframes concerto-sprite-hop { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-7px) scale(1.04); } 55% { transform: translateY(0) scale(0.98); } 75% { transform: translateY(-3px) scale(1.01); } }
+  .concerto-stage-arc--idle { fill: none; stroke: color-mix(in srgb, var(--cc-border) 65%, transparent); stroke-width: 1.25; stroke-dasharray: 3 5; }
+  .concerto-stage-arc--dispatch { fill: none; stroke: var(--cc-accent); stroke-width: 2.5; stroke-dasharray: 6 6; stroke-linecap: round; animation: concerto-stage-flow 1.2s linear infinite; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cc-accent) 55%, transparent)); }
+  .concerto-stage-arc--handoff { fill: none; stroke: var(--cc-state-review); stroke-width: 2.5; stroke-dasharray: 6 5; stroke-linecap: round; animation: concerto-stage-flow 1.1s linear infinite; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cc-state-review) 55%, transparent)); }
+  .concerto-stage-pulse-dot { fill: var(--cc-accent); }
+  .concerto-stage-pulse-dot--handoff { fill: var(--cc-state-review); }
   /* A/B Compare Race Board */
   .concerto-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-space-3); width: 100%; }
   .concerto-race-col { display: flex; flex-direction: column; gap: var(--cc-space-2); padding: var(--cc-space-3); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: var(--cc-card-bg); min-width: 0; }
@@ -1006,7 +1015,7 @@ export const TEAM_CSS = `
   .concerto-attention-popover, .concerto-hero-menu-list { animation: concerto-rise var(--cc-dur-fast) var(--cc-ease); }
   @media (prefers-reduced-motion: reduce) {
     .concerto-surface *, .concerto-surface *::before, .concerto-surface *::after { transition: none !important; }
-    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector, .concerto-battle-node--running > rect:first-of-type, .concerto-point-cmd-bar { animation: none !important; }
+    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-arc--dispatch, .concerto-stage-arc--handoff, .concerto-live-node--celebrate, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector, .concerto-battle-node--running > rect:first-of-type, .concerto-point-cmd-bar { animation: none !important; }
     .concerto-live-dot::before, .concerto-tab-btn::after, .concerto-tab-content, .concerto-board-card-list > li, .concerto-jump-banner, .concerto-attention-popover, .concerto-hero-menu-list, .concerto-drawer[open], .concerto-canvas-modal[open], .concerto-drawer::backdrop, .concerto-canvas-modal::backdrop { animation: none !important; }
     .concerto-kcard:hover, .concerto-btn:active:not(:disabled) { transform: none; }
     .concerto-task-highlight, .concerto-card-highlight { animation: none !important; outline: 2px solid var(--cc-accent); }

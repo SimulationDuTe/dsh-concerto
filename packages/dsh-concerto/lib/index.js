@@ -2599,6 +2599,39 @@ export function apply(ctx, config) {
     return buildCloseoutReport({ snapshot, team })
   }
 
+  const teamMemory = {
+    get({ sessionId } = {}) {
+      const owned = ownedRun({ sessionId, commandId: `mem-get-${sessionId || 'x'}` })
+      if (!owned.ok) return owned
+      return runtime.getTeamMemory(owned.scope.teamSessionId)
+    },
+    upsertSkill(input = {}) {
+      const owned = ownedRun({ ...input, commandId: input.commandId || `mem-skill-${Date.now()}` })
+      if (!owned.ok) return owned
+      return runtime.upsertTeamMemorySkill(owned.scope.teamSessionId, input)
+    },
+    deleteSkill(input = {}) {
+      const owned = ownedRun({ ...input, commandId: input.commandId || `mem-skill-del-${Date.now()}` })
+      if (!owned.ok) return owned
+      return runtime.deleteTeamMemorySkill(owned.scope.teamSessionId, input)
+    },
+    upsertExperience(input = {}) {
+      const owned = ownedRun({ ...input, commandId: input.commandId || `mem-exp-${Date.now()}` })
+      if (!owned.ok) return owned
+      return runtime.upsertTeamMemoryExperience(owned.scope.teamSessionId, input)
+    },
+    deleteExperience(input = {}) {
+      const owned = ownedRun({ ...input, commandId: input.commandId || `mem-exp-del-${Date.now()}` })
+      if (!owned.ok) return owned
+      return runtime.deleteTeamMemoryExperience(owned.scope.teamSessionId, input)
+    },
+    importMemory(input = {}) {
+      const owned = ownedRun({ ...input, commandId: input.commandId || `mem-imp-${Date.now()}` })
+      if (!owned.ok) return owned
+      return runtime.importTeamMemory(owned.scope.teamSessionId, input)
+    },
+  }
+
   const suggestRun = async (input) => {
     const owned = ownedRun(input)
     if (!owned.ok) return owned
@@ -2748,6 +2781,7 @@ export function apply(ctx, config) {
       commanderPrompt: commanderPromptRequest,
       getSnapshot: getRunSnapshot,
       exportRunReport,
+      teamMemory,
       suggestRun,
       probe,
       generate,

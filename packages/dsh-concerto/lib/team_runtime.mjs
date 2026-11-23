@@ -254,6 +254,8 @@ export function createTeamRuntime({ policyRequiresReview = false, statePath = ''
           viewObjects: new Map((record.viewObjects ?? []).map((o) => [o.id, o])),
           viewObjectHistory: new Map((record.viewObjectHistory ?? []).map(([id, versions]) => [id, versions])),
           loadedSkills: new Map((record.loadedSkills ?? []).map(([id, rec]) => [id, rec])),
+          userExperiences: Array.isArray(record.userExperiences) ? record.userExperiences : [],
+          deletedExperienceIds: Array.isArray(record.deletedExperienceIds) ? record.deletedExperienceIds : [],
           publicView: normalizePublicView(record.publicView),
           userPinnedRefs: normalizeUserPinnedRefs(record.userPinnedRefs),
         })
@@ -302,6 +304,8 @@ export function createTeamRuntime({ policyRequiresReview = false, statePath = ''
           viewObjects: [...(s.viewObjects?.values() ?? [])],
           viewObjectHistory: [...(s.viewObjectHistory?.entries() ?? [])],
           loadedSkills: [...(s.loadedSkills?.entries() ?? [])],
+          userExperiences: Array.isArray(s.userExperiences) ? s.userExperiences : [],
+          deletedExperienceIds: Array.isArray(s.deletedExperienceIds) ? s.deletedExperienceIds : [],
           publicView: normalizePublicView(s.publicView),
           userPinnedRefs: normalizeUserPinnedRefs(s.userPinnedRefs),
         })),
@@ -599,6 +603,8 @@ export function createTeamRuntime({ policyRequiresReview = false, statePath = ''
       missingRequiredViews,
       publicView: normalizePublicView(state.publicView),
       userPinnedRefs: normalizeUserPinnedRefs(state.userPinnedRefs),
+      memoryCount: (projectSkills.get(projectIdOf(sessionId, state))?.size ?? 0)
+        + (Array.isArray(state.userExperiences) ? state.userExperiences.length : 0),
     }
   }
 
@@ -3911,6 +3917,199 @@ export function createTeamRuntime({ policyRequiresReview = false, statePath = ''
     readMemberDuties,
     updateMemberDuties: transaction(updateMemberDuties),
     resolveSkillRefsForDispatch,
+    getTeamMemory(scope) {
+      const state = stateOf(scope)
+      const projectId = projectIdOf(scope, state)
+      const projMap = projectSkills.get(projectId)
+      const skills = projMap
+        ? [...projMap.values()].map((entry) => {
+            const latest = entry.versions.get(entry.latestVersion) || [...entry.versions.values()].at(-1)
+            return latest ? {
+              id: entry.id,
+              version: latest.version,
+              title: latest.title || entry.id,
+              description: latest.description || '',
+              whenToUse: latest.whenToUse || '',
+              body: latest.body || '',
+              authorId: latest.authorId || 'concerto',
+              updatedAt: latest.updatedAt || latest.createdAt || null,
+              source: latest.authorId === 'user' ? 'user' : 'project_skill',
+            } : null
+          }).filter(Boolean)
+        : []
+      const deletedSet = new Set(Array.isArray(state.deletedExperienceIds) ? state.deletedExperienceIds : [])
+      const fromEvents = [...projectExperienceRecords(scope, state).values()]
+        .filter((rec) => !deletedSet.has(rec.id))
+        .map((rec) => ({
+          id: rec.id,
+          kind: rec.kind || 'lesson',
+          summary: rec.summary || rec.claim || '',
+          detail: rec.detail || rec.evidence || '',
+          verified: Boolean(rec.verified || rec.reviewStatus === 'verified'),
+          source: 'runtime',
+          updatedAt: rec.updatedAt || rec.recordedAt || null,
+        }))
+      const userExps = (Array.isArray(state.userExperiences) ? state.userExperiences : [])
+        .filter((rec) => rec && !deletedSet.has(rec.id))
+        .map((rec) => ({ ...rec, source: 'user' }))
+      const byId = new Map()
+      for (const item of fromEvents) byId.set(item.id, item)
+      for (const item of userExps) byId.set(item.id, item)
+      return { ok: true, projectId, skills, experiences: [...byId.values()] }
+    },
+    upsertTeamMemorySkill: transaction((scope, input = {}) => {
+      const state = stateOf(scope)
+      const projectId = projectIdOf(scope, state)
+      const title = typeof input.title === 'string' ? input.title.trim() : ''
+      const body = typeof input.body === 'string' ? input.body.trim() : ''
+      if (!title || !body) return fail('invalid', '请填写规范标题与正文内容')
+      const rawId = typeof input.id === 'string' && input.id.trim()
+        ? input.id.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
+        : ''
+      const id = rawId || `skill-${Date.now().toString(36)}`
+      const description = typeof input.description === 'string' && input.description.trim()
+        ? input.description.trim()
+        : title
+      const whenToUse = typeof input.whenToUse === 'string' ? input.whenToUse.trim() : ''
+      const now = new Date().toISOString()
+      let projMap = projectSkills.get(projectId)
+      if (!projMap) {
+        projMap = new Map()
+        projectSkills.set(projectId, projMap)
+      }
+      const existing = projMap.get(id)
+      const nextVersion = existing ? existing.latestVersion + 1 : 1
+      const payload = {
+        id,
+        kind: 'project',
+        version: nextVersion,
+        title,
+        description,
+        requiredCapabilities: [],
+        whenToUse,
+        whenNotToUse: '',
+        sourceRefs: [],
+        body,
+        references: {},
+        authorId: 'user',
+        authoringSpecRef: 'ui:team-memory',
+        createdAt: existing ? (existing.versions.get(1)?.createdAt || now) : now,
+        updatedAt: now,
+      }
+      payload.contentHash = hashSkillContent(payload)
+      const versions = existing ? new Map(existing.versions) : new Map()
+      versions.set(nextVersion, payload)
+      projMap.set(id, { id, projectId, latestVersion: nextVersion, versions })
+      appendEvent(scope, 'memory.updated', { kind: 'skill', action: existing ? 'update' : 'create', id, version: nextVersion }, { kind: 'user', id: 'local-owner' })
+      return { ok: true, projectId, skill: { id, version: nextVersion, title, description, whenToUse, body, updatedAt: now } }
+    }),
+    deleteTeamMemorySkill: transaction((scope, { skillId } = {}) => {
+      if (typeof skillId !== 'string' || !skillId.trim()) return fail('invalid', 'skillId is required')
+      const state = stateOf(scope)
+      const projectId = projectIdOf(scope, state)
+      const projMap = projectSkills.get(projectId)
+      if (!projMap || !projMap.delete(skillId.trim())) return fail('not_found', `skill "${skillId}" not found`)
+      appendEvent(scope, 'memory.updated', { kind: 'skill', action: 'delete', id: skillId.trim() }, { kind: 'user', id: 'local-owner' })
+      return { ok: true, projectId, deleted: skillId.trim() }
+    }),
+    upsertTeamMemoryExperience: transaction((scope, input = {}) => {
+      const state = stateOf(scope)
+      const summary = typeof input.summary === 'string' ? input.summary.trim() : ''
+      if (!summary) return fail('invalid', '请填写经验摘要')
+      const id = typeof input.id === 'string' && input.id.trim()
+        ? input.id.trim()
+        : `exp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+      const kind = typeof input.kind === 'string' && input.kind.trim() ? input.kind.trim() : 'lesson'
+      const detail = typeof input.detail === 'string' ? input.detail.trim() : ''
+      const now = new Date().toISOString()
+      state.userExperiences = Array.isArray(state.userExperiences) ? state.userExperiences : []
+      state.deletedExperienceIds = (Array.isArray(state.deletedExperienceIds) ? state.deletedExperienceIds : []).filter((x) => x !== id)
+      const next = { id, kind, summary, detail, verified: true, source: 'user', updatedAt: now }
+      const idx = state.userExperiences.findIndex((x) => x.id === id)
+      if (idx >= 0) state.userExperiences[idx] = next
+      else state.userExperiences.push(next)
+      appendEvent(scope, 'memory.updated', { kind: 'experience', action: idx >= 0 ? 'update' : 'create', id }, { kind: 'user', id: 'local-owner' })
+      return { ok: true, experience: next }
+    }),
+    deleteTeamMemoryExperience: transaction((scope, { id } = {}) => {
+      if (typeof id !== 'string' || !id.trim()) return fail('invalid', 'experience id is required')
+      const targetId = id.trim()
+      const state = stateOf(scope)
+      state.userExperiences = (Array.isArray(state.userExperiences) ? state.userExperiences : []).filter((x) => x.id !== targetId)
+      state.deletedExperienceIds = Array.isArray(state.deletedExperienceIds) ? state.deletedExperienceIds : []
+      if (!state.deletedExperienceIds.includes(targetId)) state.deletedExperienceIds.push(targetId)
+      appendEvent(scope, 'memory.updated', { kind: 'experience', action: 'delete', id: targetId }, { kind: 'user', id: 'local-owner' })
+      return { ok: true, deleted: targetId }
+    }),
+    importTeamMemory: transaction((scope, input = {}) => {
+      const state = stateOf(scope)
+      const projectId = projectIdOf(scope, state)
+      const skillsIn = Array.isArray(input.skills) ? input.skills : []
+      const expsIn = Array.isArray(input.experiences) ? input.experiences : []
+      let importedSkills = 0
+      let importedExperiences = 0
+      let projMap = projectSkills.get(projectId)
+      if (!projMap) {
+        projMap = new Map()
+        projectSkills.set(projectId, projMap)
+      }
+      const now = new Date().toISOString()
+      for (const s of skillsIn) {
+        const title = typeof s?.title === 'string' ? s.title.trim() : ''
+        const body = typeof s?.body === 'string' ? s.body.trim() : ''
+        if (!title || !body) continue
+        const id = typeof s.id === 'string' && s.id.trim()
+          ? s.id.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').slice(0, 60)
+          : `skill-${Date.now().toString(36)}-${importedSkills}`
+        const existing = projMap.get(id)
+        const nextVersion = existing ? existing.latestVersion + 1 : 1
+        const payload = {
+          id,
+          kind: 'project',
+          version: nextVersion,
+          title,
+          description: typeof s.description === 'string' && s.description.trim() ? s.description.trim() : title,
+          requiredCapabilities: [],
+          whenToUse: typeof s.whenToUse === 'string' ? s.whenToUse.trim() : '',
+          whenNotToUse: '',
+          sourceRefs: [],
+          body,
+          references: {},
+          authorId: 'user',
+          authoringSpecRef: 'ui:team-memory-import',
+          createdAt: now,
+          updatedAt: now,
+        }
+        payload.contentHash = hashSkillContent(payload)
+        const versions = existing ? new Map(existing.versions) : new Map()
+        versions.set(nextVersion, payload)
+        projMap.set(id, { id, projectId, latestVersion: nextVersion, versions })
+        importedSkills += 1
+      }
+      state.userExperiences = Array.isArray(state.userExperiences) ? state.userExperiences : []
+      state.deletedExperienceIds = Array.isArray(state.deletedExperienceIds) ? state.deletedExperienceIds : []
+      for (const e of expsIn) {
+        const summary = typeof e?.summary === 'string' ? e.summary.trim() : ''
+        if (!summary) continue
+        const id = typeof e.id === 'string' && e.id.trim() ? e.id.trim() : `exp-imp-${Date.now().toString(36)}-${importedExperiences}`
+        state.deletedExperienceIds = state.deletedExperienceIds.filter((x) => x !== id)
+        const rec = {
+          id,
+          kind: typeof e.kind === 'string' && e.kind.trim() ? e.kind.trim() : 'lesson',
+          summary,
+          detail: typeof e.detail === 'string' ? e.detail.trim() : '',
+          verified: true,
+          source: 'user',
+          updatedAt: now,
+        }
+        const idx = state.userExperiences.findIndex((x) => x.id === id)
+        if (idx >= 0) state.userExperiences[idx] = rec
+        else state.userExperiences.push(rec)
+        importedExperiences += 1
+      }
+      appendEvent(scope, 'memory.updated', { action: 'import', importedSkills, importedExperiences }, { kind: 'user', id: 'local-owner' })
+      return { ok: true, projectId, importedSkills, importedExperiences }
+    }),
     getSkillLedger(scope) {
       const state = stateOf(scope)
       const projectId = projectIdOf(scope, state)

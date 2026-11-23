@@ -615,7 +615,8 @@ var EVENT_LABEL = {
   "race.started": "\u{1F3C1} \u542F\u52A8\u53CC\u89E3\u8D5B\u9A6C",
   "race.winner_selected": "\u{1F3C6} \u91C7\u7EB3\u8D5B\u9A6C\u80DC\u8005",
   "verification.passed": "\u2705 \u9A8C\u8BC1\u95E8\u7981\u901A\u8FC7",
-  "verification.failed": "\u274C \u9A8C\u8BC1\u95E8\u7981\u672A\u901A\u8FC7"
+  "verification.failed": "\u274C \u9A8C\u8BC1\u95E8\u7981\u672A\u901A\u8FC7",
+  "memory.updated": "\u{1F9E0} \u56E2\u961F\u8BB0\u5FC6\u5DF2\u66F4\u65B0"
 };
 var STATE_META = {
   running: { cls: "concerto-state-running", icon: "\u27F3", label: "\u6267\u884C\u4E2D" },
@@ -2452,11 +2453,20 @@ var TEAM_CSS = `
   @keyframes concerto-stage-flow { to { stroke-dashoffset: -20; } }
   @keyframes concerto-stage-expand { from { opacity: 0; transform: translateY(-6px) scale(0.985); } to { opacity: 1; transform: none; } }
   /* TeamHome Live Orchestra Performance Stage */
-  .concerto-live-stage { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: var(--cc-space-3) var(--cc-space-3) var(--cc-space-2); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: radial-gradient(ellipse 60% 55% at 50% 15%, color-mix(in srgb, var(--cc-accent) 9%, transparent), transparent 72%), var(--cc-card-nested-bg); }
-  .concerto-live-stage-svg { width: 100%; max-width: 460px; height: 30px; margin: -4px 0 -4px; pointer-events: none; overflow: visible; }
-  .concerto-live-stage-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); width: 100%; }
-  .concerto-live-stage-wings { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); width: 100%; }
+  .concerto-live-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: var(--cc-space-3) var(--cc-space-3) var(--cc-space-2); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: radial-gradient(ellipse 60% 55% at 50% 15%, color-mix(in srgb, var(--cc-accent) 9%, transparent), transparent 72%), var(--cc-card-nested-bg); }
+  .concerto-live-stage-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 1; }
+  .concerto-live-stage-row { position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); width: 100%; }
+  .concerto-live-stage-wings { position: relative; z-index: 2; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); width: 100%; }
   .concerto-live-stage-wing { flex: 1 1 180px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); }
+  .concerto-live-node-wrap { display: inline-flex; position: relative; }
+  .concerto-live-node--celebrate { animation: concerto-sprite-hop 0.85s var(--cc-ease) 2; }
+  .concerto-live-node--celebrate .concerto-sprite { box-shadow: 0 0 0 2px var(--cc-state-done), 0 4px 14px color-mix(in srgb, var(--cc-state-done) 35%, transparent); }
+  @keyframes concerto-sprite-hop { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-7px) scale(1.04); } 55% { transform: translateY(0) scale(0.98); } 75% { transform: translateY(-3px) scale(1.01); } }
+  .concerto-stage-arc--idle { fill: none; stroke: color-mix(in srgb, var(--cc-border) 65%, transparent); stroke-width: 1.25; stroke-dasharray: 3 5; }
+  .concerto-stage-arc--dispatch { fill: none; stroke: var(--cc-accent); stroke-width: 2.5; stroke-dasharray: 6 6; stroke-linecap: round; animation: concerto-stage-flow 1.2s linear infinite; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cc-accent) 55%, transparent)); }
+  .concerto-stage-arc--handoff { fill: none; stroke: var(--cc-state-review); stroke-width: 2.5; stroke-dasharray: 6 5; stroke-linecap: round; animation: concerto-stage-flow 1.1s linear infinite; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--cc-state-review) 55%, transparent)); }
+  .concerto-stage-pulse-dot { fill: var(--cc-accent); }
+  .concerto-stage-pulse-dot--handoff { fill: var(--cc-state-review); }
   /* A/B Compare Race Board */
   .concerto-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-space-3); width: 100%; }
   .concerto-race-col { display: flex; flex-direction: column; gap: var(--cc-space-2); padding: var(--cc-space-3); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: var(--cc-card-bg); min-width: 0; }
@@ -2494,7 +2504,7 @@ var TEAM_CSS = `
   .concerto-attention-popover, .concerto-hero-menu-list { animation: concerto-rise var(--cc-dur-fast) var(--cc-ease); }
   @media (prefers-reduced-motion: reduce) {
     .concerto-surface *, .concerto-surface *::before, .concerto-surface *::after { transition: none !important; }
-    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector, .concerto-battle-node--running > rect:first-of-type, .concerto-point-cmd-bar { animation: none !important; }
+    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-arc--dispatch, .concerto-stage-arc--handoff, .concerto-live-node--celebrate, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector, .concerto-battle-node--running > rect:first-of-type, .concerto-point-cmd-bar { animation: none !important; }
     .concerto-live-dot::before, .concerto-tab-btn::after, .concerto-tab-content, .concerto-board-card-list > li, .concerto-jump-banner, .concerto-attention-popover, .concerto-hero-menu-list, .concerto-drawer[open], .concerto-canvas-modal[open], .concerto-drawer::backdrop, .concerto-canvas-modal::backdrop { animation: none !important; }
     .concerto-kcard:hover, .concerto-btn:active:not(:disabled) { transform: none; }
     .concerto-task-highlight, .concerto-card-highlight { animation: none !important; outline: 2px solid var(--cc-accent); }
@@ -12740,6 +12750,7 @@ function ConcertoTeamView({ sessionId, openView }) {
   const [pinnedPreview, setPinnedPreview] = import_react20.default.useState(null);
   const [filePreview, setFilePreview] = import_react20.default.useState(null);
   const [reportModal, setReportModal] = import_react20.default.useState(null);
+  const [memoryOpen, setMemoryOpen] = import_react20.default.useState(false);
   const openCloseoutReport = import_react20.default.useCallback(async () => {
     setReportModal({ loading: true, error: "", markdown: "", filename: "concerto-report.md", copied: false });
     try {
@@ -13774,6 +13785,14 @@ function ConcertoTeamView({ sessionId, openView }) {
           className: "concerto-btn concerto-btn--ghost",
           onClick: (event) => {
             event.currentTarget.closest("details")?.removeAttribute("open");
+            setMemoryOpen(true);
+          }
+        }, `\u{1F9E0} \u56E2\u961F\u8BB0\u5FC6${snapshot.memoryCount > 0 ? ` (${snapshot.memoryCount})` : ""}`),
+        h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          onClick: (event) => {
+            event.currentTarget.closest("details")?.removeAttribute("open");
             openCloseoutReport();
           }
         }, "\u{1F4CB} \u5BFC\u51FA\u4EA4\u4ED8\u590D\u76D8\u5355"),
@@ -13948,62 +13967,16 @@ function ConcertoTeamView({ sessionId, openView }) {
             }, text, " ", h("b", null, String(count))))
           )
         ),
-        // 实时演奏乐团舞台（指挥者居中 + 发光协作连线 + 左执行者 / 右审查者）
-        (() => {
-          const renderSprite = (member) => {
-            const st2 = memberState(snapshot, member);
-            const count = pending.filter((r) => r.memberId === member.id).length;
-            const capInfo = capByMemberId.get(member.id);
-            const capBadge = capInfo ? formatCapabilitySummary(capInfo).badge : "";
-            const actLine = deriveMemberActivity(member, snapshot) || capInfo?.persona || capBadge;
-            return h(MemberSprite, {
-              key: member.id,
-              member,
-              state: st2,
-              activityLine: actLine,
-              count,
-              selected: drawerState.memberId === member.id,
-              onClick: () => openMemberDrawer(member.id, "messages")
-            });
-          };
-          const cmdMember = members.find((m) => m.roleKind === "commander") || null;
-          const workerMembers = members.filter((m) => m.roleKind === "worker");
-          const reviewerMembers = members.filter((m) => m.roleKind === "reviewer");
-          if (!cmdMember || workerMembers.length === 0 && reviewerMembers.length === 0) {
-            return h(
-              "div",
-              { className: "concerto-roster-strip", "data-concerto-section": "roster", "aria-label": "\u4E50\u56E2\u6210\u5458" },
-              members.map(renderSprite)
-            );
-          }
-          const workerActive = workerMembers.some((m) => ["running", "waiting_input", "waiting_approval"].includes(memberState(snapshot, m)));
-          const reviewerActive = reviewerMembers.some((m) => ["running", "review", "waiting_input", "waiting_approval"].includes(memberState(snapshot, m))) || tasks.some((t) => t.state === "review");
-          return h(
-            "div",
-            { className: "concerto-live-stage", "data-concerto-section": "roster", "data-concerto-live-stage": "true", "aria-label": "\u4E50\u56E2\u5B9E\u65F6\u6F14\u594F\u821E\u53F0" },
-            h("div", { className: "concerto-live-stage-row" }, renderSprite(cmdMember)),
-            h(
-              "svg",
-              { className: "concerto-live-stage-svg", viewBox: "0 0 400 30", preserveAspectRatio: "none", "aria-hidden": true },
-              workerMembers.length > 0 && h("path", {
-                className: "concerto-stage-arc",
-                "data-active": workerActive ? "true" : void 0,
-                d: reviewerMembers.length > 0 ? "M 200 2 C 200 18, 100 12, 100 28" : "M 200 2 L 200 28"
-              }),
-              reviewerMembers.length > 0 && h("path", {
-                className: "concerto-stage-arc",
-                "data-active": reviewerActive ? "true" : void 0,
-                d: workerMembers.length > 0 ? "M 200 2 C 200 18, 300 12, 300 28" : "M 200 2 L 200 28"
-              })
-            ),
-            h(
-              "div",
-              { className: "concerto-live-stage-wings" },
-              workerMembers.length > 0 && h("div", { className: "concerto-live-stage-wing" }, workerMembers.map(renderSprite)),
-              reviewerMembers.length > 0 && h("div", { className: "concerto-live-stage-wing" }, reviewerMembers.map(renderSprite))
-            )
-          );
-        })(),
+        // 实时演奏乐团舞台（指挥者居中 + 点对点协作光脉 + 验收通过轻跳）
+        h(LiveOrchestraStage, {
+          members,
+          snapshot,
+          tasks,
+          pending,
+          capByMemberId,
+          selectedMemberId: drawerState.memberId,
+          onOpenMember: (mid) => openMemberDrawer(mid, "messages")
+        }),
         renderPrimaryTabs()
       ),
       compact && h(
@@ -14701,6 +14674,12 @@ function ConcertoTeamView({ sessionId, openView }) {
         )
       )
     ),
+    memoryOpen && h(TeamMemoryDialog, {
+      sessionId,
+      disabled: !canAct,
+      onClose: () => setMemoryOpen(false),
+      onChanged: () => refresh()
+    }),
     reportModal && h(
       InspectorDialog,
       { title: "\u7ED3\u9879\u4EA4\u4ED8\u590D\u76D8\u5355", onClose: () => setReportModal(null) },
@@ -15186,6 +15165,457 @@ function CloseoutReportBar({ sessionId, goalCompletion, onPreview }) {
         disabled: Boolean(busy),
         onClick: () => onPreview?.()
       }, "\u9884\u89C8")
+    )
+  );
+}
+function TeamMemoryDialog({ sessionId, disabled = false, onClose, onChanged }) {
+  const [tab, setTab] = import_react20.default.useState("skills");
+  const [loading, setLoading] = import_react20.default.useState(true);
+  const [data, setData] = import_react20.default.useState({ projectId: "", skills: [], experiences: [] });
+  const [err, setErr] = import_react20.default.useState("");
+  const [notice, setNotice] = import_react20.default.useState("");
+  const [editingSkill, setEditingSkill] = import_react20.default.useState(null);
+  const [editingExp, setEditingExp] = import_react20.default.useState(null);
+  const [saving, setSaving] = import_react20.default.useState(false);
+  const fileInputRef = import_react20.default.useRef(null);
+  const load = import_react20.default.useCallback(async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const res = await request(`/memory?sessionId=${encodeURIComponent(sessionId)}`);
+      setData({
+        projectId: res.projectId || "",
+        skills: Array.isArray(res.skills) ? res.skills : [],
+        experiences: Array.isArray(res.experiences) ? res.experiences : []
+      });
+    } catch (error) {
+      setErr(error?.message || "\u8BFB\u53D6\u56E2\u961F\u8BB0\u5FC6\u5931\u8D25");
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionId]);
+  import_react20.default.useEffect(() => {
+    load();
+  }, [load]);
+  async function saveSkill(e) {
+    e.preventDefault();
+    if (!editingSkill?.title?.trim() || !editingSkill?.body?.trim()) return;
+    setSaving(true);
+    setErr("");
+    try {
+      await request("/memory/skill", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, ...editingSkill })
+      });
+      setEditingSkill(null);
+      setNotice("\u5DF2\u4FDD\u5B58\u9879\u76EE\u89C4\u8303");
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u4FDD\u5B58\u89C4\u8303\u5931\u8D25");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeSkill(skillId) {
+    setSaving(true);
+    setErr("");
+    try {
+      await request("/memory/skill/delete", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, skillId })
+      });
+      setNotice("\u5DF2\u5220\u9664\u89C4\u8303");
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u5220\u9664\u89C4\u8303\u5931\u8D25");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function saveExp(e) {
+    e.preventDefault();
+    if (!editingExp?.summary?.trim()) return;
+    setSaving(true);
+    setErr("");
+    try {
+      await request("/memory/experience", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, ...editingExp })
+      });
+      setEditingExp(null);
+      setNotice("\u5DF2\u4FDD\u5B58\u8E29\u5751\u7ECF\u9A8C");
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u4FDD\u5B58\u7ECF\u9A8C\u5931\u8D25");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeExp(id) {
+    setSaving(true);
+    setErr("");
+    try {
+      await request("/memory/experience/delete", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, id })
+      });
+      setNotice("\u5DF2\u79FB\u9664\u7ECF\u9A8C\u8BB0\u5F55");
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u79FB\u9664\u7ECF\u9A8C\u5931\u8D25");
+    } finally {
+      setSaving(false);
+    }
+  }
+  function exportMemoryJson() {
+    const payload = {
+      format: "concerto-team-memory/v1",
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      projectId: data.projectId,
+      skills: data.skills,
+      experiences: data.experiences
+    };
+    const slug = String(data.projectId || "project").replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 40);
+    downloadTextFile(`concerto-memory-${slug}.json`, JSON.stringify(payload, null, 2), "application/json;charset=utf-8");
+    setNotice("\u5DF2\u5BFC\u51FA\u56E2\u961F\u8BB0\u5FC6\u5305\uFF0C\u53EF\u5728\u65B0\u9879\u76EE\u4E2D\u70B9\u51FB\u300C\u5BFC\u5165\u300D\u76F4\u63A5\u590D\u7528");
+  }
+  async function onImportFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setSaving(true);
+    setErr("");
+    try {
+      const parsed = JSON.parse(await file.text());
+      const res = await request("/memory/import", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId,
+          skills: Array.isArray(parsed?.skills) ? parsed.skills : [],
+          experiences: Array.isArray(parsed?.experiences) ? parsed.experiences : []
+        })
+      });
+      setNotice(`\u5DF2\u5BFC\u5165 ${res.importedSkills ?? 0} \u6761\u9879\u76EE\u89C4\u8303\u3001${res.importedExperiences ?? 0} \u6761\u8E29\u5751\u7ECF\u9A8C`);
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setErr(error?.message || "\u5BFC\u5165\u5931\u8D25\uFF1A\u8BF7\u786E\u8BA4\u662F\u6709\u6548\u7684 Concerto \u56E2\u961F\u8BB0\u5FC6 JSON \u6587\u4EF6");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return h(
+    InspectorDialog,
+    { title: "\u{1F9E0} \u56E2\u961F\u8BB0\u5FC6\u4E0E\u7ECF\u9A8C\u5E93", onClose },
+    h(
+      "div",
+      { className: "concerto-drawer-body", style: { display: "flex", flexDirection: "column", gap: 10 }, "data-concerto-team-memory": "true" },
+      h(
+        "div",
+        { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+        h(
+          "div",
+          { style: { display: "flex", gap: 6 } },
+          h("button", {
+            type: "button",
+            className: tab === "skills" ? "concerto-btn concerto-btn--primary" : "concerto-btn",
+            onClick: () => setTab("skills")
+          }, `\u9879\u76EE\u89C4\u8303 / Skill (${data.skills.length})`),
+          h("button", {
+            type: "button",
+            className: tab === "experiences" ? "concerto-btn concerto-btn--primary" : "concerto-btn",
+            onClick: () => setTab("experiences")
+          }, `\u8E29\u5751\u7ECF\u9A8C (${data.experiences.length})`)
+        ),
+        h(
+          "div",
+          { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+          h("button", { type: "button", className: "concerto-btn", disabled: loading || data.skills.length === 0 && data.experiences.length === 0, onClick: exportMemoryJson }, "\u2B07 \u5BFC\u51FA\u5E26\u5230\u65B0\u9879\u76EE"),
+          h("button", { type: "button", className: "concerto-btn", disabled: disabled || saving, onClick: () => fileInputRef.current?.click() }, "\u2B06 \u5BFC\u5165\u8BB0\u5FC6"),
+          h("input", { ref: fileInputRef, type: "file", accept: ".json,application/json", style: { display: "none" }, onChange: onImportFile })
+        )
+      ),
+      err && h("p", { role: "alert", className: "concerto-field-error" }, err),
+      notice && h("p", { role: "status", className: "concerto-quiet" }, notice),
+      loading && h("p", { className: "concerto-quiet" }, "\u6B63\u5728\u8BFB\u53D6\u56E2\u961F\u8BB0\u5FC6\u2026"),
+      !loading && tab === "skills" && h(
+        "div",
+        { style: { display: "flex", flexDirection: "column", gap: 8 } },
+        !editingSkill && h(
+          "div",
+          { style: { display: "flex", justifyContent: "flex-end" } },
+          h("button", {
+            type: "button",
+            className: "concerto-btn",
+            disabled: disabled || saving,
+            onClick: () => setEditingSkill({ id: "", title: "", whenToUse: "", body: "" })
+          }, "+ \u65B0\u589E\u9879\u76EE\u89C4\u8303")
+        ),
+        editingSkill && h(
+          "form",
+          { onSubmit: saveSkill, className: "concerto-acc-box", style: { display: "flex", flexDirection: "column", gap: 6 } },
+          h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, editingSkill.id ? `\u7F16\u8F91\u89C4\u8303\uFF1A${editingSkill.id}` : "\u65B0\u589E\u9879\u76EE\u89C4\u8303 / Skill"),
+          h("input", { className: "concerto-input", placeholder: "\u89C4\u8303\u6807\u9898\uFF08\u4F8B\u5982\uFF1AAPI \u9519\u8BEF\u7801\u4E0E\u9274\u6743\u7EA6\u5B9A\uFF09", value: editingSkill.title, onChange: (e) => setEditingSkill({ ...editingSkill, title: e.target.value }) }),
+          h("input", { className: "concerto-input", placeholder: "\u9002\u7528\u573A\u666F\uFF08\u53EF\u9009\uFF0C\u4F8B\u5982\uFF1A\u65B0\u589E\u6216\u4FEE\u6539\u8DEF\u7531\u65F6\uFF09", value: editingSkill.whenToUse, onChange: (e) => setEditingSkill({ ...editingSkill, whenToUse: e.target.value }) }),
+          h("textarea", { className: "concerto-input", rows: 4, placeholder: "\u5177\u4F53\u89C4\u8303\u5185\u5BB9\uFF08\u5C06\u81EA\u52A8\u5728\u540E\u7EED\u4EFB\u52A1\u6D3E\u53D1\u65F6\u6CE8\u5165\u7ED9\u56E2\u961F\u6210\u5458\uFF09\u2026", value: editingSkill.body, onChange: (e) => setEditingSkill({ ...editingSkill, body: e.target.value }) }),
+          h(
+            "div",
+            { style: { display: "flex", gap: 6 } },
+            h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled: saving || !editingSkill.title.trim() || !editingSkill.body.trim() }, saving ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u89C4\u8303"),
+            h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setEditingSkill(null) }, "\u53D6\u6D88")
+          )
+        ),
+        data.skills.length === 0 && !editingSkill ? h("p", { className: "concerto-quiet" }, "\u6682\u65E0\u9879\u76EE\u89C4\u8303\u3002\u56E2\u961F\u7ED3\u9879\u6C89\u6DC0\u7684 Skill \u6216\u4F60\u624B\u52A8\u6DFB\u52A0\u7684\u89C4\u8303\u90FD\u4F1A\u5C55\u793A\u5728\u8FD9\u91CC\u3002") : data.skills.map((sk) => h(
+          "div",
+          { key: sk.id, className: "concerto-acc-box", style: { display: "flex", flexDirection: "column", gap: 4 } },
+          h(
+            "div",
+            { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 } },
+            h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, sk.title, " ", h("span", { className: "concerto-tag" }, `v${sk.version}`)),
+            h(
+              "div",
+              { style: { display: "flex", gap: 4 } },
+              h("button", { type: "button", className: "concerto-link", disabled: disabled || saving, onClick: () => setEditingSkill({ id: sk.id, title: sk.title, whenToUse: sk.whenToUse || "", body: sk.body || "" }) }, "\u7F16\u8F91"),
+              h("button", { type: "button", className: "concerto-link", disabled: disabled || saving, onClick: () => removeSkill(sk.id) }, "\u5220\u9664")
+            )
+          ),
+          sk.whenToUse && h("div", { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } }, `\u9002\u7528\uFF1A${sk.whenToUse}`),
+          h("pre", { style: { margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)" } }, sk.body)
+        ))
+      ),
+      !loading && tab === "experiences" && h(
+        "div",
+        { style: { display: "flex", flexDirection: "column", gap: 8 } },
+        !editingExp && h(
+          "div",
+          { style: { display: "flex", justifyContent: "flex-end" } },
+          h("button", {
+            type: "button",
+            className: "concerto-btn",
+            disabled: disabled || saving,
+            onClick: () => setEditingExp({ id: "", kind: "lesson", summary: "", detail: "" })
+          }, "+ \u8BB0\u5F55\u8E29\u5751\u7ECF\u9A8C")
+        ),
+        editingExp && h(
+          "form",
+          { onSubmit: saveExp, className: "concerto-acc-box", style: { display: "flex", flexDirection: "column", gap: 6 } },
+          h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, editingExp.id ? "\u7F16\u8F91\u8E29\u5751\u7ECF\u9A8C" : "\u65B0\u589E\u8E29\u5751\u7ECF\u9A8C"),
+          h("input", { className: "concerto-input", placeholder: "\u4E00\u53E5\u8BDD\u7ED3\u8BBA\uFF08\u4F8B\u5982\uFF1APowerShell 5.1 \u4E0D\u652F\u6301 &&\uFF0C\u9700\u7528 ; \u8FDE\u63A5\uFF09", value: editingExp.summary, onChange: (e) => setEditingExp({ ...editingExp, summary: e.target.value }) }),
+          h("textarea", { className: "concerto-input", rows: 3, placeholder: "\u8865\u5145\u80CC\u666F\u6216\u9A8C\u8BC1\u8BC1\u636E\uFF08\u53EF\u9009\uFF09\u2026", value: editingExp.detail, onChange: (e) => setEditingExp({ ...editingExp, detail: e.target.value }) }),
+          h(
+            "div",
+            { style: { display: "flex", gap: 6 } },
+            h("button", { type: "submit", className: "concerto-btn concerto-btn--primary", disabled: saving || !editingExp.summary.trim() }, saving ? "\u4FDD\u5B58\u4E2D\u2026" : "\u4FDD\u5B58\u7ECF\u9A8C"),
+            h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setEditingExp(null) }, "\u53D6\u6D88")
+          )
+        ),
+        data.experiences.length === 0 && !editingExp ? h("p", { className: "concerto-quiet" }, "\u6682\u65E0\u8E29\u5751\u7ECF\u9A8C\u8BB0\u5F55\u3002\u6267\u884C\u8FC7\u7A0B\u4E2D\u9A8C\u8BC1\u8FC7\u7684\u7ECF\u9A8C\u6216\u624B\u52A8\u8BB0\u5F55\u90FD\u4F1A\u96C6\u4E2D\u5728\u6B64\u3002") : data.experiences.map((exp) => h(
+          "div",
+          { key: exp.id, className: "concerto-acc-box", style: { display: "flex", flexDirection: "column", gap: 4 } },
+          h(
+            "div",
+            { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 } },
+            h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, exp.verified ? "\u2705 " : "\u{1F4DD} ", exp.summary),
+            h(
+              "div",
+              { style: { display: "flex", gap: 4 } },
+              h("button", { type: "button", className: "concerto-link", disabled: disabled || saving, onClick: () => setEditingExp({ id: exp.id, kind: exp.kind || "lesson", summary: exp.summary, detail: exp.detail || "" }) }, "\u7F16\u8F91"),
+              h("button", { type: "button", className: "concerto-link", disabled: disabled || saving, onClick: () => removeExp(exp.id) }, "\u5220\u9664")
+            )
+          ),
+          exp.detail && h("div", { style: { fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)", whiteSpace: "pre-wrap" } }, exp.detail)
+        ))
+      )
+    )
+  );
+}
+function LiveOrchestraStage({ members = [], snapshot, tasks = [], pending = [], capByMemberId, selectedMemberId, onOpenMember }) {
+  const stageRef = import_react20.default.useRef(null);
+  const nodeRefs = import_react20.default.useRef(/* @__PURE__ */ new Map());
+  const [coords, setCoords] = import_react20.default.useState({ width: 0, height: 0, points: {} });
+  const seenCompletedRef = import_react20.default.useRef(null);
+  const [celebrating, setCelebrating] = import_react20.default.useState(() => /* @__PURE__ */ new Set());
+  const cmdMember = members.find((m) => m.roleKind === "commander") || null;
+  const workerMembers = members.filter((m) => m.roleKind === "worker");
+  const reviewerMembers = members.filter((m) => m.roleKind === "reviewer");
+  import_react20.default.useEffect(() => {
+    const completedIds = new Set(tasks.filter((t) => t.state === "completed").map((t) => t.taskId));
+    if (seenCompletedRef.current === null) {
+      seenCompletedRef.current = completedIds;
+      return;
+    }
+    const newlyDone = tasks.filter((t) => t.state === "completed" && !seenCompletedRef.current.has(t.taskId));
+    seenCompletedRef.current = completedIds;
+    if (newlyDone.length === 0) return;
+    const execs2 = Array.isArray(snapshot?.executions) ? snapshot.executions : [];
+    const winners = /* @__PURE__ */ new Set();
+    for (const t of newlyDone) {
+      if (t.memberId) winners.add(t.memberId);
+      const lastExec = [...execs2].reverse().find((e) => e.taskId === t.taskId && e.memberId);
+      if (lastExec?.memberId) winners.add(lastExec.memberId);
+    }
+    if (winners.size === 0) return;
+    setCelebrating((prev) => /* @__PURE__ */ new Set([...prev, ...winners]));
+    const timer = setTimeout(() => {
+      setCelebrating((prev) => {
+        const next = new Set(prev);
+        for (const id of winners) next.delete(id);
+        return next;
+      });
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [tasks, snapshot?.executions]);
+  const measure = import_react20.default.useCallback(() => {
+    const stageEl = stageRef.current;
+    if (!stageEl) return;
+    const sr2 = stageEl.getBoundingClientRect();
+    if (!sr2.width || !sr2.height) return;
+    const pts = {};
+    for (const [id, el] of nodeRefs.current.entries()) {
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      pts[id] = {
+        x: r.left - sr2.left + r.width / 2,
+        y: r.top - sr2.top + r.height / 2,
+        top: r.top - sr2.top,
+        bottom: r.bottom - sr2.top
+      };
+    }
+    setCoords({ width: sr2.width, height: sr2.height, points: pts });
+  }, []);
+  import_react20.default.useLayoutEffect(() => {
+    measure();
+    const stageEl = stageRef.current;
+    if (!stageEl || typeof ResizeObserver !== "function") return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(stageEl);
+    return () => ro.disconnect();
+  }, [measure, members.length, tasks.length]);
+  const renderSprite = (member) => {
+    const st2 = memberState(snapshot, member);
+    const count = pending.filter((r) => r.memberId === member.id).length;
+    const capInfo = capByMemberId.get(member.id);
+    const capBadge = capInfo ? formatCapabilitySummary(capInfo).badge : "";
+    const actLine = deriveMemberActivity(member, snapshot) || capInfo?.persona || capBadge;
+    const isHopping = celebrating.has(member.id);
+    return h("div", {
+      key: member.id,
+      ref: (el) => {
+        if (el) nodeRefs.current.set(member.id, el);
+        else nodeRefs.current.delete(member.id);
+      },
+      className: `concerto-live-node-wrap${isHopping ? " concerto-live-node--celebrate" : ""}`,
+      "data-concerto-stage-member": member.id
+    }, h(MemberSprite, {
+      member,
+      state: st2,
+      activityLine: actLine,
+      count,
+      selected: selectedMemberId === member.id,
+      onClick: () => onOpenMember?.(member.id)
+    }));
+  };
+  if (!cmdMember || workerMembers.length === 0 && reviewerMembers.length === 0) {
+    return h(
+      "div",
+      { className: "concerto-roster-strip", "data-concerto-section": "roster", "aria-label": "\u4E50\u56E2\u6210\u5458" },
+      members.map(renderSprite)
+    );
+  }
+  const activePulses = [];
+  const seenPulseKeys = /* @__PURE__ */ new Set();
+  const addPulse = (fromId, toId, kind) => {
+    const key = `${fromId}->${toId}:${kind}`;
+    if (!fromId || !toId || fromId === toId || seenPulseKeys.has(key)) return;
+    seenPulseKeys.add(key);
+    activePulses.push({ key, fromId, toId, kind });
+  };
+  const execs = Array.isArray(snapshot?.executions) ? snapshot.executions : [];
+  for (const w of workerMembers) {
+    if (["running", "waiting_input", "waiting_approval"].includes(memberState(snapshot, w))) {
+      addPulse(cmdMember.id, w.id, "dispatch");
+    }
+  }
+  for (const t of tasks) {
+    if (t.state === "review") {
+      const workerExec = [...execs].reverse().find((e) => e.taskId === t.taskId && e.kind !== "reviewer" && e.memberId);
+      const revExec = t.reviewExecutionId ? execs.find((e) => e.executionId === t.reviewExecutionId) : [...execs].reverse().find((e) => e.taskId === t.taskId && e.kind === "reviewer" && e.memberId);
+      const fromWorker = workerExec?.memberId || t.memberId;
+      const toReviewer = revExec?.memberId || reviewerMembers[0]?.id;
+      if (fromWorker && toReviewer) {
+        addPulse(fromWorker, toReviewer, "handoff");
+      } else if (toReviewer) {
+        addPulse(cmdMember.id, toReviewer, "handoff");
+      }
+    }
+  }
+  const makeCurve = (a, b, kind) => {
+    if (!a || !b) return "";
+    if (kind === "handoff") {
+      const midX = (a.x + b.x) / 2;
+      const liftY = Math.min(a.y, b.y) - 24;
+      return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${midX.toFixed(1)} ${liftY.toFixed(1)}, ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+    }
+    const startY = a.bottom ?? a.y;
+    const endY = b.top ?? b.y;
+    const midY = (startY + endY) / 2;
+    return `M ${a.x.toFixed(1)} ${startY.toFixed(1)} C ${a.x.toFixed(1)} ${midY.toFixed(1)}, ${b.x.toFixed(1)} ${midY.toFixed(1)}, ${b.x.toFixed(1)} ${endY.toFixed(1)}`;
+  };
+  const cmdPt = coords.points[cmdMember.id];
+  return h(
+    "div",
+    {
+      ref: stageRef,
+      className: "concerto-live-stage",
+      "data-concerto-section": "roster",
+      "data-concerto-live-stage": "true",
+      "aria-label": "\u4E50\u56E2\u5B9E\u65F6\u6F14\u594F\u821E\u53F0"
+    },
+    coords.width > 0 && coords.height > 0 && h(
+      "svg",
+      {
+        className: "concerto-live-stage-overlay",
+        viewBox: `0 0 ${coords.width} ${coords.height}`,
+        "aria-hidden": true
+      },
+      // 静态拓扑参考线（指挥者 -> 各成员）
+      cmdPt && [...workerMembers, ...reviewerMembers].map((m) => {
+        const pt2 = coords.points[m.id];
+        const d = makeCurve(cmdPt, pt2, "idle");
+        return d ? h("path", { key: `idle-${m.id}`, className: "concerto-stage-arc--idle", d }) : null;
+      }),
+      // 实时点对点协作光脉 + 滑动光点
+      activePulses.map((p) => {
+        const a = coords.points[p.fromId];
+        const b = coords.points[p.toId];
+        const d = makeCurve(a, b, p.kind);
+        if (!d) return null;
+        const pathId = `concerto-pulse-${p.key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+        return h(
+          "g",
+          { key: p.key, "data-concerto-pulse": p.kind, "data-pulse-from": p.fromId, "data-pulse-to": p.toId },
+          h("path", {
+            id: pathId,
+            className: p.kind === "handoff" ? "concerto-stage-arc--handoff" : "concerto-stage-arc--dispatch",
+            d
+          }),
+          h("circle", {
+            r: 3.5,
+            className: p.kind === "handoff" ? "concerto-stage-pulse-dot--handoff" : "concerto-stage-pulse-dot"
+          }, h("animateMotion", { dur: p.kind === "handoff" ? "1.4s" : "1.6s", repeatCount: "indefinite", path: d }))
+        );
+      })
+    ),
+    h("div", { className: "concerto-live-stage-row" }, renderSprite(cmdMember)),
+    h(
+      "div",
+      { className: "concerto-live-stage-wings" },
+      workerMembers.length > 0 && h("div", { className: "concerto-live-stage-wing" }, workerMembers.map(renderSprite)),
+      reviewerMembers.length > 0 && h("div", { className: "concerto-live-stage-wing" }, reviewerMembers.map(renderSprite))
     )
   );
 }

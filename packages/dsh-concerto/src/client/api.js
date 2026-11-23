@@ -151,6 +151,7 @@ export const EVENT_LABEL = {
   'race.winner_selected': '🏆 采纳赛马胜者',
   'verification.passed': '✅ 验证门禁通过',
   'verification.failed': '❌ 验证门禁未通过',
+  'memory.updated': '🧠 团队记忆已更新',
 }
 
 export const STATE_META = {

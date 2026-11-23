@@ -353,6 +353,7 @@ export function ConcertoTeamView({ sessionId, openView }) {
   const [pinnedPreview, setPinnedPreview] = React.useState(null)
   const [filePreview, setFilePreview] = React.useState(null)
   const [reportModal, setReportModal] = React.useState(null)
+  const [memoryOpen, setMemoryOpen] = React.useState(false)
   const openCloseoutReport = React.useCallback(async () => {
     setReportModal({ loading: true, error: '', markdown: '', filename: 'concerto-report.md', copied: false })
     try {
@@ -1309,6 +1310,14 @@ export function ConcertoTeamView({ sessionId, openView }) {
           className: 'concerto-btn concerto-btn--ghost',
           onClick: (event) => {
             event.currentTarget.closest('details')?.removeAttribute('open')
+            setMemoryOpen(true)
+          },
+        }, `🧠 团队记忆${snapshot.memoryCount > 0 ? ` (${snapshot.memoryCount})` : ''}`),
+        h('button', {
+          type: 'button',
+          className: 'concerto-btn concerto-btn--ghost',
+          onClick: (event) => {
+            event.currentTarget.closest('details')?.removeAttribute('open')
             openCloseoutReport()
           },
         }, '📋 导出交付复盘单'),
@@ -1450,51 +1459,16 @@ export function ConcertoTeamView({ sessionId, openView }) {
         'data-status': status,
       }, text, ' ', h('b', null, String(count)))))),
 
-    // 实时演奏乐团舞台（指挥者居中 + 发光协作连线 + 左执行者 / 右审查者）
-    (() => {
-      const renderSprite = (member) => {
-        const st = memberState(snapshot, member)
-        const count = pending.filter((r) => r.memberId === member.id).length
-        const capInfo = capByMemberId.get(member.id)
-        const capBadge = capInfo ? formatCapabilitySummary(capInfo).badge : ''
-        const actLine = deriveMemberActivity(member, snapshot) || capInfo?.persona || capBadge
-        return h(MemberSprite, {
-          key: member.id,
-          member,
-          state: st,
-          activityLine: actLine,
-          count,
-          selected: drawerState.memberId === member.id,
-          onClick: () => openMemberDrawer(member.id, 'messages'),
-        })
-      }
-      const cmdMember = members.find((m) => m.roleKind === 'commander') || null
-      const workerMembers = members.filter((m) => m.roleKind === 'worker')
-      const reviewerMembers = members.filter((m) => m.roleKind === 'reviewer')
-      if (!cmdMember || (workerMembers.length === 0 && reviewerMembers.length === 0)) {
-        return h('div', { className: 'concerto-roster-strip', 'data-concerto-section': 'roster', 'aria-label': '乐团成员' },
-          members.map(renderSprite))
-      }
-      const workerActive = workerMembers.some((m) => ['running', 'waiting_input', 'waiting_approval'].includes(memberState(snapshot, m)))
-      const reviewerActive = reviewerMembers.some((m) => ['running', 'review', 'waiting_input', 'waiting_approval'].includes(memberState(snapshot, m)))
-        || tasks.some((t) => t.state === 'review')
-      return h('div', { className: 'concerto-live-stage', 'data-concerto-section': 'roster', 'data-concerto-live-stage': 'true', 'aria-label': '乐团实时演奏舞台' },
-        h('div', { className: 'concerto-live-stage-row' }, renderSprite(cmdMember)),
-        h('svg', { className: 'concerto-live-stage-svg', viewBox: '0 0 400 30', preserveAspectRatio: 'none', 'aria-hidden': true },
-          workerMembers.length > 0 && h('path', {
-            className: 'concerto-stage-arc',
-            'data-active': workerActive ? 'true' : undefined,
-            d: reviewerMembers.length > 0 ? 'M 200 2 C 200 18, 100 12, 100 28' : 'M 200 2 L 200 28',
-          }),
-          reviewerMembers.length > 0 && h('path', {
-            className: 'concerto-stage-arc',
-            'data-active': reviewerActive ? 'true' : undefined,
-            d: workerMembers.length > 0 ? 'M 200 2 C 200 18, 300 12, 300 28' : 'M 200 2 L 200 28',
-          })),
-        h('div', { className: 'concerto-live-stage-wings' },
-          workerMembers.length > 0 && h('div', { className: 'concerto-live-stage-wing' }, workerMembers.map(renderSprite)),
-          reviewerMembers.length > 0 && h('div', { className: 'concerto-live-stage-wing' }, reviewerMembers.map(renderSprite))))
-    })(),
+    // 实时演奏乐团舞台（指挥者居中 + 点对点协作光脉 + 验收通过轻跳）
+    h(LiveOrchestraStage, {
+      members,
+      snapshot,
+      tasks,
+      pending,
+      capByMemberId,
+      selectedMemberId: drawerState.memberId,
+      onOpenMember: (mid) => openMemberDrawer(mid, 'messages'),
+    }),
 
     renderPrimaryTabs()),
     compact && h('div', { className: 'concerto-hero-compact' },
@@ -1993,6 +1967,13 @@ export function ConcertoTeamView({ sessionId, openView }) {
         h('div', { className: 'concerto-quiet' }, `${filePreview.sizeBytes} 字节${filePreview.truncated ? '（仅显示前 48 KiB）' : ''}`),
         h('pre', { style: { margin: 0, maxHeight: '60vh', overflow: 'auto', padding: 12, borderRadius: 'var(--cc-radius-ctrl)', background: 'var(--cc-card-nested-bg)', fontFamily: 'var(--cc-font-mono)', fontSize: 'var(--cc-fs-code)', whiteSpace: 'pre-wrap' } }, filePreview.content)))),
 
+  memoryOpen && h(TeamMemoryDialog, {
+    sessionId,
+    disabled: !canAct,
+    onClose: () => setMemoryOpen(false),
+    onChanged: () => refresh(),
+  }),
+
   reportModal && h(InspectorDialog, { title: '结项交付复盘单', onClose: () => setReportModal(null) },
     h('div', { className: 'concerto-drawer-body', style: { display: 'flex', flexDirection: 'column', gap: 10 } },
       h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
@@ -2393,4 +2374,412 @@ function CloseoutReportBar({ sessionId, goalCompletion, onPreview }) {
       disabled: Boolean(busy),
       onClick: () => onPreview?.(),
     }, '预览')))
+}
+
+function TeamMemoryDialog({ sessionId, disabled = false, onClose, onChanged }) {
+  const [tab, setTab] = React.useState('skills')
+  const [loading, setLoading] = React.useState(true)
+  const [data, setData] = React.useState({ projectId: '', skills: [], experiences: [] })
+  const [err, setErr] = React.useState('')
+  const [notice, setNotice] = React.useState('')
+  const [editingSkill, setEditingSkill] = React.useState(null)
+  const [editingExp, setEditingExp] = React.useState(null)
+  const [saving, setSaving] = React.useState(false)
+  const fileInputRef = React.useRef(null)
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    setErr('')
+    try {
+      const res = await request(`/memory?sessionId=${encodeURIComponent(sessionId)}`)
+      setData({
+        projectId: res.projectId || '',
+        skills: Array.isArray(res.skills) ? res.skills : [],
+        experiences: Array.isArray(res.experiences) ? res.experiences : [],
+      })
+    } catch (error) {
+      setErr(error?.message || '读取团队记忆失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [sessionId])
+
+  React.useEffect(() => { load() }, [load])
+
+  async function saveSkill(e) {
+    e.preventDefault()
+    if (!editingSkill?.title?.trim() || !editingSkill?.body?.trim()) return
+    setSaving(true)
+    setErr('')
+    try {
+      await request('/memory/skill', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, ...editingSkill }),
+      })
+      setEditingSkill(null)
+      setNotice('已保存项目规范')
+      await load()
+      onChanged?.()
+    } catch (error) {
+      setErr(error?.message || '保存规范失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removeSkill(skillId) {
+    setSaving(true)
+    setErr('')
+    try {
+      await request('/memory/skill/delete', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, skillId }),
+      })
+      setNotice('已删除规范')
+      await load()
+      onChanged?.()
+    } catch (error) {
+      setErr(error?.message || '删除规范失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function saveExp(e) {
+    e.preventDefault()
+    if (!editingExp?.summary?.trim()) return
+    setSaving(true)
+    setErr('')
+    try {
+      await request('/memory/experience', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, ...editingExp }),
+      })
+      setEditingExp(null)
+      setNotice('已保存踩坑经验')
+      await load()
+      onChanged?.()
+    } catch (error) {
+      setErr(error?.message || '保存经验失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removeExp(id) {
+    setSaving(true)
+    setErr('')
+    try {
+      await request('/memory/experience/delete', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, id }),
+      })
+      setNotice('已移除经验记录')
+      await load()
+      onChanged?.()
+    } catch (error) {
+      setErr(error?.message || '移除经验失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function exportMemoryJson() {
+    const payload = {
+      format: 'concerto-team-memory/v1',
+      exportedAt: new Date().toISOString(),
+      projectId: data.projectId,
+      skills: data.skills,
+      experiences: data.experiences,
+    }
+    const slug = String(data.projectId || 'project').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 40)
+    downloadTextFile(`concerto-memory-${slug}.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8')
+    setNotice('已导出团队记忆包，可在新项目中点击「导入」直接复用')
+  }
+
+  async function onImportFile(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setSaving(true)
+    setErr('')
+    try {
+      const parsed = JSON.parse(await file.text())
+      const res = await request('/memory/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId,
+          skills: Array.isArray(parsed?.skills) ? parsed.skills : [],
+          experiences: Array.isArray(parsed?.experiences) ? parsed.experiences : [],
+        }),
+      })
+      setNotice(`已导入 ${res.importedSkills ?? 0} 条项目规范、${res.importedExperiences ?? 0} 条踩坑经验`)
+      await load()
+      onChanged?.()
+    } catch (error) {
+      setErr(error?.message || '导入失败：请确认是有效的 Concerto 团队记忆 JSON 文件')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return h(InspectorDialog, { title: '🧠 团队记忆与经验库', onClose },
+    h('div', { className: 'concerto-drawer-body', style: { display: 'flex', flexDirection: 'column', gap: 10 }, 'data-concerto-team-memory': 'true' },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('div', { style: { display: 'flex', gap: 6 } },
+          h('button', {
+            type: 'button',
+            className: tab === 'skills' ? 'concerto-btn concerto-btn--primary' : 'concerto-btn',
+            onClick: () => setTab('skills'),
+          }, `项目规范 / Skill (${data.skills.length})`),
+          h('button', {
+            type: 'button',
+            className: tab === 'experiences' ? 'concerto-btn concerto-btn--primary' : 'concerto-btn',
+            onClick: () => setTab('experiences'),
+          }, `踩坑经验 (${data.experiences.length})`)),
+        h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+          h('button', { type: 'button', className: 'concerto-btn', disabled: loading || (data.skills.length === 0 && data.experiences.length === 0), onClick: exportMemoryJson }, '⬇ 导出带到新项目'),
+          h('button', { type: 'button', className: 'concerto-btn', disabled: disabled || saving, onClick: () => fileInputRef.current?.click() }, '⬆ 导入记忆'),
+          h('input', { ref: fileInputRef, type: 'file', accept: '.json,application/json', style: { display: 'none' }, onChange: onImportFile }))),
+      err && h('p', { role: 'alert', className: 'concerto-field-error' }, err),
+      notice && h('p', { role: 'status', className: 'concerto-quiet' }, notice),
+      loading && h('p', { className: 'concerto-quiet' }, '正在读取团队记忆…'),
+
+      !loading && tab === 'skills' && h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+        !editingSkill && h('div', { style: { display: 'flex', justifyContent: 'flex-end' } },
+          h('button', {
+            type: 'button',
+            className: 'concerto-btn',
+            disabled: disabled || saving,
+            onClick: () => setEditingSkill({ id: '', title: '', whenToUse: '', body: '' }),
+          }, '+ 新增项目规范')),
+        editingSkill && h('form', { onSubmit: saveSkill, className: 'concerto-acc-box', style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+          h('strong', { style: { fontSize: 'var(--cc-fs-meta)' } }, editingSkill.id ? `编辑规范：${editingSkill.id}` : '新增项目规范 / Skill'),
+          h('input', { className: 'concerto-input', placeholder: '规范标题（例如：API 错误码与鉴权约定）', value: editingSkill.title, onChange: (e) => setEditingSkill({ ...editingSkill, title: e.target.value }) }),
+          h('input', { className: 'concerto-input', placeholder: '适用场景（可选，例如：新增或修改路由时）', value: editingSkill.whenToUse, onChange: (e) => setEditingSkill({ ...editingSkill, whenToUse: e.target.value }) }),
+          h('textarea', { className: 'concerto-input', rows: 4, placeholder: '具体规范内容（将自动在后续任务派发时注入给团队成员）…', value: editingSkill.body, onChange: (e) => setEditingSkill({ ...editingSkill, body: e.target.value }) }),
+          h('div', { style: { display: 'flex', gap: 6 } },
+            h('button', { type: 'submit', className: 'concerto-btn concerto-btn--primary', disabled: saving || !editingSkill.title.trim() || !editingSkill.body.trim() }, saving ? '保存中…' : '保存规范'),
+            h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: () => setEditingSkill(null) }, '取消'))),
+        data.skills.length === 0 && !editingSkill
+          ? h('p', { className: 'concerto-quiet' }, '暂无项目规范。团队结项沉淀的 Skill 或你手动添加的规范都会展示在这里。')
+          : data.skills.map((sk) => h('div', { key: sk.id, className: 'concerto-acc-box', style: { display: 'flex', flexDirection: 'column', gap: 4 } },
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 } },
+                h('strong', { style: { fontSize: 'var(--cc-fs-meta)' } }, sk.title, ' ', h('span', { className: 'concerto-tag' }, `v${sk.version}`)),
+                h('div', { style: { display: 'flex', gap: 4 } },
+                  h('button', { type: 'button', className: 'concerto-link', disabled: disabled || saving, onClick: () => setEditingSkill({ id: sk.id, title: sk.title, whenToUse: sk.whenToUse || '', body: sk.body || '' }) }, '编辑'),
+                  h('button', { type: 'button', className: 'concerto-link', disabled: disabled || saving, onClick: () => removeSkill(sk.id) }, '删除'))),
+              sk.whenToUse && h('div', { style: { fontSize: 'var(--cc-fs-caption)', color: 'var(--cc-text-muted)' } }, `适用：${sk.whenToUse}`),
+              h('pre', { style: { margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 'var(--cc-fs-caption)', color: 'var(--cc-text-secondary)' } }, sk.body)))),
+
+      !loading && tab === 'experiences' && h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+        !editingExp && h('div', { style: { display: 'flex', justifyContent: 'flex-end' } },
+          h('button', {
+            type: 'button',
+            className: 'concerto-btn',
+            disabled: disabled || saving,
+            onClick: () => setEditingExp({ id: '', kind: 'lesson', summary: '', detail: '' }),
+          }, '+ 记录踩坑经验')),
+        editingExp && h('form', { onSubmit: saveExp, className: 'concerto-acc-box', style: { display: 'flex', flexDirection: 'column', gap: 6 } },
+          h('strong', { style: { fontSize: 'var(--cc-fs-meta)' } }, editingExp.id ? '编辑踩坑经验' : '新增踩坑经验'),
+          h('input', { className: 'concerto-input', placeholder: '一句话结论（例如：PowerShell 5.1 不支持 &&，需用 ; 连接）', value: editingExp.summary, onChange: (e) => setEditingExp({ ...editingExp, summary: e.target.value }) }),
+          h('textarea', { className: 'concerto-input', rows: 3, placeholder: '补充背景或验证证据（可选）…', value: editingExp.detail, onChange: (e) => setEditingExp({ ...editingExp, detail: e.target.value }) }),
+          h('div', { style: { display: 'flex', gap: 6 } },
+            h('button', { type: 'submit', className: 'concerto-btn concerto-btn--primary', disabled: saving || !editingExp.summary.trim() }, saving ? '保存中…' : '保存经验'),
+            h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: () => setEditingExp(null) }, '取消'))),
+        data.experiences.length === 0 && !editingExp
+          ? h('p', { className: 'concerto-quiet' }, '暂无踩坑经验记录。执行过程中验证过的经验或手动记录都会集中在此。')
+          : data.experiences.map((exp) => h('div', { key: exp.id, className: 'concerto-acc-box', style: { display: 'flex', flexDirection: 'column', gap: 4 } },
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 } },
+                h('strong', { style: { fontSize: 'var(--cc-fs-meta)' } }, exp.verified ? '✅ ' : '📝 ', exp.summary),
+                h('div', { style: { display: 'flex', gap: 4 } },
+                  h('button', { type: 'button', className: 'concerto-link', disabled: disabled || saving, onClick: () => setEditingExp({ id: exp.id, kind: exp.kind || 'lesson', summary: exp.summary, detail: exp.detail || '' }) }, '编辑'),
+                  h('button', { type: 'button', className: 'concerto-link', disabled: disabled || saving, onClick: () => removeExp(exp.id) }, '删除'))),
+              exp.detail && h('div', { style: { fontSize: 'var(--cc-fs-caption)', color: 'var(--cc-text-secondary)', whiteSpace: 'pre-wrap' } }, exp.detail))))))
+}
+
+function LiveOrchestraStage({ members = [], snapshot, tasks = [], pending = [], capByMemberId, selectedMemberId, onOpenMember }) {
+  const stageRef = React.useRef(null)
+  const nodeRefs = React.useRef(new Map())
+  const [coords, setCoords] = React.useState({ width: 0, height: 0, points: {} })
+  const seenCompletedRef = React.useRef(null)
+  const [celebrating, setCelebrating] = React.useState(() => new Set())
+
+  const cmdMember = members.find((m) => m.roleKind === 'commander') || null
+  const workerMembers = members.filter((m) => m.roleKind === 'worker')
+  const reviewerMembers = members.filter((m) => m.roleKind === 'reviewer')
+
+  // 检测新验收通过的任务，触发对应小精灵轻跳一下
+  React.useEffect(() => {
+    const completedIds = new Set(tasks.filter((t) => t.state === 'completed').map((t) => t.taskId))
+    if (seenCompletedRef.current === null) {
+      seenCompletedRef.current = completedIds
+      return
+    }
+    const newlyDone = tasks.filter((t) => t.state === 'completed' && !seenCompletedRef.current.has(t.taskId))
+    seenCompletedRef.current = completedIds
+    if (newlyDone.length === 0) return
+    const execs = Array.isArray(snapshot?.executions) ? snapshot.executions : []
+    const winners = new Set()
+    for (const t of newlyDone) {
+      if (t.memberId) winners.add(t.memberId)
+      const lastExec = [...execs].reverse().find((e) => e.taskId === t.taskId && e.memberId)
+      if (lastExec?.memberId) winners.add(lastExec.memberId)
+    }
+    if (winners.size === 0) return
+    setCelebrating((prev) => new Set([...prev, ...winners]))
+    const timer = setTimeout(() => {
+      setCelebrating((prev) => {
+        const next = new Set(prev)
+        for (const id of winners) next.delete(id)
+        return next
+      })
+    }, 1800)
+    return () => clearTimeout(timer)
+  }, [tasks, snapshot?.executions])
+
+  const measure = React.useCallback(() => {
+    const stageEl = stageRef.current
+    if (!stageEl) return
+    const sr = stageEl.getBoundingClientRect()
+    if (!sr.width || !sr.height) return
+    const pts = {}
+    for (const [id, el] of nodeRefs.current.entries()) {
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      pts[id] = {
+        x: r.left - sr.left + r.width / 2,
+        y: r.top - sr.top + r.height / 2,
+        top: r.top - sr.top,
+        bottom: r.bottom - sr.top,
+      }
+    }
+    setCoords({ width: sr.width, height: sr.height, points: pts })
+  }, [])
+
+  React.useLayoutEffect(() => {
+    measure()
+    const stageEl = stageRef.current
+    if (!stageEl || typeof ResizeObserver !== 'function') return
+    const ro = new ResizeObserver(() => measure())
+    ro.observe(stageEl)
+    return () => ro.disconnect()
+  }, [measure, members.length, tasks.length])
+
+  const renderSprite = (member) => {
+    const st = memberState(snapshot, member)
+    const count = pending.filter((r) => r.memberId === member.id).length
+    const capInfo = capByMemberId.get(member.id)
+    const capBadge = capInfo ? formatCapabilitySummary(capInfo).badge : ''
+    const actLine = deriveMemberActivity(member, snapshot) || capInfo?.persona || capBadge
+    const isHopping = celebrating.has(member.id)
+    return h('div', {
+      key: member.id,
+      ref: (el) => {
+        if (el) nodeRefs.current.set(member.id, el)
+        else nodeRefs.current.delete(member.id)
+      },
+      className: `concerto-live-node-wrap${isHopping ? ' concerto-live-node--celebrate' : ''}`,
+      'data-concerto-stage-member': member.id,
+    }, h(MemberSprite, {
+      member,
+      state: st,
+      activityLine: actLine,
+      count,
+      selected: selectedMemberId === member.id,
+      onClick: () => onOpenMember?.(member.id),
+    }))
+  }
+
+  if (!cmdMember || (workerMembers.length === 0 && reviewerMembers.length === 0)) {
+    return h('div', { className: 'concerto-roster-strip', 'data-concerto-section': 'roster', 'aria-label': '乐团成员' },
+      members.map(renderSprite))
+  }
+
+  // 计算点对点协作光脉：派活（Commander -> Worker）与交审传球（Worker -> Reviewer）
+  const activePulses = []
+  const seenPulseKeys = new Set()
+  const addPulse = (fromId, toId, kind) => {
+    const key = `${fromId}->${toId}:${kind}`
+    if (!fromId || !toId || fromId === toId || seenPulseKeys.has(key)) return
+    seenPulseKeys.add(key)
+    activePulses.push({ key, fromId, toId, kind })
+  }
+  const execs = Array.isArray(snapshot?.executions) ? snapshot.executions : []
+  for (const w of workerMembers) {
+    if (['running', 'waiting_input', 'waiting_approval'].includes(memberState(snapshot, w))) {
+      addPulse(cmdMember.id, w.id, 'dispatch')
+    }
+  }
+  for (const t of tasks) {
+    if (t.state === 'review') {
+      const workerExec = [...execs].reverse().find((e) => e.taskId === t.taskId && e.kind !== 'reviewer' && e.memberId)
+      const revExec = t.reviewExecutionId
+        ? execs.find((e) => e.executionId === t.reviewExecutionId)
+        : [...execs].reverse().find((e) => e.taskId === t.taskId && e.kind === 'reviewer' && e.memberId)
+      const fromWorker = workerExec?.memberId || t.memberId
+      const toReviewer = revExec?.memberId || reviewerMembers[0]?.id
+      if (fromWorker && toReviewer) {
+        addPulse(fromWorker, toReviewer, 'handoff')
+      } else if (toReviewer) {
+        addPulse(cmdMember.id, toReviewer, 'handoff')
+      }
+    }
+  }
+
+  const makeCurve = (a, b, kind) => {
+    if (!a || !b) return ''
+    if (kind === 'handoff') {
+      const midX = (a.x + b.x) / 2
+      const liftY = Math.min(a.y, b.y) - 24
+      return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${midX.toFixed(1)} ${liftY.toFixed(1)}, ${b.x.toFixed(1)} ${b.y.toFixed(1)}`
+    }
+    const startY = a.bottom ?? a.y
+    const endY = b.top ?? b.y
+    const midY = (startY + endY) / 2
+    return `M ${a.x.toFixed(1)} ${startY.toFixed(1)} C ${a.x.toFixed(1)} ${midY.toFixed(1)}, ${b.x.toFixed(1)} ${midY.toFixed(1)}, ${b.x.toFixed(1)} ${endY.toFixed(1)}`
+  }
+
+  const cmdPt = coords.points[cmdMember.id]
+
+  return h('div', {
+    ref: stageRef,
+    className: 'concerto-live-stage',
+    'data-concerto-section': 'roster',
+    'data-concerto-live-stage': 'true',
+    'aria-label': '乐团实时演奏舞台',
+  },
+  coords.width > 0 && coords.height > 0 && h('svg', {
+    className: 'concerto-live-stage-overlay',
+    viewBox: `0 0 ${coords.width} ${coords.height}`,
+    'aria-hidden': true,
+  },
+  // 静态拓扑参考线（指挥者 -> 各成员）
+  cmdPt && [...workerMembers, ...reviewerMembers].map((m) => {
+    const pt = coords.points[m.id]
+    const d = makeCurve(cmdPt, pt, 'idle')
+    return d ? h('path', { key: `idle-${m.id}`, className: 'concerto-stage-arc--idle', d }) : null
+  }),
+  // 实时点对点协作光脉 + 滑动光点
+  activePulses.map((p) => {
+    const a = coords.points[p.fromId]
+    const b = coords.points[p.toId]
+    const d = makeCurve(a, b, p.kind)
+    if (!d) return null
+    const pathId = `concerto-pulse-${p.key.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+    return h('g', { key: p.key, 'data-concerto-pulse': p.kind, 'data-pulse-from': p.fromId, 'data-pulse-to': p.toId },
+      h('path', {
+        id: pathId,
+        className: p.kind === 'handoff' ? 'concerto-stage-arc--handoff' : 'concerto-stage-arc--dispatch',
+        d,
+      }),
+      h('circle', {
+        r: 3.5,
+        className: p.kind === 'handoff' ? 'concerto-stage-pulse-dot--handoff' : 'concerto-stage-pulse-dot',
+      }, h('animateMotion', { dur: p.kind === 'handoff' ? '1.4s' : '1.6s', repeatCount: 'indefinite', path: d })))
+  })),
+  h('div', { className: 'concerto-live-stage-row' }, renderSprite(cmdMember)),
+  h('div', { className: 'concerto-live-stage-wings' },
+    workerMembers.length > 0 && h('div', { className: 'concerto-live-stage-wing' }, workerMembers.map(renderSprite)),
+    reviewerMembers.length > 0 && h('div', { className: 'concerto-live-stage-wing' }, reviewerMembers.map(renderSprite))))
 }

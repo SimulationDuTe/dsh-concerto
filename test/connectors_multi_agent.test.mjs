@@ -982,6 +982,65 @@ test('Verification Gate executes real command, records pass/fail events, and Clo
   assert.match(report.markdown, /自动验证门禁记录/)
 })
 
+test('Team Memory supports Project Skill & Experience CRUD and cross-project JSON import', () => {
+  const rt = createTeamRuntime()
+  rt.bindSession('cmd-mem-1', 'run-mem-1', { teamId: 't-mem', commanderId: 'c1', projectId: 'proj-alpha' })
+  rt.bindSession('cmd-mem-2', 'run-mem-2', { teamId: 't-mem', commanderId: 'c1', projectId: 'proj-beta' })
+
+  // Create & edit Project Skill in proj-alpha
+  const sk1 = rt.upsertTeamMemorySkill('run-mem-1', {
+    id: 'api-conventions',
+    title: 'API Conventions',
+    whenToUse: 'When adding HTTP routes',
+    body: 'Always validate sameOrigin and return JSON error envelopes.',
+  })
+  assert.equal(sk1.ok, true)
+  assert.equal(sk1.skill.version, 1)
+
+  const sk2 = rt.upsertTeamMemorySkill('run-mem-1', {
+    id: 'api-conventions',
+    title: 'API Conventions v2',
+    body: 'Validate sameOrigin, cap payloads, return structured error codes.',
+  })
+  assert.equal(sk2.ok, true)
+  assert.equal(sk2.skill.version, 2)
+
+  // Add Experience record in proj-alpha
+  const exp = rt.upsertTeamMemoryExperience('run-mem-1', {
+    summary: 'PowerShell 5.1 does not support &&',
+    detail: 'Use semicolon + $LASTEXITCODE check instead.',
+  })
+  assert.equal(exp.ok, true)
+
+  const memAlpha = rt.getTeamMemory('run-mem-1')
+  assert.equal(memAlpha.ok, true)
+  assert.equal(memAlpha.skills.length, 1)
+  assert.equal(memAlpha.experiences.length, 1)
+  assert.equal(rt.getStatus('run-mem-1').memoryCount, 2)
+
+  // Carry memory over to proj-beta via importTeamMemory
+  const imp = rt.importTeamMemory('run-mem-2', {
+    skills: memAlpha.skills,
+    experiences: memAlpha.experiences,
+  })
+  assert.equal(imp.ok, true)
+  assert.equal(imp.importedSkills, 1)
+  assert.equal(imp.importedExperiences, 1)
+
+  const memBeta = rt.getTeamMemory('run-mem-2')
+  assert.equal(memBeta.skills.length, 1)
+  assert.equal(memBeta.skills[0].title, 'API Conventions v2')
+  assert.equal(memBeta.experiences.length, 1)
+  assert.equal(memBeta.experiences[0].summary, 'PowerShell 5.1 does not support &&')
+
+  // Delete skill and experience cleanly
+  assert.equal(rt.deleteTeamMemorySkill('run-mem-2', { skillId: 'api-conventions' }).ok, true)
+  assert.equal(rt.deleteTeamMemoryExperience('run-mem-2', { id: memBeta.experiences[0].id }).ok, true)
+  const memBetaAfter = rt.getTeamMemory('run-mem-2')
+  assert.equal(memBetaAfter.skills.length, 0)
+  assert.equal(memBetaAfter.experiences.length, 0)
+})
+
 
 
 

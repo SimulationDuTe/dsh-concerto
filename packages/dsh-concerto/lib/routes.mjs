@@ -382,6 +382,35 @@ export function registerConcertoRoutes(webServer, base, deps) {
     return sendJson(res, out?.ok ? 200 : statusForError(out?.code), out)
   })
 
+  // 团队记忆 / 经验库（查看、编辑、删除、导出/导入跨项目复用）
+  add(`${base}/memory`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.teamMemory?.get !== 'function') return replyError(res, 503, 'host_unavailable', 'team memory unavailable')
+    const url = new URL(req.url || '/', 'http://127.0.0.1')
+    const sessionId = url.searchParams.get('sessionId') || ''
+    const out = await deps.teamMemory.get({ sessionId })
+    return sendJson(res, out?.ok ? 200 : statusForError(out?.code), out)
+  })
+
+  for (const [sub, fnKey] of [
+    ['/memory/skill', 'upsertSkill'],
+    ['/memory/skill/delete', 'deleteSkill'],
+    ['/memory/experience', 'upsertExperience'],
+    ['/memory/experience/delete', 'deleteExperience'],
+    ['/memory/import', 'importMemory'],
+  ]) {
+    add(`${base}${sub}`, async (req, res) => {
+      if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+      if (req.method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+      if (typeof deps.teamMemory?.[fnKey] !== 'function') return replyError(res, 503, 'host_unavailable', 'team memory unavailable')
+      let body
+      try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+      const out = await deps.teamMemory[fnKey](body)
+      return sendJson(res, out?.ok ? 200 : statusForError(out?.code), out)
+    })
+  }
+
   add(`${base}/runs/approve-plan`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if (req.method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
