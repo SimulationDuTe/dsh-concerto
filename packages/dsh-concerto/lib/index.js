@@ -43,10 +43,7 @@ import {
 export const name = 'dsh-concerto'
 
 /** 未声明的服务在 apply 里读取会直接抛错（Cordis 行为） */
-export const inject = {
-  required: ['webServer', 'pluginManager', 'tools', 'agentPresets', 'agents', 'sessions', 'sessionController'],
-  optional: ['llm', 'workspaceRegistry', 'userQuestions'],
-}
+export const inject = ['webServer', 'pluginManager', 'tools', 'agentPresets', 'agents', 'sessions', 'sessionController']
 
 /** 机器无关的默认生成目录：~/.concerto/teams */
 const DEFAULT_TEAMS_DIR = join(os.homedir(), '.concerto', 'teams')
