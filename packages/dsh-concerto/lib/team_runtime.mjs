@@ -2372,6 +2372,173 @@ export function createTeamRuntime({ policyRequiresReview = false, statePath = ''
     })
   }
 
+  function findAutoCascadeCandidates(scope) {
+    const state = stateOf(scope)
+    if (!state || state.goalCompletion || state.paused) return []
+    const gate = planGateOf(state)
+    if (gate && gate.status !== 'approved') return []
+    const ready = []
+    for (const task of state.tasks.values()) {
+      if (task.state !== 'pending' || task.needsAdjudication) continue
+      if (task.raceGroup?.role === 'parent') continue
+      if (!Array.isArray(task.dependsOn) || task.dependsOn.length === 0) continue
+      const allDepsDone = task.dependsOn.every((depId) => state.tasks.get(depId)?.state === 'completed')
+      if (!allDepsDone) continue
+      if (hasUnsettledTaskExecution(state, task.taskId)) continue
+      ready.push({
+        taskId: task.taskId,
+        title: task.title,
+        dependsOn: [...task.dependsOn],
+        preferredMemberId: task.memberId || null,
+      })
+    }
+    return ready
+  }
+
+  function recordAutoCascade(scope, { taskId, memberId, executionId, dependsOn = [] }) {
+    const state = stateOf(scope)
+    const commanderId = state.metadata?.commanderId || 'commander'
+    appendEvent(scope, 'task.auto_cascaded', { taskId, memberId, executionId, dependsOn }, { kind: 'runtime', id: 'concerto-dag' }, taskId, executionId)
+    recordActivity(scope, {
+      memberId: commanderId,
+      kind: 'dispatch',
+      summary: `⚡ 依赖就绪，自动瀑布接力派发 ${taskId} → ${memberId}`,
+      detail: { taskId, memberId, executionId, dependsOn },
+    })
+    return { ok: true }
+  }
+
+  function createRacePair(scope, { sourceTaskId, memberA, memberB, commandId }, actor = { kind: 'user', id: 'local-owner' }) {
+    if (!sourceTaskId || !memberA || !memberB) return fail('invalid', 'sourceTaskId, memberA, memberB required')
+    if (memberA === memberB) return fail('invalid', '请选择两位不同的成员进行双解赛马')
+    const cid = typeof commandId === 'string' && commandId.trim() ? commandId.trim() : `race-${randomUUID()}`
+    return command(scope, cid, { type: 'create_race_pair', sourceTaskId, memberA, memberB }, () => {
+      const state = stateOf(scope)
+      if (state.goalCompletion) return fail('precondition_failed', 'goal is already complete')
+      const source = state.tasks.get(sourceTaskId)
+      if (!source) return fail('not_found', `task ${sourceTaskId} not found`)
+      if (source.state !== 'pending') return fail('precondition_failed', `只能对 pending 状态的任务发起赛马（当前：${source.state}）`)
+      if (source.raceGroup) return fail('precondition_failed', '该任务已处于双解赛马中')
+
+      const raceId = `race-${randomUUID().slice(0, 8)}`
+      const now = new Date().toISOString()
+      const makeCandidate = (label, memberId) => {
+        state.counter += 1
+        const taskId = `task-${state.counter}`
+        const t = {
+          taskId,
+          title: `${source.title} [方案 ${label} · ${memberId}]`,
+          objective: source.objective,
+          acceptance: structuredClone(source.acceptance ?? []),
+          constraints: structuredClone(source.constraints ?? []),
+          dependsOn: structuredClone(source.dependsOn ?? []),
+          assigneeRole: 'worker',
+          requiresReview: false,
+          reviewPolicy: structuredClone(source.reviewPolicy ?? { requiresReview: false }),
+          state: 'pending',
+          attempt: 0,
+          memberId,
+          executionId: null,
+          result: null,
+          review: null,
+          events: [],
+          raceGroup: { raceId, sourceTaskId, role: 'candidate', label, memberId, status: 'running' },
+          createdAt: now,
+          updatedAt: now,
+        }
+        state.tasks.set(taskId, t)
+        appendEvent(scope, 'decision.applied', { action: 'create_task', taskId, title: t.title, raceId, label }, actor, taskId)
+        return t
+      }
+      const taskA = makeCandidate('A', memberA)
+      const taskB = makeCandidate('B', memberB)
+      source.raceGroup = {
+        raceId,
+        sourceTaskId,
+        role: 'parent',
+        status: 'active',
+        winnerTaskId: null,
+        candidates: [
+          { label: 'A', taskId: taskA.taskId, memberId: memberA },
+          { label: 'B', taskId: taskB.taskId, memberId: memberB },
+        ],
+      }
+      source.updatedAt = now
+      state.planRevision += 1
+      appendEvent(scope, 'race.started', {
+        raceId,
+        sourceTaskId,
+        candidates: source.raceGroup.candidates,
+      }, actor, sourceTaskId)
+      return {
+        ok: true,
+        raceId,
+        sourceTaskId,
+        taskA: structuredClone(taskA),
+        taskB: structuredClone(taskB),
+        planRevision: state.planRevision,
+      }
+    })
+  }
+
+  function resolveRaceWinner(scope, { raceId, winnerTaskId, commandId }, actor = { kind: 'user', id: 'local-owner' }) {
+    if (!raceId || !winnerTaskId) return fail('invalid', 'raceId and winnerTaskId required')
+    const cid = typeof commandId === 'string' && commandId.trim() ? commandId.trim() : `race-pick-${randomUUID()}`
+    return command(scope, cid, { type: 'resolve_race_winner', raceId, winnerTaskId }, () => {
+      const state = stateOf(scope)
+      const parent = [...state.tasks.values()].find((t) => t.raceGroup?.raceId === raceId && t.raceGroup?.role === 'parent')
+      if (!parent) return fail('not_found', `未找到赛马组 ${raceId}`)
+      const candidates = [...state.tasks.values()].filter((t) => t.raceGroup?.raceId === raceId && t.raceGroup?.role === 'candidate')
+      const winner = candidates.find((t) => t.taskId === winnerTaskId)
+      if (!winner) return fail('not_found', `获胜方案 ${winnerTaskId} 不在赛马组 ${raceId} 中`)
+      const losers = candidates.filter((t) => t.taskId !== winnerTaskId)
+      const now = new Date().toISOString()
+
+      winner.raceGroup = { ...winner.raceGroup, status: 'winner' }
+      if (winner.state === 'review' || winner.state === 'pending') winner.state = 'completed'
+      winner.updatedAt = now
+
+      for (const loser of losers) {
+        loser.raceGroup = { ...loser.raceGroup, status: 'discarded' }
+        if (loser.state !== 'completed' && loser.state !== 'cancelled') {
+          loser.state = 'cancelled'
+          loser.updatedAt = now
+        }
+      }
+
+      const winnerMemberId = winner.memberId || winner.raceGroup?.memberId || null
+      parent.raceGroup = { ...parent.raceGroup, status: 'resolved', winnerTaskId: winner.taskId, resolvedAt: now }
+      parent.state = 'completed'
+      parent.memberId = winnerMemberId
+      parent.worktree = winner.worktree ? structuredClone(winner.worktree) : parent.worktree
+      parent.result = winner.result
+        ? { ...structuredClone(winner.result), raceWinner: { raceId, winnerTaskId: winner.taskId, label: winner.raceGroup.label, memberId: winnerMemberId } }
+        : { resultId: `race-win-${randomUUID().slice(0, 8)}`, summary: `已采纳赛马方案 ${winner.raceGroup.label}（${winnerMemberId}）`, artifactRefs: [], raceWinner: { raceId, winnerTaskId: winner.taskId, label: winner.raceGroup.label, memberId: winnerMemberId } }
+      parent.updatedAt = now
+      state.planRevision += 1
+
+      appendEvent(scope, 'race.winner_selected', {
+        raceId,
+        sourceTaskId: parent.taskId,
+        winnerTaskId: winner.taskId,
+        winnerLabel: winner.raceGroup.label,
+        winnerMemberId,
+        discardedTaskIds: losers.map((l) => l.taskId),
+      }, actor, parent.taskId)
+
+      return {
+        ok: true,
+        raceId,
+        sourceTaskId: parent.taskId,
+        winnerTaskId: winner.taskId,
+        winnerMemberId,
+        winnerWorktree: winner.worktree ? structuredClone(winner.worktree) : null,
+        losers: losers.map((l) => ({ taskId: l.taskId, executionId: l.executionId, worktree: l.worktree ? structuredClone(l.worktree) : null })),
+        planRevision: state.planRevision,
+      }
+    })
+  }
+
   function setDispatchLimits(scope, { dispatchLimits, commandId }, actor) {
     const checked = validateDispatchLimits(dispatchLimits)
     if (!checked.ok) return fail('invalid', checked.detail)
@@ -3586,6 +3753,10 @@ export function createTeamRuntime({ policyRequiresReview = false, statePath = ''
     }),
     haltTeam: transaction(haltTeam),
     recordUserSuggestion: transaction(recordUserSuggestion),
+    findAutoCascadeCandidates,
+    recordAutoCascade: transaction(recordAutoCascade),
+    createRacePair: transaction(createRacePair),
+    resolveRaceWinner: transaction(resolveRaceWinner),
     approvePlan: transaction(approvePlan),
     recordPlanWake: transaction(recordPlanWake),
     offerCloseoutSkill: transaction(offerCloseoutSkill),

@@ -382,6 +382,46 @@ export function apply(ctx, config) {
   const queuedSettlements = new Map()
   let disposing = false
 
+  async function triggerAutoCascade(teamSessionId, sessionId) {
+    if (disposing || !sessionId) return []
+    const candidates = runtime.findAutoCascadeCandidates(teamSessionId)
+    if (!Array.isArray(candidates) || candidates.length === 0) return []
+    const snapshot = runtime.getStatus(teamSessionId)
+    const workers = (snapshot?.metadata?.members ?? []).filter((m) => m?.roleKind === 'worker')
+    if (workers.length === 0) return []
+    const dispatched = []
+    for (const cand of candidates) {
+      const target = (cand.preferredMemberId && workers.find((w) => w.id === cand.preferredMemberId))
+        || (workers.length === 1 ? workers[0] : workers.find((w) => {
+          if (w.source === 'hosted' || w.source === 'api') return true
+          const cached = connectorProbeCache.get(w.connector)?.probe
+          return !cached || cached.ok
+        }))
+        || workers[0]
+      if (!target) continue
+      try {
+        const out = await tasks.dispatch({
+          sessionId,
+          taskId: cand.taskId,
+          memberId: target.id,
+          commandId: `auto-cascade-${cand.taskId}-${Date.now()}`,
+        }, { kind: 'auto_cascade', actorId: 'concerto-dag' })
+        if (out?.ok && out.executionId) {
+          runtime.recordAutoCascade(teamSessionId, {
+            taskId: cand.taskId,
+            memberId: target.id,
+            executionId: out.executionId,
+            dependsOn: cand.dependsOn,
+          })
+          dispatched.push({ taskId: cand.taskId, memberId: target.id, executionId: out.executionId })
+        }
+      } catch (err) {
+        ctx.logger?.warn?.(`Auto-cascade dispatch failed for ${cand.taskId}: ${err?.message || err}`)
+      }
+    }
+    return dispatched
+  }
+
   async function wakeCommanderAfterSettlement(teamSessionId, settled) {
     if (disposing || !settled?.executionId) return
     const sessionId = commanderHostSessionByRun.get(teamSessionId)
@@ -422,6 +462,16 @@ export function apply(ctx, config) {
         snapshot = runtime.getStatus(teamSessionId)
         task = snapshot.tasks.find((t) => t.taskId === settled.taskId) ?? task
       }
+    }
+
+    // 依赖任务自动瀑布接力（零 Token 延迟）：若本任务已完成，自动派发已就绪的下游任务并暂不唤醒指挥者
+    if (task.state === 'completed' && !task.raceGroup?.role) {
+      const cascaded = await triggerAutoCascade(teamSessionId, sessionId || snapshot.metadata?.commanderSessionId)
+      if (cascaded.length > 0) return
+    }
+    // 赛马候选任务完成后等待用户在团队页对比选优，不急于让指挥者结项
+    if (task.raceGroup?.role === 'candidate') {
+      return
     }
 
     const who = settled.memberId || exec?.memberId || '成员'
@@ -1842,6 +1892,72 @@ export function apply(ctx, config) {
       const owned = ownedRun(input)
       if (!owned.ok) return owned
       return runtime.unblockTask(owned.scope.teamSessionId, input, { kind: 'user', id: 'local-owner' })
+    },
+    async race(input) {
+      const owned = ownedRun({ ...input, commandId: input?.commandId || `race-${randomUUID()}` })
+      if (!owned.ok) return owned
+      const { teamSessionId, sessionId } = owned.scope
+      const created = runtime.createRacePair(teamSessionId, {
+        sourceTaskId: input?.taskId,
+        memberA: input?.memberA,
+        memberB: input?.memberB,
+        commandId: input?.commandId,
+      }, { kind: 'user', id: 'local-owner' })
+      if (!created.ok || created.replayed) return created
+
+      const dispatchCandidate = async (candTask, memberId, label) => {
+        // 优先使用 isolated_clean 独立 Git Worktree 实现双写并行不锁冲突；非 Git 或失败时回退 auto
+        const firstTry = await tasks.dispatch({
+          sessionId,
+          taskId: candTask.taskId,
+          memberId,
+          worktreeMode: 'isolated_clean',
+          commandId: `race-disp-${created.raceId}-${label}`,
+        }, { kind: 'user', actorId: 'local-owner' })
+        if (firstTry?.ok) return firstTry
+        return await tasks.dispatch({
+          sessionId,
+          taskId: candTask.taskId,
+          memberId,
+          worktreeMode: 'shared',
+          commandId: `race-disp-fb-${created.raceId}-${label}`,
+        }, { kind: 'user', actorId: 'local-owner' })
+      }
+
+      const [dispatchA, dispatchB] = await Promise.all([
+        dispatchCandidate(created.taskA, input.memberA, 'A'),
+        dispatchCandidate(created.taskB, input.memberB, 'B'),
+      ])
+      return { ...created, dispatchA, dispatchB }
+    },
+    async pickRaceWinner(input) {
+      const owned = ownedRun({ ...input, commandId: input?.commandId || `race-pick-${randomUUID()}` })
+      if (!owned.ok) return owned
+      const { teamSessionId, sessionId } = owned.scope
+      const resolved = runtime.resolveRaceWinner(teamSessionId, {
+        raceId: input?.raceId,
+        winnerTaskId: input?.winnerTaskId,
+        commandId: input?.commandId,
+      }, { kind: 'user', id: 'local-owner' })
+      if (!resolved.ok || resolved.replayed) return resolved
+
+      for (const loser of resolved.losers ?? []) {
+        if (loser.executionId) {
+          try { runner.cancel(teamSessionId, loser.taskId, { kind: 'user', id: 'local-owner' }, { commandId: `race-cancel-${loser.taskId}`, reason: '赛马已选定获胜方案' }) } catch { /* ignore */ }
+        }
+        if (loser.worktree) {
+          try { removeGitWorktree(loser.worktree) } catch { /* ignore */ }
+        }
+      }
+
+      let mergeResult = null
+      if (input?.mergeWinner === true && resolved.winnerWorktree) {
+        mergeResult = mergeGitWorktree(resolved.winnerWorktree)
+      }
+
+      // 赛马母任务完成后，若有下游依赖任务就绪，自动瀑布接力！
+      const cascaded = await triggerAutoCascade(teamSessionId, sessionId)
+      return { ...resolved, ...(mergeResult ? { mergeResult } : {}), cascaded }
     },
     review(input) {
       const owned = ownedRun(input)

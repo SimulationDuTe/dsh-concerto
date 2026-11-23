@@ -854,6 +854,73 @@ test('Custom API model auto-fetch, workspace file preview with traversal guard, 
   assert.equal(badPrev.status, 404)
 })
 
+test('Auto-Cascade DAG finds ready downstream tasks and A/B Compare Race creates pair, picks winner, and cancels loser', async () => {
+  const rt = createTeamRuntime()
+  rt.bindSession('cmd-dag', 'run-dag', {
+    teamId: 't-dag',
+    commanderId: 'c1',
+    requirePlanApproval: false,
+    members: [
+      { id: 'w-agy', roleKind: 'worker', source: 'external', connector: 'antigravity' },
+      { id: 'w-claude', roleKind: 'worker', source: 'external', connector: 'claude' },
+    ],
+  })
+
+  // Create task-1 and dependent task-2 (dependsOn: ['task-1'])
+  const t1 = rt.submit({
+    decisionId: 'd-dag-1', expectedPlanRevision: 1, action: 'create_task',
+    payload: { title: 'Step 1', objective: 'Build base', acceptance: ['done'], constraints: [], dependsOn: [], assigneeRole: 'worker' },
+  }, 'run-dag')
+  assert.equal(t1.ok, true)
+  const t2 = rt.submit({
+    decisionId: 'd-dag-2', expectedPlanRevision: t1.planRevision, action: 'create_task',
+    payload: { title: 'Step 2', objective: 'Build feature on base', acceptance: ['done'], constraints: [], dependsOn: ['task-1'], assigneeRole: 'worker' },
+  }, 'run-dag')
+  assert.equal(t2.ok, true)
+
+  // Before task-1 completes, task-2 is NOT an auto-cascade candidate
+  assert.deepEqual(rt.findAutoCascadeCandidates('run-dag'), [])
+
+  // Complete task-1 -> task-2 immediately becomes an auto-cascade candidate
+  assert.equal(rt.submitResult({ taskId: 'task-1', summary: 'base ready', checksPassed: true }, 'run-dag').state, 'completed')
+  const ready = rt.findAutoCascadeCandidates('run-dag')
+  assert.equal(ready.length, 1)
+  assert.equal(ready[0].taskId, 'task-2')
+  assert.deepEqual(ready[0].dependsOn, ['task-1'])
+
+  // Launch A/B Compare Race on task-2 between w-agy and w-claude
+  const race = rt.createRacePair('run-dag', {
+    sourceTaskId: 'task-2',
+    memberA: 'w-agy',
+    memberB: 'w-claude',
+    commandId: 'race-cmd-1',
+  })
+  assert.equal(race.ok, true, JSON.stringify(race))
+  assert.equal(race.taskA.memberId, 'w-agy')
+  assert.equal(race.taskB.memberId, 'w-claude')
+  assert.equal(race.taskA.raceGroup.label, 'A')
+  assert.equal(race.taskB.raceGroup.label, 'B')
+
+  // Both candidates submit results
+  rt.submitResult({ taskId: race.taskA.taskId, summary: 'Antigravity solution A', checksPassed: true }, 'run-dag')
+  rt.submitResult({ taskId: race.taskB.taskId, summary: 'Claude solution B', checksPassed: true }, 'run-dag')
+
+  // Pick Scheme B as winner -> parent task-2 completes with B's result, Scheme A is discarded/cancelled
+  const picked = rt.resolveRaceWinner('run-dag', {
+    raceId: race.raceId,
+    winnerTaskId: race.taskB.taskId,
+    commandId: 'race-pick-1',
+  })
+  assert.equal(picked.ok, true, JSON.stringify(picked))
+  assert.equal(picked.winnerMemberId, 'w-claude')
+  const parentAfter = rt.getTask({ taskId: 'task-2' }, 'run-dag').task
+  assert.equal(parentAfter.state, 'completed')
+  assert.equal(parentAfter.result.summary, 'Claude solution B')
+  assert.equal(parentAfter.raceGroup.status, 'resolved')
+  assert.equal(rt.getTask({ taskId: race.taskA.taskId }, 'run-dag').task.raceGroup.status, 'discarded')
+})
+
+
 
 
 

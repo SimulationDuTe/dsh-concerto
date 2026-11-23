@@ -272,6 +272,27 @@ export function registerConcertoRoutes(webServer, base, deps) {
     return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
   })
 
+  // 异构双解赛马（A/B Compare）：临时对单个任务发起双成员并行对比，并一键采纳胜者
+  add(`${base}/tasks/race`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid')
+    if (typeof deps.tasks?.race !== 'function') return replyError(res, 503, 'host_unavailable', 'task race unavailable')
+    let body
+    try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    const out = await deps.tasks.race(body)
+    return sendJson(res, out?.ok ? 200 : statusForError(out?.code), out)
+  })
+
+  add(`${base}/tasks/race/pick`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid')
+    if (typeof deps.tasks?.pickRaceWinner !== 'function') return replyError(res, 503, 'host_unavailable', 'task race pick unavailable')
+    let body
+    try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    const out = await deps.tasks.pickRaceWinner(body)
+    return sendJson(res, out?.ok ? 200 : statusForError(out?.code), out)
+  })
+
   add(`${base}/tasks/review`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if (req.method !== 'POST') return replyError(res, 405, 'invalid')

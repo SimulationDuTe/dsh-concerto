@@ -984,6 +984,13 @@ export function ConcertoTeamView({ sessionId, openView }) {
       disabled: !canAct,
       onSubmit: (input) => command('/executions/adjudicate', input),
     })),
+    pendingTask && !task.raceGroup && members.filter((m) => m.roleKind === 'worker').length >= 2 && h(RaceLauncherBar, {
+      sessionId,
+      taskId: task.taskId,
+      workers: members.filter((m) => m.roleKind === 'worker'),
+      disabled: !canAct || planBlocksDispatch || dispatchPaused,
+      onStarted: () => refresh(),
+    }),
     canUnblock && h(UnblockTaskForm, {
       key: task.taskId,
       task,
@@ -1483,6 +1490,16 @@ export function ConcertoTeamView({ sessionId, openView }) {
 
   // ② 概览页签
   activeTab === 'overview' && h('div', { ...tabPanelProps(tabsId, 'overview'), className: 'concerto-tab-content', 'data-concerto-tabpanel': 'overview' },
+    tasks.filter((t) => t.raceGroup?.role === 'parent').map((parentTask) => h(RaceCompareBoard, {
+      key: parentTask.raceGroup.raceId,
+      sessionId,
+      parentTask,
+      tasks,
+      members,
+      disabled: !canAct,
+      onOpenFilePreview: openFilePreview,
+      onPicked: () => refresh(),
+    })),
     stats.total > 0 && unreadyCaps.length > 0 && h('div', { className: 'concerto-attn-card', 'data-concerto-capability-warning': 'true' },
       h('strong', null, `成员执行能力尚未就绪（${unreadyCaps.length}）`),
       h('div', { style: { fontSize: 'var(--cc-fs-meta)', color: 'var(--cc-text-secondary)' } },
@@ -2108,4 +2125,121 @@ function WorktreeActionBar({ sessionId, taskId, worktree, disabled = false }) {
       diffResult.stat && h('pre', { style: { margin: '4px 0', whiteSpace: 'pre-wrap', fontFamily: 'var(--cc-font-mono)', fontSize: 'var(--cc-fs-code)' } }, diffResult.stat),
       h('pre', { style: { margin: '4px 0', maxHeight: 240, overflow: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'var(--cc-font-mono)', fontSize: 'var(--cc-fs-code)', padding: 8, borderRadius: 'var(--cc-radius-ctrl)', background: 'var(--cc-card-nested-bg)' } },
         diffResult.diff || (diffResult.untrackedFiles?.length ? `未跟踪文件：\n${diffResult.untrackedFiles.join('\n')}` : '无改动'))))
+}
+
+function RaceLauncherBar({ sessionId, taskId, workers = [], disabled = false, onStarted }) {
+  const [open, setOpen] = React.useState(false)
+  const [memberA, setMemberA] = React.useState(workers[0]?.id || '')
+  const [memberB, setMemberB] = React.useState(workers[1]?.id || workers[0]?.id || '')
+  const [busy, setBusy] = React.useState(false)
+  const [err, setErr] = React.useState('')
+
+  async function onStart() {
+    if (!memberA || !memberB || memberA === memberB) {
+      setErr('请选择两位不同的执行者进行赛马')
+      return
+    }
+    setBusy(true)
+    setErr('')
+    try {
+      await request('/tasks/race', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, taskId, memberA, memberB, commandId: `race-${taskId}-${crypto.randomUUID()}` }),
+      })
+      setOpen(false)
+      onStarted?.()
+    } catch (error) {
+      setErr(error.message || '启动赛马失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return h('div', { className: 'concerto-acc-box', style: { width: '100%' }, 'data-concerto-race-launcher': taskId },
+    !open
+      ? h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' } },
+          h('span', { style: { fontSize: 'var(--cc-fs-meta)' } }, '🏁 想对比不同 Agent 的解法？可临时发起一次双解赛马（独立 Worktree 并行）。'),
+          h('button', { type: 'button', className: 'concerto-btn', disabled, onClick: () => setOpen(true) }, '启动双解赛马 (A/B)'))
+      : h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
+          h('strong', { style: { fontSize: 'var(--cc-fs-meta)' } }, '🏁 选择两位参赛成员（各自独立 Worktree 并行执行）'),
+          h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' } },
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--cc-fs-caption)' } }, '方案 A',
+              h('select', { className: 'concerto-input', disabled: busy, value: memberA, onChange: (e) => setMemberA(e.target.value) },
+                workers.map((w) => h('option', { key: w.id, value: w.id }, `${w.id}${w.connector ? ` (${w.connector})` : ''}`)))),
+            h('span', { className: 'concerto-quiet' }, 'VS'),
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 'var(--cc-fs-caption)' } }, '方案 B',
+              h('select', { className: 'concerto-input', disabled: busy, value: memberB, onChange: (e) => setMemberB(e.target.value) },
+                workers.map((w) => h('option', { key: w.id, value: w.id }, `${w.id}${w.connector ? ` (${w.connector})` : ''}`)))),
+            h('button', { type: 'button', className: 'concerto-btn concerto-btn--primary', disabled: busy || disabled, onClick: onStart }, busy ? '启动中…' : '开始赛马'),
+            h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', disabled: busy, onClick: () => setOpen(false) }, '取消')),
+          err && h('div', { role: 'alert', className: 'concerto-field-error' }, err)))
+}
+
+function RaceCompareBoard({ sessionId, parentTask, tasks = [], members = [], disabled = false, onOpenFilePreview, onPicked }) {
+  const [busyId, setBusyId] = React.useState('')
+  const [mergeWinner, setMergeWinner] = React.useState(false)
+  const [err, setErr] = React.useState('')
+  const race = parentTask.raceGroup
+  const candidates = (race?.candidates ?? []).map((c) => ({
+    ...c,
+    task: tasks.find((t) => t.taskId === c.taskId) || null,
+    member: members.find((m) => m.id === c.memberId) || { id: c.memberId, roleKind: 'worker' },
+  }))
+
+  async function pick(winnerTaskId) {
+    setBusyId(winnerTaskId)
+    setErr('')
+    try {
+      await request('/tasks/race/pick', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId,
+          raceId: race.raceId,
+          winnerTaskId,
+          mergeWinner,
+          commandId: `race-pick-${race.raceId}-${winnerTaskId}`,
+        }),
+      })
+      onPicked?.()
+    } catch (error) {
+      setErr(error.message || '采纳方案失败')
+    } finally {
+      setBusyId('')
+    }
+  }
+
+  return h('section', { className: 'concerto-attn-card', style: { marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }, 'data-concerto-race-board': race.raceId },
+    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+      h('strong', null, `🏁 异构双解赛马 · ${parentTask.title}`),
+      h('span', { className: 'concerto-chip' }, race.status === 'resolved' ? `已采纳胜者 ${race.winnerTaskId}` : '双方案并行对比中')),
+    race.status !== 'resolved' && h('label', { className: 'concerto-set-check' },
+      h('input', { type: 'checkbox', checked: mergeWinner, onChange: (e) => setMergeWinner(e.target.checked) }),
+      h('span', null, '采纳时顺便将胜者的 Git Worktree 合并回主分支（未入选方案的临时目录会自动清理）')),
+    h('div', { className: 'concerto-race-grid' },
+      candidates.map(({ label: lbl, task: ct, member }) => {
+        const isWinner = race.winnerTaskId === ct?.taskId
+        const meta = STATE_META[ct?.viewState || ct?.state || 'pending'] || STATE_META.pending
+        const fileRefs = Array.isArray(ct?.result?.artifactRefs)
+          ? ct.result.artifactRefs.filter((r) => typeof r === 'string' && !/^(table|checklist|mindmap|diagram|board|html):|^event-|^view-/i.test(r))
+          : []
+        return h('div', { key: lbl, className: 'concerto-race-col', 'data-winner': isWinner ? 'true' : undefined },
+          h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 } },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+              h(MemberGlyph, { member, state: ct?.state || 'idle', size: 28 }),
+              h('strong', { style: { fontSize: 'var(--cc-fs-meta)' } }, `方案 ${lbl} · ${member.id}`)),
+            h(StateChip, { status: ct?.viewState || ct?.state || 'pending', text: isWinner ? '🏆 已采纳' : meta.label })),
+          ct?.result?.summary
+            ? h('p', { style: { margin: 0, fontSize: 'var(--cc-fs-caption)', color: 'var(--cc-text-secondary)', whiteSpace: 'pre-wrap' } }, ct.result.summary)
+            : h('p', { style: { margin: 0, fontSize: 'var(--cc-fs-caption)', color: 'var(--cc-text-muted)' } }, '等待该成员提交结果…'),
+          fileRefs.length > 0 && h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
+            fileRefs.map((ref) => h('button', { key: ref, type: 'button', className: 'concerto-chip', onClick: () => onOpenFilePreview?.(ref, ct.taskId) }, `📄 ${ref}`))),
+          ct?.worktree && h(WorktreeActionBar, { sessionId, taskId: ct.taskId, worktree: ct.worktree, disabled }),
+          race.status !== 'resolved' && ct && h('button', {
+            type: 'button',
+            className: 'concerto-btn concerto-btn--primary',
+            disabled: disabled || Boolean(busyId) || ct.state === 'cancelled',
+            onClick: () => pick(ct.taskId),
+          }, busyId === ct.taskId ? '采纳中…' : `🏆 采纳方案 ${lbl}`))
+      })),
+    err && h('div', { role: 'alert', className: 'concerto-field-error' }, err))
 }

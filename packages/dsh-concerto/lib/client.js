@@ -610,7 +610,10 @@ var EVENT_LABEL = {
   "project.skill.published": "\u53D1\u5E03\u9879\u76EE\u65B9\u6CD5",
   "skill.loaded": "\u52A0\u8F7D\u65B9\u6CD5",
   "skill.delivered": "\u6D3E\u53D1\u51BB\u7ED3\u65B9\u6CD5",
-  "user.suggestion": "\u7528\u6237\u4E2D\u9014\u5EFA\u8BAE"
+  "user.suggestion": "\u7528\u6237\u4E2D\u9014\u5EFA\u8BAE",
+  "task.auto_cascaded": "\u26A1 \u81EA\u52A8\u7011\u5E03\u63A5\u529B",
+  "race.started": "\u{1F3C1} \u542F\u52A8\u53CC\u89E3\u8D5B\u9A6C",
+  "race.winner_selected": "\u{1F3C6} \u91C7\u7EB3\u8D5B\u9A6C\u80DC\u8005"
 };
 var STATE_META = {
   running: { cls: "concerto-state-running", icon: "\u27F3", label: "\u6267\u884C\u4E2D" },
@@ -2452,6 +2455,10 @@ var TEAM_CSS = `
   .concerto-live-stage-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); width: 100%; }
   .concerto-live-stage-wings { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--cc-space-3); width: 100%; }
   .concerto-live-stage-wing { flex: 1 1 180px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--cc-space-2); }
+  /* A/B Compare Race Board */
+  .concerto-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-space-3); width: 100%; }
+  .concerto-race-col { display: flex; flex-direction: column; gap: var(--cc-space-2); padding: var(--cc-space-3); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: var(--cc-card-bg); min-width: 0; }
+  .concerto-race-col[data-winner="true"] { border-color: var(--cc-state-done); box-shadow: 0 0 0 2px var(--cc-state-done-bg); }
   @container concerto-set (max-width: 540px) { .concerto-stage-lanes { grid-template-columns: minmax(0, 1fr); } .concerto-stage-svg { display: none; } }
   @container concerto-set (max-width: 720px) { .concerto-set-member { grid-template-columns: repeat(2, minmax(0, 1fr)); } .concerto-set-member-remove { grid-column: 1 / -1; justify-self: start; } }
   @container concerto-set (max-width: 640px) { .concerto-set-card { padding: var(--cc-space-4); } }
@@ -13132,6 +13139,13 @@ function ConcertoTeamView({ sessionId, openView }) {
           disabled: !canAct,
           onSubmit: (input) => command("/executions/adjudicate", input)
         })),
+        pendingTask && !task.raceGroup && members.filter((m) => m.roleKind === "worker").length >= 2 && h(RaceLauncherBar, {
+          sessionId,
+          taskId: task.taskId,
+          workers: members.filter((m) => m.roleKind === "worker"),
+          disabled: !canAct || planBlocksDispatch || dispatchPaused,
+          onStarted: () => refresh()
+        }),
         canUnblock && h(UnblockTaskForm, {
           key: task.taskId,
           task,
@@ -13784,6 +13798,16 @@ function ConcertoTeamView({ sessionId, openView }) {
     activeTab === "overview" && h(
       "div",
       { ...tabPanelProps(tabsId, "overview"), className: "concerto-tab-content", "data-concerto-tabpanel": "overview" },
+      tasks.filter((t) => t.raceGroup?.role === "parent").map((parentTask) => h(RaceCompareBoard, {
+        key: parentTask.raceGroup.raceId,
+        sessionId,
+        parentTask,
+        tasks,
+        members,
+        disabled: !canAct,
+        onOpenFilePreview: openFilePreview,
+        onPicked: () => refresh()
+      })),
       stats.total > 0 && unreadyCaps.length > 0 && h(
         "div",
         { className: "concerto-attn-card", "data-concerto-capability-warning": "true" },
@@ -14623,6 +14647,161 @@ function WorktreeActionBar({ sessionId, taskId, worktree, disabled = false }) {
 ${diffResult.untrackedFiles.join("\n")}` : "\u65E0\u6539\u52A8")
       )
     )
+  );
+}
+function RaceLauncherBar({ sessionId, taskId, workers = [], disabled = false, onStarted }) {
+  const [open, setOpen] = import_react20.default.useState(false);
+  const [memberA, setMemberA] = import_react20.default.useState(workers[0]?.id || "");
+  const [memberB, setMemberB] = import_react20.default.useState(workers[1]?.id || workers[0]?.id || "");
+  const [busy, setBusy] = import_react20.default.useState(false);
+  const [err, setErr] = import_react20.default.useState("");
+  async function onStart() {
+    if (!memberA || !memberB || memberA === memberB) {
+      setErr("\u8BF7\u9009\u62E9\u4E24\u4F4D\u4E0D\u540C\u7684\u6267\u884C\u8005\u8FDB\u884C\u8D5B\u9A6C");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    try {
+      await request("/tasks/race", {
+        method: "POST",
+        body: JSON.stringify({ sessionId, taskId, memberA, memberB, commandId: `race-${taskId}-${crypto.randomUUID()}` })
+      });
+      setOpen(false);
+      onStarted?.();
+    } catch (error) {
+      setErr(error.message || "\u542F\u52A8\u8D5B\u9A6C\u5931\u8D25");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return h(
+    "div",
+    { className: "concerto-acc-box", style: { width: "100%" }, "data-concerto-race-launcher": taskId },
+    !open ? h(
+      "div",
+      { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" } },
+      h("span", { style: { fontSize: "var(--cc-fs-meta)" } }, "\u{1F3C1} \u60F3\u5BF9\u6BD4\u4E0D\u540C Agent \u7684\u89E3\u6CD5\uFF1F\u53EF\u4E34\u65F6\u53D1\u8D77\u4E00\u6B21\u53CC\u89E3\u8D5B\u9A6C\uFF08\u72EC\u7ACB Worktree \u5E76\u884C\uFF09\u3002"),
+      h("button", { type: "button", className: "concerto-btn", disabled, onClick: () => setOpen(true) }, "\u542F\u52A8\u53CC\u89E3\u8D5B\u9A6C (A/B)")
+    ) : h(
+      "div",
+      { style: { display: "flex", flexDirection: "column", gap: 8 } },
+      h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, "\u{1F3C1} \u9009\u62E9\u4E24\u4F4D\u53C2\u8D5B\u6210\u5458\uFF08\u5404\u81EA\u72EC\u7ACB Worktree \u5E76\u884C\u6267\u884C\uFF09"),
+      h(
+        "div",
+        { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+        h(
+          "label",
+          { style: { display: "flex", alignItems: "center", gap: 4, fontSize: "var(--cc-fs-caption)" } },
+          "\u65B9\u6848 A",
+          h(
+            "select",
+            { className: "concerto-input", disabled: busy, value: memberA, onChange: (e) => setMemberA(e.target.value) },
+            workers.map((w) => h("option", { key: w.id, value: w.id }, `${w.id}${w.connector ? ` (${w.connector})` : ""}`))
+          )
+        ),
+        h("span", { className: "concerto-quiet" }, "VS"),
+        h(
+          "label",
+          { style: { display: "flex", alignItems: "center", gap: 4, fontSize: "var(--cc-fs-caption)" } },
+          "\u65B9\u6848 B",
+          h(
+            "select",
+            { className: "concerto-input", disabled: busy, value: memberB, onChange: (e) => setMemberB(e.target.value) },
+            workers.map((w) => h("option", { key: w.id, value: w.id }, `${w.id}${w.connector ? ` (${w.connector})` : ""}`))
+          )
+        ),
+        h("button", { type: "button", className: "concerto-btn concerto-btn--primary", disabled: busy || disabled, onClick: onStart }, busy ? "\u542F\u52A8\u4E2D\u2026" : "\u5F00\u59CB\u8D5B\u9A6C"),
+        h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", disabled: busy, onClick: () => setOpen(false) }, "\u53D6\u6D88")
+      ),
+      err && h("div", { role: "alert", className: "concerto-field-error" }, err)
+    )
+  );
+}
+function RaceCompareBoard({ sessionId, parentTask, tasks = [], members = [], disabled = false, onOpenFilePreview, onPicked }) {
+  const [busyId, setBusyId] = import_react20.default.useState("");
+  const [mergeWinner, setMergeWinner] = import_react20.default.useState(false);
+  const [err, setErr] = import_react20.default.useState("");
+  const race = parentTask.raceGroup;
+  const candidates = (race?.candidates ?? []).map((c) => ({
+    ...c,
+    task: tasks.find((t) => t.taskId === c.taskId) || null,
+    member: members.find((m) => m.id === c.memberId) || { id: c.memberId, roleKind: "worker" }
+  }));
+  async function pick(winnerTaskId) {
+    setBusyId(winnerTaskId);
+    setErr("");
+    try {
+      await request("/tasks/race/pick", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId,
+          raceId: race.raceId,
+          winnerTaskId,
+          mergeWinner,
+          commandId: `race-pick-${race.raceId}-${winnerTaskId}`
+        })
+      });
+      onPicked?.();
+    } catch (error) {
+      setErr(error.message || "\u91C7\u7EB3\u65B9\u6848\u5931\u8D25");
+    } finally {
+      setBusyId("");
+    }
+  }
+  return h(
+    "section",
+    { className: "concerto-attn-card", style: { marginBottom: 12, display: "flex", flexDirection: "column", gap: 8 }, "data-concerto-race-board": race.raceId },
+    h(
+      "div",
+      { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+      h("strong", null, `\u{1F3C1} \u5F02\u6784\u53CC\u89E3\u8D5B\u9A6C \xB7 ${parentTask.title}`),
+      h("span", { className: "concerto-chip" }, race.status === "resolved" ? `\u5DF2\u91C7\u7EB3\u80DC\u8005 ${race.winnerTaskId}` : "\u53CC\u65B9\u6848\u5E76\u884C\u5BF9\u6BD4\u4E2D")
+    ),
+    race.status !== "resolved" && h(
+      "label",
+      { className: "concerto-set-check" },
+      h("input", { type: "checkbox", checked: mergeWinner, onChange: (e) => setMergeWinner(e.target.checked) }),
+      h("span", null, "\u91C7\u7EB3\u65F6\u987A\u4FBF\u5C06\u80DC\u8005\u7684 Git Worktree \u5408\u5E76\u56DE\u4E3B\u5206\u652F\uFF08\u672A\u5165\u9009\u65B9\u6848\u7684\u4E34\u65F6\u76EE\u5F55\u4F1A\u81EA\u52A8\u6E05\u7406\uFF09")
+    ),
+    h(
+      "div",
+      { className: "concerto-race-grid" },
+      candidates.map(({ label: lbl, task: ct2, member }) => {
+        const isWinner = race.winnerTaskId === ct2?.taskId;
+        const meta = STATE_META[ct2?.viewState || ct2?.state || "pending"] || STATE_META.pending;
+        const fileRefs = Array.isArray(ct2?.result?.artifactRefs) ? ct2.result.artifactRefs.filter((r) => typeof r === "string" && !/^(table|checklist|mindmap|diagram|board|html):|^event-|^view-/i.test(r)) : [];
+        return h(
+          "div",
+          { key: lbl, className: "concerto-race-col", "data-winner": isWinner ? "true" : void 0 },
+          h(
+            "div",
+            { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 } },
+            h(
+              "div",
+              { style: { display: "flex", alignItems: "center", gap: 6 } },
+              h(MemberGlyph, { member, state: ct2?.state || "idle", size: 28 }),
+              h("strong", { style: { fontSize: "var(--cc-fs-meta)" } }, `\u65B9\u6848 ${lbl} \xB7 ${member.id}`)
+            ),
+            h(StateChip, { status: ct2?.viewState || ct2?.state || "pending", text: isWinner ? "\u{1F3C6} \u5DF2\u91C7\u7EB3" : meta.label })
+          ),
+          ct2?.result?.summary ? h("p", { style: { margin: 0, fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-secondary)", whiteSpace: "pre-wrap" } }, ct2.result.summary) : h("p", { style: { margin: 0, fontSize: "var(--cc-fs-caption)", color: "var(--cc-text-muted)" } }, "\u7B49\u5F85\u8BE5\u6210\u5458\u63D0\u4EA4\u7ED3\u679C\u2026"),
+          fileRefs.length > 0 && h(
+            "div",
+            { style: { display: "flex", flexWrap: "wrap", gap: 4 } },
+            fileRefs.map((ref) => h("button", { key: ref, type: "button", className: "concerto-chip", onClick: () => onOpenFilePreview?.(ref, ct2.taskId) }, `\u{1F4C4} ${ref}`))
+          ),
+          ct2?.worktree && h(WorktreeActionBar, { sessionId, taskId: ct2.taskId, worktree: ct2.worktree, disabled }),
+          race.status !== "resolved" && ct2 && h("button", {
+            type: "button",
+            className: "concerto-btn concerto-btn--primary",
+            disabled: disabled || Boolean(busyId) || ct2.state === "cancelled",
+            onClick: () => pick(ct2.taskId)
+          }, busyId === ct2.taskId ? "\u91C7\u7EB3\u4E2D\u2026" : `\u{1F3C6} \u91C7\u7EB3\u65B9\u6848 ${lbl}`)
+        );
+      })
+    ),
+    err && h("div", { role: "alert", className: "concerto-field-error" }, err)
   );
 }
 

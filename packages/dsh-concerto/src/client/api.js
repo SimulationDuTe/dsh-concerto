@@ -146,6 +146,9 @@ export const EVENT_LABEL = {
   'skill.loaded': '加载方法',
   'skill.delivered': '派发冻结方法',
   'user.suggestion': '用户中途建议',
+  'task.auto_cascaded': '⚡ 自动瀑布接力',
+  'race.started': '🏁 启动双解赛马',
+  'race.winner_selected': '🏆 采纳赛马胜者',
 }
 
 export const STATE_META = {
