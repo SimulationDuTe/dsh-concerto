@@ -51,7 +51,26 @@ function edgeAppearance(semantic, highlightCritical) {
   return { stroke: 'var(--cc-border-strong)', width: 1.5, dash: undefined, markerSuffix: '' }
 }
 
-export function SvgDiagramRenderer({ object, sessionId = '', inModal = false, onJumpTask = null }) {
+function resolveLiveTask(node, tasks) {
+  if (!Array.isArray(tasks) || tasks.length === 0 || !node) return null
+  if (node.taskId) {
+    const byId = tasks.find((t) => t.taskId === node.taskId)
+    if (byId) return byId
+  }
+  if (typeof node.id === 'string') {
+    const byNodeId = tasks.find((t) => t.taskId === node.id)
+    if (byNodeId) return byNodeId
+  }
+  const text = String(node.fullLabel || node.label || '')
+  const m = text.match(/\b(task-\d+)\b/i)
+  if (m) {
+    const byMention = tasks.find((t) => t.taskId.toLowerCase() === m[1].toLowerCase())
+    if (byMention) return byMention
+  }
+  return null
+}
+
+export function SvgDiagramRenderer({ object, sessionId = '', inModal = false, tasks = [], onJumpTask = null, onSelectNode = null }) {
   const hostTheme = useHostTheme()
   const initialVp = React.useMemo(() => readCanvasViewport(sessionId, object?.id), [sessionId, object?.id])
   const [zoom, setZoom] = React.useState(() => initialVp.scale || 1)
@@ -243,25 +262,49 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false, on
     }),
 
     layout.nodes.map((n) => {
-      const st = STATUS_TOKENS[n.status] || STATUS_TOKENS.pending
-      const stColor = statusCssVar(n.status)
-      const completed = n.status === 'done' || n.status === 'completed'
-      const interactive = object.semanticKind === 'live_execution' && n.taskId && typeof onJumpTask === 'function'
+      const liveTask = resolveLiveTask(n, tasks)
+      const effectiveStatus = liveTask ? (liveTask.viewState || liveTask.state) : n.status
+      const effectiveTaskId = liveTask?.taskId || n.taskId || null
+      const st = STATUS_TOKENS[effectiveStatus] || STATUS_TOKENS.pending
+      const stColor = statusCssVar(effectiveStatus)
+      const completed = effectiveStatus === 'done' || effectiveStatus === 'completed'
+      const isRunning = ['running', 'waiting_input', 'waiting_approval'].includes(effectiveStatus)
+      const isBlocked = effectiveStatus === 'blocked' || effectiveStatus === 'failed'
+      const canJump = Boolean(effectiveTaskId && typeof onJumpTask === 'function')
+      const canAnnotate = typeof onSelectNode === 'function'
+      const interactive = canJump || canAnnotate
       const activate = (event) => {
         if (!interactive) return
         event.stopPropagation()
-        onJumpTask(n.taskId)
+        if (event.shiftKey && canAnnotate) {
+          onSelectNode({ id: n.id, label: n.fullLabel || n.label, taskId: effectiveTaskId })
+          return
+        }
+        if (canJump) {
+          onJumpTask(effectiveTaskId)
+        } else if (canAnnotate) {
+          onSelectNode({ id: n.id, label: n.fullLabel || n.label, taskId: effectiveTaskId })
+        }
       }
+      const battleClass = [
+        'concerto-diagram-node',
+        interactive ? 'concerto-battle-node--interactive' : '',
+        isRunning ? 'concerto-battle-node--running' : '',
+        completed ? 'concerto-battle-node--done' : '',
+        isBlocked ? 'concerto-battle-node--blocked' : '',
+      ].filter(Boolean).join(' ')
       return h('g', {
         key: n.id,
-        className: 'concerto-diagram-node',
+        className: battleClass,
         'data-concerto-diag-node': n.id,
-        'data-status': n.status || 'pending',
-        'data-task-id': interactive ? n.taskId : undefined,
+        'data-status': effectiveStatus || 'pending',
+        'data-task-id': effectiveTaskId || undefined,
         transform: `translate(${n.x}, ${n.y})`,
         role: interactive ? 'button' : undefined,
         tabIndex: interactive ? 0 : undefined,
-        'aria-label': interactive ? `打开任务 ${n.taskId}：${n.fullLabel || n.label}` : undefined,
+        'aria-label': canJump
+          ? `打开任务 ${effectiveTaskId}：${n.fullLabel || n.label}`
+          : (canAnnotate ? `批注节点：${n.fullLabel || n.label}` : undefined),
         onClick: interactive ? activate : undefined,
         onKeyDown: interactive ? (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -270,7 +313,7 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false, on
           }
         } : undefined,
       },
-        h('title', null, (n.fullLabel || n.label) + (n.status ? ' · ' + st.label : '')),
+        h('title', null, (n.fullLabel || n.label) + (effectiveStatus ? ' · ' + st.label : '') + (canJump ? '（点击打开任务，Shift+点击批注）' : (canAnnotate ? '（点击指图下指令）' : ''))),
         h('rect', {
           x: 0,
           y: 0,
@@ -278,9 +321,9 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false, on
           height: n.height,
           rx: 8,
           fill: completed ? 'var(--cc-card-nested-bg)' : 'var(--cc-card-bg)',
-          stroke: n.status === 'blocked' || n.status === 'failed' ? 'var(--cc-state-blocked)' : (n.status === 'unknown' ? 'var(--cc-state-unknown)' : 'var(--cc-border-subtle)'),
-          strokeDasharray: n.status === 'unknown' ? '5 3' : undefined,
-          strokeWidth: 1.2,
+          stroke: isBlocked ? 'var(--cc-state-blocked)' : (effectiveStatus === 'unknown' ? 'var(--cc-state-unknown)' : (isRunning ? 'var(--cc-state-running)' : (completed ? 'var(--cc-state-done)' : 'var(--cc-border-subtle)'))),
+          strokeDasharray: effectiveStatus === 'unknown' ? '5 3' : undefined,
+          strokeWidth: isRunning ? 2 : 1.2,
         }),
         h('rect', { x: 0, y: 0, width: 4, height: n.height, rx: 2, fill: stColor }),
         n.lines.map((line, li) => h('text', {
@@ -291,7 +334,7 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false, on
           fontSize: fs,
           fontWeight: 600,
         }, line)),
-        n.status && h('text', {
+        effectiveStatus && h('text', {
           x: 18,
           y: n.height - 12,
           fill: stColor,

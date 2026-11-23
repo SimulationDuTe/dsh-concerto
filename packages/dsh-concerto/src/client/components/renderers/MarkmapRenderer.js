@@ -14,7 +14,7 @@ import { MarkmapSvgDocument } from './MarkmapSvgDocument.js'
 import { useCanvasSession } from './useCanvasSession.js'
 import { UiIcon } from '../UiIcon.js'
 
-export function MarkmapRenderer({ object, sessionId = '', inModal = false, canvasSession: providedCanvasSession, onExpand = null }) {
+export function MarkmapRenderer({ object, sessionId = '', inModal = false, canvasSession: providedCanvasSession, onExpand = null, tasks = [], onJumpTask = null, onSelectNode = null }) {
   const hostTheme = useHostTheme()
   const dataSig = React.useMemo(() => JSON.stringify(object?.data || null), [object?.data])
   const root = React.useMemo(() => {
@@ -166,6 +166,9 @@ export function MarkmapRenderer({ object, sessionId = '', inModal = false, canva
     title: object.title || '计划导图',
     svgRef,
     onToggleNode: toggleNode,
+    tasks,
+    onJumpTask,
+    onSelectNode,
   })),
   !inModal && h('div', { className: 'concerto-canvas-foot' },
     h('span', { className: 'concerto-num' }, summaryText),

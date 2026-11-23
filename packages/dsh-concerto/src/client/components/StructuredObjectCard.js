@@ -1,6 +1,6 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
-import { h, label, styles, useHostTheme } from '../api.js'
+import { h, label, request, styles, useHostTheme } from '../api.js'
 import { DEFAULT_RENDERER, ALLOWED_RENDERERS } from '../../../lib/domain/view_objects.mjs'
 import { mindmapToDiagramData, normalizeMindmapTree, parseMarkdownToMindmap, defaultPreviewCollapsedIdsWithinBudget } from '../../../lib/domain/view_layout.mjs'
 import { useTeamCss } from '../styles.js'
@@ -113,6 +113,48 @@ export function StructuredObjectCard({
 }) {
   const [modalOpen, setModalOpen] = React.useState(false)
   const [infoOpen, setInfoOpen] = React.useState(false)
+  const [pointOpen, setPointOpen] = React.useState(false)
+  const [pointedNode, setPointedNode] = React.useState(null)
+  const [pointText, setPointText] = React.useState('')
+  const [pointSending, setPointSending] = React.useState(false)
+  const [pointNotice, setPointNotice] = React.useState('')
+  const [pointErr, setPointErr] = React.useState('')
+
+  const handleSelectDiagramNode = sessionId
+    ? (nodeInfo) => {
+        setPointedNode(nodeInfo)
+        setPointOpen(true)
+        setPointNotice('')
+        setPointErr('')
+      }
+    : null
+
+  async function submitPointCommand(event) {
+    event?.preventDefault?.()
+    if (!sessionId || !pointText.trim() || pointSending) return
+    setPointSending(true)
+    setPointErr('')
+    setPointNotice('')
+    try {
+      const targetLabel = pointedNode?.label ? ` @ ${pointedNode.label}` : ''
+      const fullText = `[指图批注 · ${object.type}:${object.id}${targetLabel}] ${pointText.trim()}`
+      await request('/runs/suggest', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId,
+          text: fullText,
+          ...(pointedNode?.taskId || object.taskId ? { taskId: pointedNode?.taskId || object.taskId } : {}),
+          commandId: `point-${object.id}-${crypto.randomUUID()}`,
+        }),
+      })
+      setPointText('')
+      setPointNotice('已将指图指令发给指挥者队列')
+    } catch (err) {
+      setPointErr(err?.message || '发送失败')
+    } finally {
+      setPointSending(false)
+    }
+  }
   const cardRef = React.useRef(null)
   const infoButtonRef = React.useRef(null)
   const infoPanelRef = React.useRef(null)
@@ -233,8 +275,8 @@ export function StructuredObjectCard({
         modalBody = h(ExcalidrawRenderer, { object, sessionId, inModal: true })
       } else if (renderer === 'svg') {
         const diagObj = { ...object, type: 'diagram', data: mindmapToDiagramData(object.data, object.title) }
-        content = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: false, onJumpTask })
-        modalBody = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: true, onJumpTask })
+        content = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: false, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode })
+        modalBody = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: true, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode })
       } else if (renderer === 'html') {
         const treeRoot = normalizeMindmapTree(object.data?.root || parseMarkdownToMindmap(object.data?.markdown))
         const renderOutlineNode = (node, depth = 0) => h('li', { key: node.id || depth },
@@ -250,15 +292,15 @@ export function StructuredObjectCard({
         content = outlineEl
         modalBody = outlineEl
       } else {
-        content = h(MarkmapRenderer, { object, sessionId, inModal: false, canvasSession, onExpand: () => setModalOpen(true) })
-        modalBody = h(MarkmapRenderer, { object, sessionId, inModal: true, canvasSession })
+        content = h(MarkmapRenderer, { object, sessionId, inModal: false, canvasSession, onExpand: () => setModalOpen(true), tasks, onJumpTask, onSelectNode: handleSelectDiagramNode })
+        modalBody = h(MarkmapRenderer, { object, sessionId, inModal: true, canvasSession, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode })
       }
     } else if (object.type === 'board' || (object.type === 'diagram' && renderer === 'excalidraw')) {
       content = h(ExcalidrawRenderer, { object, sessionId, inModal: false })
       modalBody = h(ExcalidrawRenderer, { object, sessionId, inModal: true })
     } else if (object.type === 'diagram') {
-      content = h(SvgDiagramRenderer, { object, sessionId, inModal: false, onJumpTask })
-      modalBody = h(SvgDiagramRenderer, { object, sessionId, inModal: true, onJumpTask })
+      content = h(SvgDiagramRenderer, { object, sessionId, inModal: false, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode })
+      modalBody = h(SvgDiagramRenderer, { object, sessionId, inModal: true, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode })
     } else if (object.type === 'html') {
       content = h(HtmlSandboxRenderer, { object, sessionId, inModal: false })
       modalBody = h(HtmlSandboxRenderer, { object, sessionId, inModal: true })
@@ -316,6 +358,15 @@ export function StructuredObjectCard({
         title: userPinned ? '取消个人置顶' : '个人置顶到概览预览（模型更新不覆盖）',
         onClick: () => onTogglePin(object),
       }, h(UiIcon, { name: 'pin', filled: userPinned })),
+      sessionId && h('button', {
+        type: 'button',
+        className: 'concerto-btn concerto-btn--ghost',
+        style: { padding: '2px 8px', fontSize: 'var(--cc-fs-caption)' },
+        'aria-expanded': pointOpen,
+        'data-concerto-point-cmd': `${object.type}:${object.id}`,
+        title: '指着这张图直接给指挥者发批注或修改指令',
+        onClick: () => { setPointOpen((v) => !v); setPointNotice(''); setPointErr('') },
+      }, '📌 指图指令'),
       modalBody && h('button', {
         type: 'button',
         className: 'concerto-btn concerto-btn--ghost concerto-btn--icon',
@@ -369,6 +420,32 @@ export function StructuredObjectCard({
       h('pre', { style: { whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto', fontSize: 'var(--cc-fs-code)' } }, JSON.stringify(object.data, null, 2)))),
 
   ambiguousNote && h('p', { style: { ...styles.muted, fontSize: 'var(--cc-fs-caption)', marginTop: 0 } }, ambiguousNote),
+
+  pointOpen && sessionId && h('form', { className: 'concerto-point-cmd-bar', onSubmit: submitPointCommand, 'data-concerto-point-cmd-form': `${object.type}:${object.id}` },
+    h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap', fontSize: 'var(--cc-fs-caption)' } },
+      h('span', null,
+        '指向：',
+        h('code', { className: 'concerto-id' }, `${object.type}:${object.id}`),
+        pointedNode && h('span', { className: 'concerto-chip', style: { marginLeft: 6 } },
+          `@ ${pointedNode.label}`,
+          h('button', { type: 'button', className: 'concerto-link', style: { marginLeft: 4 }, onClick: () => setPointedNode(null) }, '×'))),
+      h('button', { type: 'button', className: 'concerto-link', onClick: () => setPointOpen(false) }, '收起')),
+    h('div', { style: { display: 'flex', gap: 6 } },
+      h('input', {
+        className: 'concerto-input',
+        style: { flex: 1 },
+        disabled: pointSending,
+        value: pointText,
+        placeholder: '输入批注或修改指令，直接发给指挥者…',
+        onChange: (e) => { setPointText(e.target.value); if (pointNotice) setPointNotice('') },
+      }),
+      h('button', {
+        type: 'submit',
+        className: 'concerto-btn concerto-btn--primary',
+        disabled: pointSending || !pointText.trim(),
+      }, pointSending ? '发送中…' : '发给指挥者')),
+    pointErr && h('div', { role: 'alert', className: 'concerto-field-error' }, pointErr),
+    pointNotice && h('div', { role: 'status', className: 'concerto-quiet' }, pointNotice)),
 
   renderError
     ? h('div', { role: 'alert', style: { padding: 10, borderRadius: 'var(--cc-radius-ctrl)', background: 'var(--cc-state-blocked-bg)' } },

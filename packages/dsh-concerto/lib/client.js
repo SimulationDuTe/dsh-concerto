@@ -2459,6 +2459,14 @@ var TEAM_CSS = `
   .concerto-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-space-3); width: 100%; }
   .concerto-race-col { display: flex; flex-direction: column; gap: var(--cc-space-2); padding: var(--cc-space-3); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: var(--cc-card-bg); min-width: 0; }
   .concerto-race-col[data-winner="true"] { border-color: var(--cc-state-done); box-shadow: 0 0 0 2px var(--cc-state-done-bg); }
+  /* Live Battle Map node pulse & point-on-diagram command bar */
+  .concerto-battle-node--running > rect:first-of-type { stroke: var(--cc-state-running); stroke-width: 2; animation: concerto-battle-pulse 1.8s ease-in-out infinite; }
+  .concerto-battle-node--done > rect:first-of-type { stroke: var(--cc-state-done); stroke-width: 1.5; }
+  .concerto-battle-node--blocked > rect:first-of-type { stroke: var(--cc-state-blocked); stroke-width: 1.8; }
+  .concerto-battle-node--interactive { cursor: pointer; }
+  .concerto-battle-node--interactive:hover > rect:first-of-type { stroke: var(--cc-accent); stroke-width: 2; }
+  @keyframes concerto-battle-pulse { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.35; } }
+  .concerto-point-cmd-bar { display: flex; flex-direction: column; gap: 6px; padding: var(--cc-space-2) var(--cc-space-3); margin-bottom: var(--cc-space-2); border: 1px solid color-mix(in srgb, var(--cc-accent) 40%, var(--cc-border)); border-radius: var(--cc-radius-ctrl); background: var(--cc-card-nested-bg); animation: concerto-stage-expand 0.2s var(--cc-ease); }
   @container concerto-set (max-width: 540px) { .concerto-stage-lanes { grid-template-columns: minmax(0, 1fr); } .concerto-stage-svg { display: none; } }
   @container concerto-set (max-width: 720px) { .concerto-set-member { grid-template-columns: repeat(2, minmax(0, 1fr)); } .concerto-set-member-remove { grid-column: 1 / -1; justify-self: start; } }
   @container concerto-set (max-width: 640px) { .concerto-set-card { padding: var(--cc-space-4); } }
@@ -2484,7 +2492,7 @@ var TEAM_CSS = `
   .concerto-attention-popover, .concerto-hero-menu-list { animation: concerto-rise var(--cc-dur-fast) var(--cc-ease); }
   @media (prefers-reduced-motion: reduce) {
     .concerto-surface *, .concerto-surface *::before, .concerto-surface *::after { transition: none !important; }
-    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector { animation: none !important; }
+    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector, .concerto-battle-node--running > rect:first-of-type, .concerto-point-cmd-bar { animation: none !important; }
     .concerto-live-dot::before, .concerto-tab-btn::after, .concerto-tab-content, .concerto-board-card-list > li, .concerto-jump-banner, .concerto-attention-popover, .concerto-hero-menu-list, .concerto-drawer[open], .concerto-canvas-modal[open], .concerto-drawer::backdrop, .concerto-canvas-modal::backdrop { animation: none !important; }
     .concerto-kcard:hover, .concerto-btn:active:not(:disabled) { transform: none; }
     .concerto-task-highlight, .concerto-card-highlight { animation: none !important; outline: 2px solid var(--cc-accent); }
@@ -8334,12 +8342,32 @@ var import_react9 = __toESM(require_react(), 1);
 function branchStroke(branchIndex) {
   return `var(--cc-branch-${Math.abs(branchIndex || 0) % 4 + 1})`;
 }
-function nodeStrokeColor(node) {
-  if (node.status === "blocked" || node.status === "failed") return "var(--cc-state-blocked)";
-  if (node.status === "unknown") return "var(--cc-state-unknown)";
+function nodeStrokeColor(node, liveStatus = null) {
+  const status = liveStatus || node.status;
+  if (status === "blocked" || status === "failed") return "var(--cc-state-blocked)";
+  if (status === "unknown") return "var(--cc-state-unknown)";
+  if (status === "done" || status === "completed") return "var(--cc-state-done)";
+  if (["running", "waiting_input", "waiting_approval"].includes(status)) return "var(--cc-state-running)";
+  if (status === "review") return "var(--cc-state-review)";
   return node.depth === 0 ? "var(--cc-border-strong)" : branchStroke(node.branchIndex);
 }
-function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode }) {
+function matchMindmapTask(node, tasks) {
+  if (!Array.isArray(tasks) || tasks.length === 0 || !node) return null;
+  if (node.taskId) {
+    const byId = tasks.find((t) => t.taskId === node.taskId);
+    if (byId) return byId;
+  }
+  const byNodeId = tasks.find((t) => t.taskId === node.id);
+  if (byNodeId) return byNodeId;
+  const text = String(node.fullLabel || node.label || "");
+  const m = text.match(/\b(task-\d+)\b/i);
+  if (m) {
+    const byMention = tasks.find((t) => t.taskId.toLowerCase() === m[1].toLowerCase());
+    if (byMention) return byMention;
+  }
+  return null;
+}
+function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode, tasks = [], onJumpTask = null, onSelectNode = null }) {
   return h(
     "svg",
     {
@@ -8373,20 +8401,49 @@ function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode }) {
         });
       }),
       layout.nodes.map((node) => {
-        const stroke = nodeStrokeColor(node);
+        const liveTask = matchMindmapTask(node, tasks);
+        const liveStatus = liveTask ? liveTask.viewState || liveTask.state : node.status;
+        const linkedTaskId = liveTask?.taskId || node.taskId || null;
+        const stroke = nodeStrokeColor(node, liveStatus);
         const isRoot = node.depth === 0;
-        const boxed = !node.isLeaf && (isRoot || node.depth === 1);
+        const isRunning = ["running", "waiting_input", "waiting_approval"].includes(liveStatus);
+        const isDone = liveStatus === "done" || liveStatus === "completed";
+        const isBlocked = liveStatus === "blocked" || liveStatus === "failed";
+        const boxed = !node.isLeaf && (isRoot || node.depth === 1) || Boolean(liveTask);
         const fontSize = layout.fontSize;
         const lineHeight = layout.lineHeight || Math.round(fontSize * 1.4);
         const toggleWidth = node.collapsed ? Math.max(32, String(node.hiddenCount || 0).length * 10 + 18) : 24;
+        const canJump = Boolean(linkedTaskId && typeof onJumpTask === "function");
+        const canAnnotate = typeof onSelectNode === "function";
+        const interactive = canJump || canAnnotate;
+        const onNodeClick = (event) => {
+          if (!interactive) return;
+          event.stopPropagation();
+          if (event.shiftKey && canAnnotate) {
+            onSelectNode({ id: node.id, label: node.fullLabel || node.label, taskId: linkedTaskId });
+            return;
+          }
+          if (canJump) onJumpTask(linkedTaskId);
+          else if (canAnnotate) onSelectNode({ id: node.id, label: node.fullLabel || node.label, taskId: linkedTaskId });
+        };
+        const cls = [
+          interactive ? "concerto-battle-node--interactive" : "",
+          isRunning ? "concerto-battle-node--running" : "",
+          isDone ? "concerto-battle-node--done" : "",
+          isBlocked ? "concerto-battle-node--blocked" : ""
+        ].filter(Boolean).join(" ");
         return h(
           "g",
           {
             key: node.id,
+            className: cls || void 0,
             "data-concerto-mm-node": node.id,
-            transform: `translate(${node.x}, ${node.y})`
+            "data-task-id": linkedTaskId || void 0,
+            "data-status": liveStatus || void 0,
+            transform: `translate(${node.x}, ${node.y})`,
+            onClick: interactive ? onNodeClick : void 0
           },
-          h("title", null, node.fullLabel || node.label),
+          h("title", null, (node.fullLabel || node.label) + (linkedTaskId ? ` \xB7 ${linkedTaskId}\uFF08${liveStatus || "pending"}\uFF0C\u70B9\u51FB\u67E5\u770B\u4EFB\u52A1\uFF09` : canAnnotate ? "\uFF08\u70B9\u51FB\u6307\u56FE\u4E0B\u6307\u4EE4\uFF09" : "")),
           h("rect", {
             x: 0,
             y: 0,
@@ -8395,7 +8452,7 @@ function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode }) {
             rx: 8,
             fill: boxed ? isRoot ? "var(--cc-accent-soft)" : "var(--cc-card-bg)" : "transparent",
             stroke: boxed ? stroke : "none",
-            strokeWidth: boxed ? 1.2 : 0
+            strokeWidth: isRunning ? 2 : boxed ? 1.2 : 0
           }),
           !isRoot && h("rect", { x: 0, y: 4, width: 3, height: Math.max(0, node.height - 8), rx: 1.5, fill: stroke }),
           node.isLeaf && h("line", { x1: -10, y1: node.height / 2, x2: 0, y2: node.height / 2, stroke, strokeWidth: 1.2 }),
@@ -8453,7 +8510,7 @@ function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode }) {
 }
 
 // packages/dsh-concerto/src/client/components/renderers/MarkmapRenderer.js
-function MarkmapRenderer({ object, sessionId = "", inModal = false, canvasSession: providedCanvasSession, onExpand = null }) {
+function MarkmapRenderer({ object, sessionId = "", inModal = false, canvasSession: providedCanvasSession, onExpand = null, tasks = [], onJumpTask = null, onSelectNode = null }) {
   const hostTheme = useHostTheme();
   const dataSig = import_react10.default.useMemo(() => JSON.stringify(object?.data || null), [object?.data]);
   const root = import_react10.default.useMemo(() => {
@@ -8598,7 +8655,10 @@ function MarkmapRenderer({ object, sessionId = "", inModal = false, canvasSessio
       layout: { ...layout, zoom },
       title: object.title || "\u8BA1\u5212\u5BFC\u56FE",
       svgRef,
-      onToggleNode: toggleNode
+      onToggleNode: toggleNode,
+      tasks,
+      onJumpTask,
+      onSelectNode
     })),
     !inModal && h(
       "div",
@@ -8680,7 +8740,25 @@ function edgeAppearance(semantic, highlightCritical) {
   }
   return { stroke: "var(--cc-border-strong)", width: 1.5, dash: void 0, markerSuffix: "" };
 }
-function SvgDiagramRenderer({ object, sessionId = "", inModal = false, onJumpTask = null }) {
+function resolveLiveTask(node, tasks) {
+  if (!Array.isArray(tasks) || tasks.length === 0 || !node) return null;
+  if (node.taskId) {
+    const byId = tasks.find((t) => t.taskId === node.taskId);
+    if (byId) return byId;
+  }
+  if (typeof node.id === "string") {
+    const byNodeId = tasks.find((t) => t.taskId === node.id);
+    if (byNodeId) return byNodeId;
+  }
+  const text = String(node.fullLabel || node.label || "");
+  const m = text.match(/\b(task-\d+)\b/i);
+  if (m) {
+    const byMention = tasks.find((t) => t.taskId.toLowerCase() === m[1].toLowerCase());
+    if (byMention) return byMention;
+  }
+  return null;
+}
+function SvgDiagramRenderer({ object, sessionId = "", inModal = false, tasks = [], onJumpTask = null, onSelectNode = null }) {
   const hostTheme = useHostTheme();
   const initialVp = import_react11.default.useMemo(() => readCanvasViewport(sessionId, object?.id), [sessionId, object?.id]);
   const [zoom, setZoom] = import_react11.default.useState(() => initialVp.scale || 1);
@@ -8912,27 +8990,49 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false, onJumpTas
             );
           }),
           layout.nodes.map((n) => {
-            const st2 = STATUS_TOKENS[n.status] || STATUS_TOKENS.pending;
-            const stColor = statusCssVar(n.status);
-            const completed = n.status === "done" || n.status === "completed";
-            const interactive = object.semanticKind === "live_execution" && n.taskId && typeof onJumpTask === "function";
+            const liveTask = resolveLiveTask(n, tasks);
+            const effectiveStatus = liveTask ? liveTask.viewState || liveTask.state : n.status;
+            const effectiveTaskId = liveTask?.taskId || n.taskId || null;
+            const st2 = STATUS_TOKENS[effectiveStatus] || STATUS_TOKENS.pending;
+            const stColor = statusCssVar(effectiveStatus);
+            const completed = effectiveStatus === "done" || effectiveStatus === "completed";
+            const isRunning = ["running", "waiting_input", "waiting_approval"].includes(effectiveStatus);
+            const isBlocked = effectiveStatus === "blocked" || effectiveStatus === "failed";
+            const canJump = Boolean(effectiveTaskId && typeof onJumpTask === "function");
+            const canAnnotate = typeof onSelectNode === "function";
+            const interactive = canJump || canAnnotate;
             const activate = (event) => {
               if (!interactive) return;
               event.stopPropagation();
-              onJumpTask(n.taskId);
+              if (event.shiftKey && canAnnotate) {
+                onSelectNode({ id: n.id, label: n.fullLabel || n.label, taskId: effectiveTaskId });
+                return;
+              }
+              if (canJump) {
+                onJumpTask(effectiveTaskId);
+              } else if (canAnnotate) {
+                onSelectNode({ id: n.id, label: n.fullLabel || n.label, taskId: effectiveTaskId });
+              }
             };
+            const battleClass = [
+              "concerto-diagram-node",
+              interactive ? "concerto-battle-node--interactive" : "",
+              isRunning ? "concerto-battle-node--running" : "",
+              completed ? "concerto-battle-node--done" : "",
+              isBlocked ? "concerto-battle-node--blocked" : ""
+            ].filter(Boolean).join(" ");
             return h(
               "g",
               {
                 key: n.id,
-                className: "concerto-diagram-node",
+                className: battleClass,
                 "data-concerto-diag-node": n.id,
-                "data-status": n.status || "pending",
-                "data-task-id": interactive ? n.taskId : void 0,
+                "data-status": effectiveStatus || "pending",
+                "data-task-id": effectiveTaskId || void 0,
                 transform: `translate(${n.x}, ${n.y})`,
                 role: interactive ? "button" : void 0,
                 tabIndex: interactive ? 0 : void 0,
-                "aria-label": interactive ? `\u6253\u5F00\u4EFB\u52A1 ${n.taskId}\uFF1A${n.fullLabel || n.label}` : void 0,
+                "aria-label": canJump ? `\u6253\u5F00\u4EFB\u52A1 ${effectiveTaskId}\uFF1A${n.fullLabel || n.label}` : canAnnotate ? `\u6279\u6CE8\u8282\u70B9\uFF1A${n.fullLabel || n.label}` : void 0,
                 onClick: interactive ? activate : void 0,
                 onKeyDown: interactive ? (event) => {
                   if (event.key === "Enter" || event.key === " ") {
@@ -8941,7 +9041,7 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false, onJumpTas
                   }
                 } : void 0
               },
-              h("title", null, (n.fullLabel || n.label) + (n.status ? " \xB7 " + st2.label : "")),
+              h("title", null, (n.fullLabel || n.label) + (effectiveStatus ? " \xB7 " + st2.label : "") + (canJump ? "\uFF08\u70B9\u51FB\u6253\u5F00\u4EFB\u52A1\uFF0CShift+\u70B9\u51FB\u6279\u6CE8\uFF09" : canAnnotate ? "\uFF08\u70B9\u51FB\u6307\u56FE\u4E0B\u6307\u4EE4\uFF09" : "")),
               h("rect", {
                 x: 0,
                 y: 0,
@@ -8949,9 +9049,9 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false, onJumpTas
                 height: n.height,
                 rx: 8,
                 fill: completed ? "var(--cc-card-nested-bg)" : "var(--cc-card-bg)",
-                stroke: n.status === "blocked" || n.status === "failed" ? "var(--cc-state-blocked)" : n.status === "unknown" ? "var(--cc-state-unknown)" : "var(--cc-border-subtle)",
-                strokeDasharray: n.status === "unknown" ? "5 3" : void 0,
-                strokeWidth: 1.2
+                stroke: isBlocked ? "var(--cc-state-blocked)" : effectiveStatus === "unknown" ? "var(--cc-state-unknown)" : isRunning ? "var(--cc-state-running)" : completed ? "var(--cc-state-done)" : "var(--cc-border-subtle)",
+                strokeDasharray: effectiveStatus === "unknown" ? "5 3" : void 0,
+                strokeWidth: isRunning ? 2 : 1.2
               }),
               h("rect", { x: 0, y: 0, width: 4, height: n.height, rx: 2, fill: stColor }),
               n.lines.map((line, li) => h("text", {
@@ -8962,7 +9062,7 @@ function SvgDiagramRenderer({ object, sessionId = "", inModal = false, onJumpTas
                 fontSize: fs,
                 fontWeight: 600
               }, line)),
-              n.status && h("text", {
+              effectiveStatus && h("text", {
                 x: 18,
                 y: n.height - 12,
                 fill: stColor,
@@ -9979,6 +10079,44 @@ function StructuredObjectCard({
 }) {
   const [modalOpen, setModalOpen] = import_react14.default.useState(false);
   const [infoOpen, setInfoOpen] = import_react14.default.useState(false);
+  const [pointOpen, setPointOpen] = import_react14.default.useState(false);
+  const [pointedNode, setPointedNode] = import_react14.default.useState(null);
+  const [pointText, setPointText] = import_react14.default.useState("");
+  const [pointSending, setPointSending] = import_react14.default.useState(false);
+  const [pointNotice, setPointNotice] = import_react14.default.useState("");
+  const [pointErr, setPointErr] = import_react14.default.useState("");
+  const handleSelectDiagramNode = sessionId ? (nodeInfo) => {
+    setPointedNode(nodeInfo);
+    setPointOpen(true);
+    setPointNotice("");
+    setPointErr("");
+  } : null;
+  async function submitPointCommand(event) {
+    event?.preventDefault?.();
+    if (!sessionId || !pointText.trim() || pointSending) return;
+    setPointSending(true);
+    setPointErr("");
+    setPointNotice("");
+    try {
+      const targetLabel = pointedNode?.label ? ` @ ${pointedNode.label}` : "";
+      const fullText = `[\u6307\u56FE\u6279\u6CE8 \xB7 ${object.type}:${object.id}${targetLabel}] ${pointText.trim()}`;
+      await request2("/runs/suggest", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionId,
+          text: fullText,
+          ...pointedNode?.taskId || object.taskId ? { taskId: pointedNode?.taskId || object.taskId } : {},
+          commandId: `point-${object.id}-${crypto.randomUUID()}`
+        })
+      });
+      setPointText("");
+      setPointNotice("\u5DF2\u5C06\u6307\u56FE\u6307\u4EE4\u53D1\u7ED9\u6307\u6325\u8005\u961F\u5217");
+    } catch (err) {
+      setPointErr(err?.message || "\u53D1\u9001\u5931\u8D25");
+    } finally {
+      setPointSending(false);
+    }
+  }
   const cardRef = import_react14.default.useRef(null);
   const infoButtonRef = import_react14.default.useRef(null);
   const infoPanelRef = import_react14.default.useRef(null);
@@ -10108,8 +10246,8 @@ function StructuredObjectCard({
         modalBody = h(ExcalidrawRenderer, { object, sessionId, inModal: true });
       } else if (renderer === "svg") {
         const diagObj = { ...object, type: "diagram", data: mindmapToDiagramData(object.data, object.title) };
-        content = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: false, onJumpTask });
-        modalBody = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: true, onJumpTask });
+        content = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: false, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
+        modalBody = h(SvgDiagramRenderer, { object: diagObj, sessionId, inModal: true, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
       } else if (renderer === "html") {
         const treeRoot = normalizeMindmapTree(object.data?.root || parseMarkdownToMindmap(object.data?.markdown));
         const renderOutlineNode = (node, depth = 0) => h(
@@ -10135,15 +10273,15 @@ function StructuredObjectCard({
         content = outlineEl;
         modalBody = outlineEl;
       } else {
-        content = h(MarkmapRenderer, { object, sessionId, inModal: false, canvasSession, onExpand: () => setModalOpen(true) });
-        modalBody = h(MarkmapRenderer, { object, sessionId, inModal: true, canvasSession });
+        content = h(MarkmapRenderer, { object, sessionId, inModal: false, canvasSession, onExpand: () => setModalOpen(true), tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
+        modalBody = h(MarkmapRenderer, { object, sessionId, inModal: true, canvasSession, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
       }
     } else if (object.type === "board" || object.type === "diagram" && renderer === "excalidraw") {
       content = h(ExcalidrawRenderer, { object, sessionId, inModal: false });
       modalBody = h(ExcalidrawRenderer, { object, sessionId, inModal: true });
     } else if (object.type === "diagram") {
-      content = h(SvgDiagramRenderer, { object, sessionId, inModal: false, onJumpTask });
-      modalBody = h(SvgDiagramRenderer, { object, sessionId, inModal: true, onJumpTask });
+      content = h(SvgDiagramRenderer, { object, sessionId, inModal: false, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
+      modalBody = h(SvgDiagramRenderer, { object, sessionId, inModal: true, tasks, onJumpTask, onSelectNode: handleSelectDiagramNode });
     } else if (object.type === "html") {
       content = h(HtmlSandboxRenderer, { object, sessionId, inModal: false });
       modalBody = h(HtmlSandboxRenderer, { object, sessionId, inModal: true });
@@ -10206,6 +10344,19 @@ function StructuredObjectCard({
           title: userPinned ? "\u53D6\u6D88\u4E2A\u4EBA\u7F6E\u9876" : "\u4E2A\u4EBA\u7F6E\u9876\u5230\u6982\u89C8\u9884\u89C8\uFF08\u6A21\u578B\u66F4\u65B0\u4E0D\u8986\u76D6\uFF09",
           onClick: () => onTogglePin(object)
         }, h(UiIcon, { name: "pin", filled: userPinned })),
+        sessionId && h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          style: { padding: "2px 8px", fontSize: "var(--cc-fs-caption)" },
+          "aria-expanded": pointOpen,
+          "data-concerto-point-cmd": `${object.type}:${object.id}`,
+          title: "\u6307\u7740\u8FD9\u5F20\u56FE\u76F4\u63A5\u7ED9\u6307\u6325\u8005\u53D1\u6279\u6CE8\u6216\u4FEE\u6539\u6307\u4EE4",
+          onClick: () => {
+            setPointOpen((v) => !v);
+            setPointNotice("");
+            setPointErr("");
+          }
+        }, "\u{1F4CC} \u6307\u56FE\u6307\u4EE4"),
         modalBody && h("button", {
           type: "button",
           className: "concerto-btn concerto-btn--ghost concerto-btn--icon",
@@ -10286,6 +10437,49 @@ function StructuredObjectCard({
       )
     ),
     ambiguousNote && h("p", { style: { ...styles.muted, fontSize: "var(--cc-fs-caption)", marginTop: 0 } }, ambiguousNote),
+    pointOpen && sessionId && h(
+      "form",
+      { className: "concerto-point-cmd-bar", onSubmit: submitPointCommand, "data-concerto-point-cmd-form": `${object.type}:${object.id}` },
+      h(
+        "div",
+        { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, flexWrap: "wrap", fontSize: "var(--cc-fs-caption)" } },
+        h(
+          "span",
+          null,
+          "\u6307\u5411\uFF1A",
+          h("code", { className: "concerto-id" }, `${object.type}:${object.id}`),
+          pointedNode && h(
+            "span",
+            { className: "concerto-chip", style: { marginLeft: 6 } },
+            `@ ${pointedNode.label}`,
+            h("button", { type: "button", className: "concerto-link", style: { marginLeft: 4 }, onClick: () => setPointedNode(null) }, "\xD7")
+          )
+        ),
+        h("button", { type: "button", className: "concerto-link", onClick: () => setPointOpen(false) }, "\u6536\u8D77")
+      ),
+      h(
+        "div",
+        { style: { display: "flex", gap: 6 } },
+        h("input", {
+          className: "concerto-input",
+          style: { flex: 1 },
+          disabled: pointSending,
+          value: pointText,
+          placeholder: "\u8F93\u5165\u6279\u6CE8\u6216\u4FEE\u6539\u6307\u4EE4\uFF0C\u76F4\u63A5\u53D1\u7ED9\u6307\u6325\u8005\u2026",
+          onChange: (e) => {
+            setPointText(e.target.value);
+            if (pointNotice) setPointNotice("");
+          }
+        }),
+        h("button", {
+          type: "submit",
+          className: "concerto-btn concerto-btn--primary",
+          disabled: pointSending || !pointText.trim()
+        }, pointSending ? "\u53D1\u9001\u4E2D\u2026" : "\u53D1\u7ED9\u6307\u6325\u8005")
+      ),
+      pointErr && h("div", { role: "alert", className: "concerto-field-error" }, pointErr),
+      pointNotice && h("div", { role: "status", className: "concerto-quiet" }, pointNotice)
+    ),
     renderError ? h(
       "div",
       { role: "alert", style: { padding: 10, borderRadius: "var(--cc-radius-ctrl)", background: "var(--cc-state-blocked-bg)" } },

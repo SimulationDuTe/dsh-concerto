@@ -5,13 +5,34 @@ function branchStroke(branchIndex) {
   return `var(--cc-branch-${Math.abs(branchIndex || 0) % 4 + 1})`
 }
 
-function nodeStrokeColor(node) {
-  if (node.status === 'blocked' || node.status === 'failed') return 'var(--cc-state-blocked)'
-  if (node.status === 'unknown') return 'var(--cc-state-unknown)'
+function nodeStrokeColor(node, liveStatus = null) {
+  const status = liveStatus || node.status
+  if (status === 'blocked' || status === 'failed') return 'var(--cc-state-blocked)'
+  if (status === 'unknown') return 'var(--cc-state-unknown)'
+  if (status === 'done' || status === 'completed') return 'var(--cc-state-done)'
+  if (['running', 'waiting_input', 'waiting_approval'].includes(status)) return 'var(--cc-state-running)'
+  if (status === 'review') return 'var(--cc-state-review)'
   return node.depth === 0 ? 'var(--cc-border-strong)' : branchStroke(node.branchIndex)
 }
 
-export function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode }) {
+function matchMindmapTask(node, tasks) {
+  if (!Array.isArray(tasks) || tasks.length === 0 || !node) return null
+  if (node.taskId) {
+    const byId = tasks.find((t) => t.taskId === node.taskId)
+    if (byId) return byId
+  }
+  const byNodeId = tasks.find((t) => t.taskId === node.id)
+  if (byNodeId) return byNodeId
+  const text = String(node.fullLabel || node.label || '')
+  const m = text.match(/\b(task-\d+)\b/i)
+  if (m) {
+    const byMention = tasks.find((t) => t.taskId.toLowerCase() === m[1].toLowerCase())
+    if (byMention) return byMention
+  }
+  return null
+}
+
+export function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode, tasks = [], onJumpTask = null, onSelectNode = null }) {
   return h('svg', {
     ref: svgRef,
     viewBox: `0 0 ${layout.width} ${layout.height}`,
@@ -43,18 +64,47 @@ export function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode }) {
       })
     }),
     layout.nodes.map((node) => {
-      const stroke = nodeStrokeColor(node)
+      const liveTask = matchMindmapTask(node, tasks)
+      const liveStatus = liveTask ? (liveTask.viewState || liveTask.state) : node.status
+      const linkedTaskId = liveTask?.taskId || node.taskId || null
+      const stroke = nodeStrokeColor(node, liveStatus)
       const isRoot = node.depth === 0
-      const boxed = !node.isLeaf && (isRoot || node.depth === 1)
+      const isRunning = ['running', 'waiting_input', 'waiting_approval'].includes(liveStatus)
+      const isDone = liveStatus === 'done' || liveStatus === 'completed'
+      const isBlocked = liveStatus === 'blocked' || liveStatus === 'failed'
+      const boxed = (!node.isLeaf && (isRoot || node.depth === 1)) || Boolean(liveTask)
       const fontSize = layout.fontSize
       const lineHeight = layout.lineHeight || Math.round(fontSize * 1.4)
       const toggleWidth = node.collapsed ? Math.max(32, String(node.hiddenCount || 0).length * 10 + 18) : 24
+      const canJump = Boolean(linkedTaskId && typeof onJumpTask === 'function')
+      const canAnnotate = typeof onSelectNode === 'function'
+      const interactive = canJump || canAnnotate
+      const onNodeClick = (event) => {
+        if (!interactive) return
+        event.stopPropagation()
+        if (event.shiftKey && canAnnotate) {
+          onSelectNode({ id: node.id, label: node.fullLabel || node.label, taskId: linkedTaskId })
+          return
+        }
+        if (canJump) onJumpTask(linkedTaskId)
+        else if (canAnnotate) onSelectNode({ id: node.id, label: node.fullLabel || node.label, taskId: linkedTaskId })
+      }
+      const cls = [
+        interactive ? 'concerto-battle-node--interactive' : '',
+        isRunning ? 'concerto-battle-node--running' : '',
+        isDone ? 'concerto-battle-node--done' : '',
+        isBlocked ? 'concerto-battle-node--blocked' : '',
+      ].filter(Boolean).join(' ')
       return h('g', {
         key: node.id,
+        className: cls || undefined,
         'data-concerto-mm-node': node.id,
+        'data-task-id': linkedTaskId || undefined,
+        'data-status': liveStatus || undefined,
         transform: `translate(${node.x}, ${node.y})`,
+        onClick: interactive ? onNodeClick : undefined,
       },
-      h('title', null, node.fullLabel || node.label),
+      h('title', null, (node.fullLabel || node.label) + (linkedTaskId ? ` · ${linkedTaskId}（${liveStatus || 'pending'}，点击查看任务）` : (canAnnotate ? '（点击指图下指令）' : ''))),
       h('rect', {
         x: 0,
         y: 0,
@@ -63,7 +113,7 @@ export function MarkmapSvgDocument({ layout, title, svgRef, onToggleNode }) {
         rx: 8,
         fill: boxed ? (isRoot ? 'var(--cc-accent-soft)' : 'var(--cc-card-bg)') : 'transparent',
         stroke: boxed ? stroke : 'none',
-        strokeWidth: boxed ? 1.2 : 0,
+        strokeWidth: isRunning ? 2 : (boxed ? 1.2 : 0),
       }),
       !isRoot && h('rect', { x: 0, y: 4, width: 3, height: Math.max(0, node.height - 8), rx: 1.5, fill: stroke }),
       node.isLeaf && h('line', { x1: -10, y1: node.height / 2, x2: 0, y2: node.height / 2, stroke, strokeWidth: 1.2 }),

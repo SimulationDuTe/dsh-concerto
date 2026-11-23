@@ -973,6 +973,14 @@ export const TEAM_CSS = `
   .concerto-race-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cc-space-3); width: 100%; }
   .concerto-race-col { display: flex; flex-direction: column; gap: var(--cc-space-2); padding: var(--cc-space-3); border: 1px solid var(--cc-border-subtle); border-radius: var(--cc-radius-card); background: var(--cc-card-bg); min-width: 0; }
   .concerto-race-col[data-winner="true"] { border-color: var(--cc-state-done); box-shadow: 0 0 0 2px var(--cc-state-done-bg); }
+  /* Live Battle Map node pulse & point-on-diagram command bar */
+  .concerto-battle-node--running > rect:first-of-type { stroke: var(--cc-state-running); stroke-width: 2; animation: concerto-battle-pulse 1.8s ease-in-out infinite; }
+  .concerto-battle-node--done > rect:first-of-type { stroke: var(--cc-state-done); stroke-width: 1.5; }
+  .concerto-battle-node--blocked > rect:first-of-type { stroke: var(--cc-state-blocked); stroke-width: 1.8; }
+  .concerto-battle-node--interactive { cursor: pointer; }
+  .concerto-battle-node--interactive:hover > rect:first-of-type { stroke: var(--cc-accent); stroke-width: 2; }
+  @keyframes concerto-battle-pulse { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.35; } }
+  .concerto-point-cmd-bar { display: flex; flex-direction: column; gap: 6px; padding: var(--cc-space-2) var(--cc-space-3); margin-bottom: var(--cc-space-2); border: 1px solid color-mix(in srgb, var(--cc-accent) 40%, var(--cc-border)); border-radius: var(--cc-radius-ctrl); background: var(--cc-card-nested-bg); animation: concerto-stage-expand 0.2s var(--cc-ease); }
   @container concerto-set (max-width: 540px) { .concerto-stage-lanes { grid-template-columns: minmax(0, 1fr); } .concerto-stage-svg { display: none; } }
   @container concerto-set (max-width: 720px) { .concerto-set-member { grid-template-columns: repeat(2, minmax(0, 1fr)); } .concerto-set-member-remove { grid-column: 1 / -1; justify-self: start; } }
   @container concerto-set (max-width: 640px) { .concerto-set-card { padding: var(--cc-space-4); } }
@@ -998,7 +1006,7 @@ export const TEAM_CSS = `
   .concerto-attention-popover, .concerto-hero-menu-list { animation: concerto-rise var(--cc-dur-fast) var(--cc-ease); }
   @media (prefers-reduced-motion: reduce) {
     .concerto-surface *, .concerto-surface *::before, .concerto-surface *::after { transition: none !important; }
-    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector { animation: none !important; }
+    .concerto-sprite svg, .concerto-message-avatar svg, .concerto-sprite .concerto-halo-pulse, .concerto-semantic-pill::before, .concerto-stage-arc, .concerto-stage-node--commander .concerto-pixel, .concerto-stage-inspector, .concerto-battle-node--running > rect:first-of-type, .concerto-point-cmd-bar { animation: none !important; }
     .concerto-live-dot::before, .concerto-tab-btn::after, .concerto-tab-content, .concerto-board-card-list > li, .concerto-jump-banner, .concerto-attention-popover, .concerto-hero-menu-list, .concerto-drawer[open], .concerto-canvas-modal[open], .concerto-drawer::backdrop, .concerto-canvas-modal::backdrop { animation: none !important; }
     .concerto-kcard:hover, .concerto-btn:active:not(:disabled) { transform: none; }
     .concerto-task-highlight, .concerto-card-highlight { animation: none !important; outline: 2px solid var(--cc-accent); }
