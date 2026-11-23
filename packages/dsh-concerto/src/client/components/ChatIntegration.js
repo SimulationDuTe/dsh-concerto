@@ -13,6 +13,7 @@ import {
   memberState,
   findTeamTab,
   selectHostTeamTab,
+  syncHostTeamTabVisibility,
   requestMemberDrawerOpen,
   useHostTheme,
 } from '../api.js'
@@ -78,18 +79,23 @@ function ChatPlanConfirmation({ snapshot, info, canAct, onApprove, sessionId, sh
 export function ConcertoDock({ sessionId }) {
   useTeamCss()
   const hostTheme = useHostTheme()
-  const { info, error, refresh } = useTeamSession(sessionId)
+  const { info, error, loaded, refresh } = useTeamSession(sessionId)
   const [teamTabAvailable, setTeamTabAvailable] = React.useState(false)
   const snapshot = info?.snapshot
 
   React.useEffect(() => {
-    if (!info || typeof requestAnimationFrame === 'undefined') return
+    if (!loaded || typeof requestAnimationFrame === 'undefined') return
     const frame = requestAnimationFrame(() => {
-      selectHostTeamTab(sessionId, false)
-      setTeamTabAvailable(Boolean(findTeamTab()))
+      syncHostTeamTabVisibility(Boolean(info))
+      if (info) {
+        selectHostTeamTab(sessionId, false)
+        setTeamTabAvailable(Boolean(findTeamTab()))
+      } else {
+        setTeamTabAvailable(false)
+      }
     })
     return () => cancelAnimationFrame(frame)
-  }, [sessionId, Boolean(info)])
+  }, [sessionId, loaded, Boolean(info)])
 
   const [actionError, setActionError] = React.useState('')
   const [busy, setBusy] = React.useState(false)

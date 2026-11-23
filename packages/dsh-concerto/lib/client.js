@@ -1313,7 +1313,7 @@ function readHostChatMessages(sessionId) {
 var sessionReaders = /* @__PURE__ */ new Map();
 function sessionReader(sessionId) {
   if (sessionReaders.has(sessionId)) return sessionReaders.get(sessionId);
-  let value = { info: null, error: "" };
+  let value = { info: null, error: "", loaded: false };
   const listeners = /* @__PURE__ */ new Set();
   let stop;
   let refresh = () => {
@@ -1338,12 +1338,13 @@ function sessionReader(sessionId) {
         if (!disposed) {
           publish({
             info: value.info && value.info.snapshot?.serverTime > info.snapshot?.serverTime ? value.info : info,
-            error: ""
+            error: "",
+            loaded: true
           });
         }
       } catch (error) {
         if (!disposed) {
-          publish(error.status === 404 ? { info: null, error: "" } : { ...value, error: "\u540C\u6B65\u5931\u8D25\uFF1A" + error.message });
+          publish(error.status === 404 ? { info: null, error: "", loaded: true } : { ...value, error: "\u540C\u6B65\u5931\u8D25\uFF1A" + error.message, loaded: true });
         }
       } finally {
         inFlight = false;
@@ -1448,6 +1449,23 @@ function findTeamTab() {
   if (typeof document === "undefined") return null;
   const tabs = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')];
   return tabs.find((el) => /团队|Team/i.test(el.textContent || "")) || null;
+}
+function syncHostTeamTabVisibility(visible) {
+  if (typeof document === "undefined") return;
+  const tab = findTeamTab();
+  if (!tab) return;
+  if (visible) {
+    tab.hidden = false;
+    if (tab.style.display === "none") tab.style.display = "";
+    return;
+  }
+  tab.hidden = true;
+  tab.style.display = "none";
+  if (tab.getAttribute("aria-selected") === "true") {
+    const tabs = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')];
+    const chatTab = tabs.find((el) => el !== tab && !el.hidden && el.style.display !== "none");
+    if (chatTab) chatTab.click();
+  }
 }
 function selectHostTeamTab(sessionId, force = false) {
   if (typeof document === "undefined" || !sessionId) return false;
@@ -14476,17 +14494,22 @@ function ChatPlanConfirmation({ snapshot, info, canAct, onApprove, sessionId, sh
 function ConcertoDock({ sessionId }) {
   useTeamCss();
   const hostTheme = useHostTheme();
-  const { info, error, refresh } = useTeamSession(sessionId);
+  const { info, error, loaded, refresh } = useTeamSession(sessionId);
   const [teamTabAvailable, setTeamTabAvailable] = import_react21.default.useState(false);
   const snapshot = info?.snapshot;
   import_react21.default.useEffect(() => {
-    if (!info || typeof requestAnimationFrame === "undefined") return;
+    if (!loaded || typeof requestAnimationFrame === "undefined") return;
     const frame = requestAnimationFrame(() => {
-      selectHostTeamTab(sessionId, false);
-      setTeamTabAvailable(Boolean(findTeamTab()));
+      syncHostTeamTabVisibility(Boolean(info));
+      if (info) {
+        selectHostTeamTab(sessionId, false);
+        setTeamTabAvailable(Boolean(findTeamTab()));
+      } else {
+        setTeamTabAvailable(false);
+      }
     });
     return () => cancelAnimationFrame(frame);
-  }, [sessionId, Boolean(info)]);
+  }, [sessionId, loaded, Boolean(info)]);
   const [actionError, setActionError] = import_react21.default.useState("");
   const [busy, setBusy] = import_react21.default.useState(false);
   const [open, setOpen] = import_react21.default.useState(false);

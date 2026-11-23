@@ -899,7 +899,7 @@ export function readHostChatMessages(sessionId) {
 const sessionReaders = new Map()
 export function sessionReader(sessionId) {
   if (sessionReaders.has(sessionId)) return sessionReaders.get(sessionId)
-  let value = { info: null, error: '' }
+  let value = { info: null, error: '', loaded: false }
   const listeners = new Set()
   let stop
   let refresh = () => {}
@@ -924,11 +924,14 @@ export function sessionReader(sessionId) {
           publish({
             info: value.info && value.info.snapshot?.serverTime > info.snapshot?.serverTime ? value.info : info,
             error: '',
+            loaded: true,
           })
         }
       } catch (error) {
         if (!disposed) {
-          publish(error.status === 404 ? { info: null, error: '' } : { ...value, error: '同步失败：' + error.message })
+          publish(error.status === 404
+            ? { info: null, error: '', loaded: true }
+            : { ...value, error: '同步失败：' + error.message, loaded: true })
         }
       } finally {
         inFlight = false
@@ -1055,6 +1058,24 @@ export function findTeamTab() {
   if (typeof document === 'undefined') return null
   const tabs = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')]
   return tabs.find((el) => /团队|Team/i.test(el.textContent || '')) || null
+}
+
+export function syncHostTeamTabVisibility(visible) {
+  if (typeof document === 'undefined') return
+  const tab = findTeamTab()
+  if (!tab) return
+  if (visible) {
+    tab.hidden = false
+    if (tab.style.display === 'none') tab.style.display = ''
+    return
+  }
+  tab.hidden = true
+  tab.style.display = 'none'
+  if (tab.getAttribute('aria-selected') === 'true') {
+    const tabs = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')]
+    const chatTab = tabs.find((el) => el !== tab && !el.hidden && el.style.display !== 'none')
+    if (chatTab) chatTab.click()
+  }
 }
 
 export function selectHostTeamTab(sessionId, force = false) {

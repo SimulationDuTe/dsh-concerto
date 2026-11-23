@@ -1055,8 +1055,10 @@ try {
   await page.evaluate(() => window.__SET_SESSION__('ordinary-1', 'chat'))
   await page.getByText('Chat view for ordinary-1').waitFor()
   assert.equal(await page.locator('[data-conversation-tabs] [role="tab"]').nth(0).getAttribute('aria-selected'), 'true')
-  await page.locator('[data-conversation-tabs] [role="tab"]').nth(1).click()
-  await page.getByText(/当前会话不是受管团队会话/).waitFor()
+  await page.waitForFunction(() => {
+    const tab = [...document.querySelectorAll('[data-conversation-tabs] [role="tab"]')].find((el) => /团队|Team/i.test(el.textContent || ''))
+    return !tab || tab.hidden || getComputedStyle(tab).display === 'none'
+  })
 
   assert.deepEqual(errors, [])
   console.log(JSON.stringify({

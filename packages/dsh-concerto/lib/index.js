@@ -835,8 +835,14 @@ export function apply(ctx, config) {
   const scopeOf = (session) => {
     if (!session) return null
     const sessionId = String(session.id)
+    const livePreset = ctx.agentPresets.presetForSession(session)
+    const livePresetId = typeof livePreset === 'string' ? livePreset.replace(/^preset-/, '').trim() : ''
     const bound = runtime.getBinding(sessionId)
     if (bound) {
+      // 如果宿主会话当前已切换为非本团队的其他预设（如 DSH「标准模式」），不再冒充团队会话
+      if (livePresetId && livePresetId !== bound.teamId && !livePresetId.startsWith(`${bound.teamId}--`)) {
+        return null
+      }
       if (bound.roleKind === 'commander') commanderHostSessionByRun.set(bound.teamSessionId, sessionId)
       const sessionCwd = resolveSessionCwd(session)
       if (sessionCwd && !runtime.getStatus(bound.teamSessionId)?.metadata?.cwd) {
@@ -847,9 +853,8 @@ export function apply(ctx, config) {
       }
       return bound
     }
-    const preset = ctx.agentPresets.presetForSession(session)
-    if (typeof preset !== 'string' || preset.includes('--')) return null
-    const teamId = preset.replace(/^preset-/, '')
+    if (typeof livePreset !== 'string' || livePreset.includes('--')) return null
+    const teamId = livePresetId
     const launch = commanderLaunch.getStore()
     const creating = launch?.creating && launch.record.id === teamId ? launch : null
     const record = creating?.record ?? store.getTeam(teamId)
