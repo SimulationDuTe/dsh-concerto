@@ -63,7 +63,7 @@ export function validateSafeHtmlData(data) {
 }
 
 const ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/
-const MAX_MINDMAP_DEPTH = 6
+export const MAX_MINDMAP_DEPTH = 6
 const MAX_MINDMAP_NODES = 120
 const MAX_DIAGRAM_NODES = 120
 
@@ -418,6 +418,21 @@ export function applyViewObjectPatch(existing, patch) {
       if (!Array.isArray(patch.keys) || patch.keys.length === 0) return fail('invalid', 'keys must be a non-empty array')
       const keys = new Set(patch.keys.map(String))
       nextData.rows = nextData.rows.filter((r) => !keys.has(String(r[0] ?? '')))
+    } else if (patch.op === 'update_cell') {
+      if (!Number.isInteger(patch.rowIndex) || patch.rowIndex < 0 || patch.rowIndex >= nextData.rows.length) {
+        return fail('not_found', 'target row not found')
+      }
+      const colIdx = nextData.columns.indexOf(patch.column)
+      if (colIdx < 0) return fail('invalid', `unknown column "${String(patch.column ?? '')}"`)
+      if (patch.value !== null && !['string', 'number', 'boolean'].includes(typeof patch.value)) {
+        return fail('invalid', 'cell value must be string | number | boolean | null')
+      }
+      nextData.rows[patch.rowIndex][colIdx] = patch.value
+    } else if (patch.op === 'append_row') {
+      if (!Array.isArray(patch.row) || patch.row.length !== nextData.columns.length) {
+        return fail('invalid', `row length must match columns (${nextData.columns.length})`)
+      }
+      nextData.rows.push(structuredClone(patch.row))
     } else {
       return fail('invalid', `unsupported table patch op: ${patch.op}`)
     }
@@ -535,6 +550,8 @@ export function summarizeViewObject(record) {
     userLayoutVersion: record.userLayout?.version ?? 0,
     authorId: record.authorId,
     ownerId: record.ownerId || record.authorId,
+    roleKind: record.roleKind || 'runtime',
+    layer: record.layer || (record.taskId ? (record.roleKind === 'reviewer' ? 'review' : 'task') : 'team'),
     taskId: record.taskId ?? null,
     executionId: record.executionId ?? null,
     itemCount,
@@ -684,6 +701,56 @@ export function extractRequiredViewsFromTask(task) {
     }
   }
   return specs
+}
+
+export const SHARED_TASK_ARTIFACT_TYPES = Object.freeze(['checklist', 'table', 'diagram', 'mindmap'])
+
+export function isSharedTaskArtifact(task, object) {
+  return SHARED_TASK_ARTIFACT_TYPES.includes(object?.type) &&
+    (object.semanticKind ?? resolveSemanticKind(object, object.data).semanticKind) === 'blueprint' &&
+    object.taskId === task?.taskId && object.layer !== 'review' && object.roleKind !== 'reviewer' &&
+    extractRequiredViewsFromTask(task).some((view) => view.type === object.type && view.id === object.id)
+}
+
+export function isSharedAcceptanceChecklist(task, object) {
+  return object?.type === 'checklist' && isSharedTaskArtifact(task, object)
+}
+
+export function matchesSharedArtifactChange(object, change) {
+  if (!object || !change) return false
+  if (object.type === 'checklist') {
+    return Array.isArray(object.data?.items) &&
+      object.data.items.some((item) => item.id === change.itemId && item.label === change.label)
+  }
+  if (object.type === 'table') {
+    const cols = Array.isArray(object.data?.columns) ? object.data.columns : []
+    const rows = Array.isArray(object.data?.rows) ? object.data.rows : []
+    const atIndex = Number.isInteger(change.rowIndex) ? rows[change.rowIndex] : null
+    const byKey = change.rowKey ? rows.filter((r) => String(r[0] ?? '') === String(change.rowKey)) : []
+    const row = (atIndex && (!change.rowKey || String(atIndex[0] ?? '') === String(change.rowKey)))
+      ? atIndex
+      : (byKey.length === 1 ? byKey[0] : atIndex)
+    if (change.targetKind === 'row') {
+      return Boolean(row && Array.isArray(change.cells) && row.length === change.cells.length &&
+        change.cells.every((val, idx) => String(row[idx] ?? '') === String(val ?? '')))
+    }
+    const colIdx = cols.indexOf(change.column)
+    if (colIdx < 0) return false
+    return Boolean(row && String(row[colIdx] ?? '') === String(change.value ?? ''))
+  }
+  if (object.type === 'diagram') {
+    if (change.targetKind === 'edge') {
+      const edge = (object.data?.edges ?? []).find((e) => e.from === change.from && e.to === change.to)
+      return Boolean(edge && String(edge.label ?? '') === String(change.edgeLabel ?? '') &&
+        (!change.edgeKind || (edge.kind || 'normal') === change.edgeKind))
+    }
+    return (object.data?.nodes ?? []).some((n) => n.id === change.itemId && n.label === change.label)
+  }
+  if (object.type === 'mindmap') {
+    const node = findMindmapNode(object.data?.root, change.itemId)
+    return Boolean(node && node.label === change.label)
+  }
+  return false
 }
 
 /**
@@ -886,12 +953,37 @@ export function resolveViewObjectRef(viewObjects, ref, context = {}) {
   return { ok: true, ambiguous: true, object: typed[0] }
 }
 
+/** Addressable entries within one immutable artifact version. */
+export function reviewTargetItems({ type, data }) {
+  if (type === 'table') {
+    return (data.rows ?? []).map((row, index) => ({
+      id: `row-${index + 1}`, label: `第 ${index + 1} 行 · ${row.map((cell) => String(cell ?? '')).join(' / ').slice(0, 100)}`,
+    }))
+  }
+  const items = []
+  const addItem = (item) => {
+    if (item.id) items.push({ id: item.id, label: item.label || item.text || item.id })
+  }
+  if (type === 'mindmap' && data.root) {
+    const walk = (node) => {
+      addItem(node)
+      for (const child of node.children ?? []) walk(child)
+    }
+    walk(data.root)
+  } else if (type === 'checklist') {
+    for (const item of data.items) addItem(item)
+  } else if (type === 'diagram' || type === 'board') {
+    for (const item of data.nodes ?? data.excalidrawScene?.elements ?? []) addItem(item)
+  }
+  return items
+}
+
 function countMindmapNodes(node) {
   if (!node) return 0
   return 1 + (Array.isArray(node.children) ? node.children.reduce((s, c) => s + countMindmapNodes(c), 0) : 0)
 }
 
-function findMindmapNode(node, id) {
+export function findMindmapNode(node, id) {
   if (!node) return null
   if (node.id === id) return node
   for (const child of node.children || []) {
@@ -953,7 +1045,11 @@ export function sliceViewObjectData(record, opts = {}) {
     }
   }
 
-  // diagram
+  if (record.type === 'html') {
+    return { truncated: false, totalItems: 1, data: structuredClone(record.data) }
+  }
+
+  // diagram or board
   if (record.data.excalidrawScene) {
     return { truncated: false, totalItems: record.data.excalidrawScene.elements.length, data: structuredClone(record.data) }
   }

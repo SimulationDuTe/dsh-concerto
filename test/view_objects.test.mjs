@@ -10,9 +10,10 @@ import {
   resolveViewObjectRef,
   missingAcceptanceViewsForTask,
 } from '../packages/dsh-concerto/lib/domain/view_objects.mjs'
-import { parseMarkdownToMindmap, layoutMindmapTree, layoutDiagram, defaultPreviewCollapsedIds, approxLineWidth, mindmapToDiagramData, objectToExcalidrawScene } from '../packages/dsh-concerto/lib/domain/view_layout.mjs'
+import { parseMarkdownToMindmap, layoutMindmapTree, layoutDiagram, defaultPreviewCollapsedIds, defaultPreviewCollapsedIdsWithinBudget, approxLineWidth, mindmapToDiagramData, objectToExcalidrawScene } from '../packages/dsh-concerto/lib/domain/view_layout.mjs'
+import { preferredRendererSize } from '../packages/dsh-concerto/src/client/components/renderers/layoutSize.js'
 import { createTeamRuntime } from '../packages/dsh-concerto/lib/team_runtime.mjs'
-import { registerConcertoTools } from '../packages/dsh-concerto/lib/tools.mjs'
+import { executeMemberToolCall, registerConcertoTools, WORKER_TOOL_SCHEMAS } from '../packages/dsh-concerto/lib/tools.mjs'
 
 test('view_objects: validates table, checklist, mindmap and rejects invalid inputs', () => {
   assert.equal(validateViewObjectInput({
@@ -151,6 +152,69 @@ test('tools: update_team_view is commander-only while publish_view_object allows
     id: 'plan', type: 'mindmap', title: 'Plan', data: { root: { label: 'Root' } },
   }, { agent: { session: { id: 's-wrk' } }, callId: 'c-3' })
   assert.equal(wrkPublish.ok, true)
+
+  const hostedPublish = registered.get('publish_view_object').def
+  const externalPublish = WORKER_TOOL_SCHEMAS.find((tool) => tool.name === 'publish_view_object')
+  assert.deepEqual(hostedPublish.parameters, externalPublish.inputSchema)
+  assert.ok(hostedPublish.parameters.properties.renderer.enum.includes('html'))
+  assert.ok(!hostedPublish.parameters.properties.type.enum.includes('html'))
+  const legacyHtml = { id: 'legacy-html', type: 'html', title: 'Legacy', data: { html: '<p>saved</p>' } }
+  assert.equal(rt.publishViewObject('run-1', legacyHtml).ok, true)
+  const htmlWrite = await hostedPublish.execute(
+    { ...legacyHtml, expectedVersion: 1 },
+    { agent: { session: { id: 's-wrk' } }, callId: 'c-4' },
+  )
+  assert.equal(htmlWrite.code, 'invalid')
+  assert.equal(rt.readViewObject('run-1', { id: legacyHtml.id, version: 1 }).data.html, '<p>saved</p>')
+})
+
+test('external member publication rejects raw fields and validates patches before changing the version', async () => {
+  const rt = createTeamRuntime()
+  const scope = { teamSessionId: 'run', memberId: 'w1', roleKind: 'worker' }
+  const publish = (args) => executeMemberToolCall(rt, scope, 'publish_view_object', args)
+  const patch = (args) => executeMemberToolCall(rt, scope, 'patch_view_object', args)
+
+  const graph = {
+    id: 'flow', type: 'diagram', title: 'Flow',
+    data: {
+      layout: 'swimlane',
+      nodes: [{ id: 'a', label: 'A', lane: 'Planning' }, { id: 'b', label: 'B', stage: 1 }],
+      edges: [{ from: 'a', to: 'b' }],
+    },
+  }
+  for (const [input, path] of [
+    [{ ...graph, data: { ...graph.data, svg: '<svg/>' } }, 'publication.data.svg'],
+    [{ ...graph, data: { ...graph.data, nodes: [{ id: 'a', label: 'A', x: 1 }] } }, 'publication.data.nodes[0].x'],
+    [{ ...graph, layoutHints: { offset: { x: 1 } } }, 'publication.layoutHints.offset'],
+    [{ ...graph, data: { ...graph.data, edges: [{ from: 'a', to: 'b', label: { x: 1 } }] } }, 'publication.data.edges[0].label'],
+    [{ ...graph, type: 'board', data: { excalidrawScene: { type: 'excalidraw', elements: [] } } }, 'publication.data.excalidrawScene'],
+  ]) {
+    const result = await publish(input)
+    assert.equal(result.code, 'invalid')
+    assert.ok(result.detail.startsWith(path), result.detail)
+  }
+  assert.equal(rt.readViewObject('run', { id: graph.id }).code, 'not_found')
+  assert.equal((await publish(graph)).version, 1)
+  const updateGraph = { id: graph.id, expectedVersion: 1, op: 'upsert_elements', mutationId: 'edit-graph' }
+  const badGraph = await patch({ ...updateGraph, nodes: [{ id: 'a', label: 'Changed', width: 42 }] })
+  assert.equal(badGraph.code, 'invalid')
+  assert.ok(badGraph.detail.startsWith('patch.nodes[0].width'))
+  assert.equal(rt.readViewObject('run', { id: graph.id }).data.nodes[0].label, 'A')
+  assert.equal((await patch({ ...updateGraph, nodes: [{ id: 'a', label: 'Changed' }] })).version, 2)
+
+  const tree = {
+    id: 'plan-tree', type: 'mindmap', title: 'Plan',
+    data: { root: { id: 'root', label: 'Root', children: [{ id: 'step', label: 'Step' }] } },
+  }
+  assert.equal((await publish(tree)).version, 1)
+  const updateTree = { id: tree.id, expectedVersion: 1, op: 'upsert_node' }
+  const badTree = await patch({
+    ...updateTree, node: { id: 'step', label: 'Step', children: [{ label: 'Leaf', css: 'body {}' }] },
+  })
+  assert.equal(badTree.code, 'invalid')
+  assert.ok(badTree.detail.startsWith('patch.node.children[0].css'))
+  assert.equal(rt.readViewObject('run', { id: tree.id }).version, 1)
+  assert.equal((await patch({ ...updateTree, node: { id: 'step', label: 'New', children: [{ label: 'Leaf' }] } })).version, 2)
 })
 
 
@@ -785,6 +849,18 @@ test('Step 5 layout: font-aware CJK width measurement, mindmap fold parity, and 
   assert.equal(smallDiag.edges.find((e) => e.to === 'b').semantic, 'blocked')
   assert.equal(smallDiag.edges.find((e) => e.to === 'c').semantic, 'unknown')
 
+  const waitingData = {
+    layout: 'dag',
+    nodes: [
+      { id: 'a', label: '已完成', status: 'completed' },
+      { id: 'b', label: '等待审批', status: 'waiting_approval' },
+    ],
+    edges: [{ from: 'a', to: 'b', kind: 'error' }],
+  }
+  assert.equal(layoutDiagram(waitingData, { semanticKind: 'live_execution' }).edges[0].semantic, 'waiting')
+  assert.equal(layoutDiagram(waitingData).edges[0].semantic, 'blocked')
+  assert.equal(preferredRendererSize({ type: 'diagram', data: { nodes: [{ id: 'a', label: 'A' }] } }, 'svg'), 's')
+
   const largeTree = {
     id: 'root',
     label: 'Root',
@@ -799,6 +875,48 @@ test('Step 5 layout: font-aware CJK width measurement, mindmap fold parity, and 
   const mmLayout = layoutMindmapTree(largeTree, new Set(autoFold), { fontSize: 14 })
   assert.ok(mmLayout.hiddenDescendantTotal >= 6)
   assert.ok(mmLayout.nodes.some((n) => n.collapsed && n.hiddenCount > 0))
+
+  const budgetFold = defaultPreviewCollapsedIdsWithinBudget(largeTree, { fontSize: 14, maxHeight: 380 })
+  const budgetLayout = layoutMindmapTree(largeTree, new Set(budgetFold), { fontSize: 14 })
+  assert.ok(budgetLayout.height <= 380)
+  assert.ok(budgetLayout.nodes.some((node) => node.depth === 2))
+  assert.ok(budgetLayout.nodes.filter((node) => node.isLeaf).every((node) => node.height < 54))
+  assert.equal(preferredRendererSize({ type: 'mindmap', data: { root: largeTree } }, 'markmap', { fontSize: 14 }), 'm')
+})
+
+test('readable graph geometry: large host text fits nodes, tree levels align, and edge labels avoid nodes', () => {
+  const tree = {
+    id: 'root', label: '项目交付计划', children: [
+      { id: 'short', label: '实现', children: [{ id: 'short-child', label: '任务看板与成员详情交互实现' }] },
+      { id: 'long', label: '验证宿主主题字号与长中文标签', children: [{ id: 'long-child', label: '真实宿主验收' }] },
+    ],
+  }
+  const treeLayout = layoutMindmapTree(tree, new Set(), { fontSize: 28 })
+  const level = treeLayout.nodes.filter((node) => node.depth === 1)
+  assert.equal(new Set(level.map((node) => node.x)).size, 1)
+  assert.equal(new Set(level.map((node) => node.width)).size, 1)
+  for (const node of treeLayout.nodes) {
+    assert.ok(node.lines.every((line) => approxLineWidth(line, 28) + 36 <= node.width), `label escapes ${node.id}`)
+  }
+
+  const diagram = layoutDiagram({ nodes: [
+    { id: 'a', label: '梳理任务关系与交付标准', status: 'completed' },
+    { id: 'b', label: '实现界面并保持宿主字号', status: 'running' },
+    { id: 'c', label: '进行独立审查并验证交付', status: 'pending' },
+  ], edges: [{ from: 'a', to: 'b', label: '确认前置依赖后推进' }, { from: 'a', to: 'c', label: '同步开展独立审查' }] }, { fontSize: 28 })
+  for (const node of diagram.nodes) {
+    assert.ok(node.lines.every((line) => approxLineWidth(line, 28) + 36 <= node.width), `label escapes ${node.id}`)
+    assert.ok(node.height >= node.lines.length * diagram.lineHeight + 40, `status crowds title in ${node.id}`)
+  }
+  for (const edge of diagram.edges) {
+    for (const node of diagram.nodes) {
+      const intersects = edge.midX + edge.labelWidth / 2 > node.x
+        && edge.midX - edge.labelWidth / 2 < node.x + node.width
+        && edge.midY + edge.labelHeight / 2 > node.y
+        && edge.midY - edge.labelHeight / 2 < node.y + node.height
+      assert.equal(intersects, false, `edge label overlaps ${node.id}`)
+    }
+  }
 })
 
 test('P1/P2 fixes: mindmap-to-svg keeps descendants, snapshot checklist freezes checked state, and acceptance prose does not force views', () => {

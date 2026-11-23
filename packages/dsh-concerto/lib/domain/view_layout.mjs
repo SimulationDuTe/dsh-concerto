@@ -152,6 +152,48 @@ export function defaultPreviewCollapsedIds(root, thresholdNodes = 8, maxOpenDept
   return folded
 }
 
+export function defaultPreviewCollapsedIdsWithinBudget(root, options = {}) {
+  const norm = normalizeMindmapTree(root)
+  if (!norm) return []
+  const fontSize = Number.isFinite(options.fontSize) && options.fontSize > 0 ? options.fontSize : 12.5
+  const maxHeight = Number.isFinite(options.maxHeight) && options.maxHeight > 0 ? options.maxHeight : 356
+  const collapsed = new Set()
+
+  function foldDeepBranches(node, depth) {
+    const children = Array.isArray(node.children) ? node.children : []
+    if (depth >= 2 && children.length > 0) {
+      collapsed.add(node.id)
+      return
+    }
+    for (const child of children) foldDeepBranches(child, depth + 1)
+  }
+
+  foldDeepBranches(norm, 0)
+  const fits = () => layoutMindmapTree(norm, collapsed, { fontSize }).height <= maxHeight
+  if (fits()) return [...collapsed]
+
+  while (true) {
+    const candidates = []
+    function collect(node, depth) {
+      if (collapsed.has(node.id)) return
+      const children = Array.isArray(node.children) ? node.children : []
+      if (depth > 0 && children.length > 0) {
+        candidates.push({ id: node.id, depth, descendants: countSubtreeDescendants(node) })
+      }
+      for (const child of children) collect(child, depth + 1)
+    }
+    collect(norm, 0)
+    if (candidates.length === 0 && !collapsed.has(norm.id) && Array.isArray(norm.children) && norm.children.length > 0) {
+      candidates.push({ id: norm.id, depth: 0, descendants: countSubtreeDescendants(norm) })
+    }
+    if (candidates.length === 0) break
+    candidates.sort((a, b) => b.descendants - a.descendants || b.depth - a.depth || a.id.localeCompare(b.id))
+    collapsed.add(candidates[0].id)
+    if (fits()) break
+  }
+  return [...collapsed]
+}
+
 /**
  * Parse concise Markdown (# / ## / - lists) into a hierarchical mindmap tree.
  */
@@ -226,10 +268,10 @@ export function layoutMindmapTree(root, collapsedIds = new Set(), options = {}) 
   const normRoot = normalizeMindmapTree(root)
   if (!normRoot) return { nodes: [], edges: [], width: 0, height: 0, hiddenDescendantTotal: 0 }
   const fontSize = Number.isFinite(options.fontSize) && options.fontSize > 0 ? options.fontSize : 12.5
-  const lineHeight = Math.round(fontSize * 1.4)
-  const maxChars = fontSize >= 15 ? 15 : 18
-  const X_GAP = 62
-  const Y_GAP = 14
+  const lineHeight = Math.round(fontSize * 1.5)
+  const X_GAP = 80
+  const Y_GAP = 24
+  const depthWidths = []
   const nodes = []
   const edges = []
   let hiddenDescendantTotal = 0
@@ -237,19 +279,25 @@ export function layoutMindmapTree(root, collapsedIds = new Set(), options = {}) 
   function measure(node, depth, branchHueIdx) {
     const id = node.id
     const fullLabel = String(node.label ?? id)
-    const lines = wrapLabel(fullLabel, maxChars, 3)
-    const textW = Math.max(48, ...lines.map((l) => approxLineWidth(l, depth === 0 ? fontSize + 0.5 : fontSize)))
     const rawChildren = Array.isArray(node.children) ? node.children : []
+    const isLeaf = depth > 0 && rawChildren.length === 0
     const collapsed = rawChildren.length > 0 && collapsedIds.has(id)
     const hiddenCount = collapsed ? countSubtreeDescendants(node) : 0
     if (collapsed) hiddenDescendantTotal += hiddenCount
     const badgeSpace = collapsed ? 36 : 0
-    const width = Math.max(96, Math.min(280, Math.round(textW + 32 + badgeSpace)))
-    const height = Math.max(34, lines.length * lineHeight + 14)
+    const maxChars = Math.max(1, Math.min(18, Math.floor((320 - 40 - badgeSpace) / ((fontSize + 0.5) * 1.04))))
+    const lines = wrapLabel(fullLabel, maxChars, 3)
+    const textW = Math.max(48, ...lines.map((l) => approxLineWidth(l, depth === 0 ? fontSize + 0.5 : fontSize)))
+    const width = Math.max(136, Math.min(320, Math.round(textW + 40 + badgeSpace)))
+    depthWidths[depth] = Math.max(depthWidths[depth] || 0, width)
+    const height = isLeaf
+      ? Math.max(28, lines.length * lineHeight + 8)
+      : Math.max(54, lines.length * lineHeight + 26)
     const children = collapsed
       ? []
       : rawChildren.map((c, idx) => measure(c, depth + 1, depth === 0 ? idx : branchHueIdx))
-    const childrenHeight = children.reduce((sum, c) => sum + c.subtreeHeight, 0) + Math.max(0, children.length - 1) * Y_GAP
+    const childGap = children.length > 0 && children.every((child) => child.isLeaf) ? 8 : Y_GAP
+    const childrenHeight = children.reduce((sum, c) => sum + c.subtreeHeight, 0) + Math.max(0, children.length - 1) * childGap
     const subtreeHeight = Math.max(height, childrenHeight)
     return {
       id,
@@ -257,6 +305,7 @@ export function layoutMindmapTree(root, collapsedIds = new Set(), options = {}) 
       fullLabel,
       lines,
       depth,
+      isLeaf,
       branchIndex: depth === 0 ? 0 : branchHueIdx,
       width,
       height,
@@ -276,6 +325,7 @@ export function layoutMindmapTree(root, collapsedIds = new Set(), options = {}) 
   const measured = measure(normRoot, 0, 0)
 
   function place(item, x, topY) {
+    const width = depthWidths[item.depth]
     const centerY = topY + item.subtreeHeight / 2
     const y = centerY - item.height / 2
     nodes.push({
@@ -284,10 +334,11 @@ export function layoutMindmapTree(root, collapsedIds = new Set(), options = {}) 
       fullLabel: item.fullLabel,
       lines: item.lines,
       depth: item.depth,
+      isLeaf: item.isLeaf,
       branchIndex: item.branchIndex,
       x,
       y,
-      width: item.width,
+      width,
       height: item.height,
       centerY,
       collapsed: item.collapsed,
@@ -300,15 +351,16 @@ export function layoutMindmapTree(root, collapsedIds = new Set(), options = {}) 
       memberId: item.memberId,
     })
     if (item.children.length > 0) {
-      const childX = x + item.width + X_GAP
-      const totalH = item.children.reduce((s, c) => s + c.subtreeHeight, 0) + (item.children.length - 1) * Y_GAP
+      const childX = x + width + X_GAP
+      const childGap = item.children.every((child) => child.isLeaf) ? 8 : Y_GAP
+      const totalH = item.children.reduce((s, c) => s + c.subtreeHeight, 0) + (item.children.length - 1) * childGap
       let childTop = centerY - totalH / 2
       for (const child of item.children) {
         const childCenterY = childTop + child.subtreeHeight / 2
         edges.push({
           from: item.id,
           to: child.id,
-          x1: x + item.width,
+          x1: x + width,
           y1: centerY,
           x2: childX,
           y2: childCenterY,
@@ -317,12 +369,12 @@ export function layoutMindmapTree(root, collapsedIds = new Set(), options = {}) 
           status: child.status,
         })
         place(child, childX, childTop)
-        childTop += child.subtreeHeight + Y_GAP
+        childTop += child.subtreeHeight + childGap
       }
     }
   }
 
-  place(measured, 20, 20)
+  place(measured, 28, 28)
   const maxX = Math.max(280, ...nodes.map((n) => n.x + n.width + 32))
   const maxY = Math.max(140, ...nodes.map((n) => n.y + n.height + 24))
   return { nodes, edges, width: maxX, height: maxY, hiddenDescendantTotal, lineHeight, fontSize }
@@ -368,34 +420,6 @@ function buildRoundedOrthogonalPath(x1, y1, x2, y2, direction = 'LR') {
   ].join(' ')
 }
 
-function pointsToRoundedPath(points) {
-  if (!Array.isArray(points) || points.length < 2) return ''
-  if (points.length === 2) {
-    return buildRoundedOrthogonalPath(points[0].x, points[0].y, points[1].x, points[1].y, 'LR')
-  }
-  let d = `M ${Math.round(points[0].x)} ${Math.round(points[0].y)}`
-  for (let i = 1; i < points.length - 1; i += 1) {
-    const prev = points[i - 1]
-    const curr = points[i]
-    const next = points[i + 1]
-    const v1x = curr.x - prev.x
-    const v1y = curr.y - prev.y
-    const v2x = next.x - curr.x
-    const v2y = next.y - curr.y
-    const l1 = Math.hypot(v1x, v1y) || 1
-    const l2 = Math.hypot(v2x, v2y) || 1
-    const r = Math.min(8, l1 / 3, l2 / 3)
-    const p1x = curr.x - (v1x / l1) * r
-    const p1y = curr.y - (v1y / l1) * r
-    const p2x = curr.x + (v2x / l2) * r
-    const p2y = curr.y + (v2y / l2) * r
-    d += ` L ${p1x.toFixed(1)} ${p1y.toFixed(1)} Q ${curr.x.toFixed(1)} ${curr.y.toFixed(1)} ${p2x.toFixed(1)} ${p2y.toFixed(1)}`
-  }
-  const last = points[points.length - 1]
-  d += ` L ${Math.round(last.x)} ${Math.round(last.y)}`
-  return d
-}
-
 function topologicalLayers(nodeSpecs, rawEdges) {
   const inDeg = new Map(nodeSpecs.map((n) => [n.id, 0]))
   const adj = new Map(nodeSpecs.map((n) => [n.id, []]))
@@ -421,15 +445,20 @@ function topologicalLayers(nodeSpecs, rawEdges) {
   return layerOf
 }
 
-function classifyEdgeSemantic(edge, fromNode, toNode, isCrit) {
+function classifyEdgeSemantic(edge, fromNode, toNode, isCrit, semanticKind) {
   const errStates = new Set(['blocked', 'failed', 'error'])
-  if (edge.kind === 'error' || errStates.has(edge.status) || errStates.has(fromNode?.status) || errStates.has(toNode?.status)) {
+  const waitingStates = new Set(['waiting_approval', 'waiting_input', 'attention'])
+  const useModelKind = semanticKind !== 'live_execution'
+  if ((useModelKind && edge.kind === 'error') || errStates.has(edge.status) || errStates.has(fromNode?.status) || errStates.has(toNode?.status)) {
     return 'blocked'
   }
-  if (edge.kind === 'unknown' || edge.status === 'unknown' || toNode?.status === 'unknown') {
+  if ((useModelKind && edge.kind === 'unknown') || edge.status === 'unknown' || toNode?.status === 'unknown') {
     return 'unknown'
   }
-  if (isCrit || edge.kind === 'critical' || toNode?.status === 'running' || toNode?.status === 'in_progress') {
+  if ((useModelKind && edge.kind === 'waiting') || waitingStates.has(edge.status) || waitingStates.has(toNode?.status)) {
+    return 'waiting'
+  }
+  if (isCrit || (useModelKind && edge.kind === 'critical') || toNode?.status === 'running' || toNode?.status === 'in_progress') {
     return 'critical'
   }
   return 'default'
@@ -446,14 +475,16 @@ export function layoutDiagram(data, options = {}) {
   const userOffsets = options.userOffsets && typeof options.userOffsets === 'object' ? options.userOffsets : {}
   const criticalNodes = new Set(Array.isArray(options.criticalPath) ? options.criticalPath : [])
   const fontSize = Number.isFinite(options.fontSize) && options.fontSize > 0 ? options.fontSize : 12.5
-  const lineHeight = Math.round(fontSize * 1.38)
-  const maxChars = fontSize >= 15 ? 14 : 16
+  const lineHeight = Math.round(fontSize * 1.5)
+  const maxChars = Math.max(1, Math.min(16, Math.floor(248 / (fontSize * 1.04))))
+  const labelFontSize = Math.max(11, Math.round(fontSize * 0.85))
+  const labelHeight = Math.ceil(labelFontSize * 1.6)
 
   if (rawNodes.length === 0) return { nodes: [], edges: [], lanes: [], width: 320, height: 180, direction, fontSize, lineHeight }
 
   const hasEdgeLabels = rawEdges.some((e) => typeof e?.label === 'string' && e.label.trim() !== '')
   const maxEdgeLabelW = hasEdgeLabels
-    ? Math.max(0, ...rawEdges.map((e) => (e?.label ? approxLineWidth(e.label, Math.max(10, fontSize - 2)) + 20 : 0)))
+    ? Math.max(0, ...rawEdges.map((e) => (e?.label ? approxLineWidth(e.label, labelFontSize) + 20 : 0)))
     : 0
 
   const nodeSpecs = rawNodes.map((n) => {
@@ -461,8 +492,8 @@ export function layoutDiagram(data, options = {}) {
     const lines = wrapLabel(fullLabel, maxChars, 3)
     const maxW = Math.max(52, ...lines.map((l) => approxLineWidth(l, fontSize)))
     const statusSpace = n.status ? 46 : 10
-    const width = Math.max(114, Math.min(264, Math.round(Math.max(maxW + 32, maxW + statusSpace * 0.5 + 24))))
-    const height = Math.max(44, lines.length * lineHeight + (n.status ? 26 : 18))
+    const width = Math.max(164, Math.min(300, Math.round(Math.max(maxW + 40, maxW + statusSpace * 0.5 + 28))))
+    const height = Math.max(60, lines.length * lineHeight + (n.status ? 50 : 28))
     return {
       ...n,
       fullLabel,
@@ -475,7 +506,6 @@ export function layoutDiagram(data, options = {}) {
 
   const positioned = new Map()
   const lanes = []
-  let dagreEdgePoints = new Map()
 
   if (layout === 'timeline') {
     let cursorX = 28
@@ -570,7 +600,9 @@ export function layoutDiagram(data, options = {}) {
         }
         for (const e of rawEdges) {
           if (positioned.has(e.from) || nodeSpecs.some((n) => n.id === e.from)) {
-            if (nodeSpecs.some((n) => n.id === e.to)) g.setEdge(e.from, e.to)
+            if (nodeSpecs.some((n) => n.id === e.to)) g.setEdge(e.from, e.to, e.label
+              ? { width: approxLineWidth(e.label, labelFontSize) + 20, height: labelHeight, labelpos: 'c' }
+              : {})
           }
         }
         dagre.layout(g)
@@ -582,12 +614,6 @@ export function layoutDiagram(data, options = {}) {
               x: Math.round(layoutNode.x - n.width / 2),
               y: Math.round(layoutNode.y - n.height / 2),
             })
-          }
-        }
-        for (const e of rawEdges) {
-          const edgeObj = g.edge(e.from, e.to)
-          if (edgeObj && Array.isArray(edgeObj.points)) {
-            dagreEdgePoints.set(`${e.from}->${e.to}`, edgeObj.points)
           }
         }
         usedDagre = positioned.size === nodeSpecs.length
@@ -639,7 +665,6 @@ export function layoutDiagram(data, options = {}) {
     for (const lane of lanes) lane.y -= minY
   }
 
-  const hasUserOffsets = Object.keys(userOffsets).length > 0
   const edges = rawEdges
     .map((e) => {
       const from = positioned.get(e.from)
@@ -664,13 +689,11 @@ export function layoutDiagram(data, options = {}) {
         x2 = to.x + to.width / 2
         y2 = to.y
       }
-      const dagPoints = !hasUserOffsets && layout === 'dag' ? dagreEdgePoints.get(`${e.from}->${e.to}`) : null
-      const path = dagPoints && dagPoints.length >= 2
-        ? pointsToRoundedPath([{ x: x1, y: y1 }, ...dagPoints.slice(1, -1), { x: x2, y: y2 }])
-        : buildRoundedOrthogonalPath(x1, y1, x2, y2, downFlow ? 'TB' : 'LR')
+      const path = buildRoundedOrthogonalPath(x1, y1, x2, y2, downFlow ? 'TB' : 'LR')
+      const channelX = (x1 + x2) / 2
       const isCrit = Boolean(e.critical) || (Boolean(from.critical) && Boolean(to.critical))
-      const semantic = classifyEdgeSemantic(e, from, to, isCrit)
-      const labelWidth = e.label ? Math.round(approxLineWidth(e.label, Math.max(10, fontSize - 2)) + 16) : 0
+      const semantic = classifyEdgeSemantic(e, from, to, isCrit, options.semanticKind)
+      const labelWidth = e.label ? Math.ceil(approxLineWidth(e.label, labelFontSize) + 20) : 0
       return {
         ...e,
         x1: Math.round(x1),
@@ -678,11 +701,13 @@ export function layoutDiagram(data, options = {}) {
         x2: Math.round(x2),
         y2: Math.round(y2),
         path,
-        midX: Math.round((x1 + x2) / 2),
-        midY: Math.round((y1 + y2) / 2),
+        midX: Math.round(downFlow ? channelX : (channelX + x2) / 2),
+        midY: Math.round(downFlow ? (y1 + y2) / 2 : y2),
         critical: isCrit,
         semantic,
         labelWidth,
+        labelHeight,
+        labelFontSize,
       }
     })
     .filter(Boolean)

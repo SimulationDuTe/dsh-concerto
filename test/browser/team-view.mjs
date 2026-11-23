@@ -8,7 +8,7 @@ import { mergeAndPaginateActivities } from '../../packages/dsh-concerto/lib/host
 
 const rt = createTeamRuntime()
 
-// Session A: simple single-task team (verifies Scenario 1: concise UI without forced 6 charts + list default)
+// Session A: a single task still uses the board, with no forced set of charts.
 const metaSimple = {
   projectId: 'project-simple',
   teamId: 'concerto-simple',
@@ -130,6 +130,7 @@ rt.recordExecutionEvent('run-team-1', 'task-1', {
   type: 'output.message',
   text: 'w1 正在等待 npm test 审批确认。',
 }, executionId)
+rt.reportProgress({ taskId: 'task-1', executionId, note: 'c1 补充验收来源' }, 'run-team-1', { kind: 'member', id: 'c1', role: 'commander' })
 rt.recordExecutionEvent('run-team-1', 'task-1', {
   type: 'approval.requested',
   requestId: 'req-1',
@@ -156,7 +157,7 @@ rt.publishViewObject('run-team-1', {
       '## 信息分层与导航',
       '- 常驻团队目标与成员条',
       '- 概览：简报与重点对象',
-      '- 任务：列表与看板切换',
+      '- 任务：固定看板与按需展开详情',
       '- 成果：筛选与用户置顶',
       '## 多渲染器规范化',
       '- Markmap 预览与全屏同步',
@@ -229,6 +230,7 @@ rt.publishViewObject('run-team-1', {
   data: { items: [{ label: 'task-4 基础设施验证通过', checked: false, taskId: 'task-4' }] },
 }, { kind: 'member', id: 'c1', role: 'commander' })
 
+// Seed a legacy HTML artifact through the trusted Runtime path.
 rt.publishViewObject('run-team-1', {
   id: 'html-brief',
   type: 'html',
@@ -240,7 +242,7 @@ rt.publishViewObject('run-team-1', {
     html: '<div class="kpi"><div class="val">151</div><div class="sub">单测全量通过</div></div>',
     css: '.kpi{padding:10px;border:1px solid var(--border-color);border-radius:10px}.val{font-size:24px;font-weight:700;color:var(--brand)}.sub{color:var(--text-secondary);font-size:12px}',
   },
-}, { kind: 'member', id: 'w2', role: 'worker' })
+}, { kind: 'runtime', id: 'w2', role: 'worker' })
 
 rt.publishViewObject('run-team-1', {
   id: 'mm-svg-layers',
@@ -517,7 +519,6 @@ const server = createServer(async (req, res) => {
       '/host-runtime.js': reactRoot + '/host-runtime.js',
       '/vendor-BUMdD3V7.js': reactRoot + '/vendor-BUMdD3V7.js',
       '/client.js': resolve('packages/dsh-concerto/lib/client.js'),
-      '/concerto/assets/markmap.js': resolve('packages/dsh-concerto/lib/vendor/markmap.js'),
       '/concerto/assets/rough.js': resolve('packages/dsh-concerto/lib/vendor/rough.js'),
     }
     if (!paths[url.pathname]) { res.writeHead(404); return res.end() }
@@ -538,8 +539,17 @@ try {
   page.on('pageerror', (err) => errors.push(err.message))
   await page.goto(`http://127.0.0.1:${server.address().port}`)
 
-  // Scenario 1: Single simple task team -> concise overview without forced 6 charts, Task tab defaults to compact List view
+  // Scenario 1: Single simple task team -> concise overview, task tab stays a board.
   const home = page.getByRole('region', { name: 'Concerto 团队主页' })
+  const refreshTeam = async ({ dispatch = false } = {}) => {
+    const menu = home.locator('.concerto-hero-actions-menu')
+    if (dispatch) {
+      await menu.locator('button', { hasText: '刷新快照' }).dispatchEvent('click')
+      return
+    }
+    await menu.locator('summary').click()
+    await menu.getByRole('button', { name: '刷新快照' }).click()
+  }
   await home.waitFor()
   assert.equal(await page.locator('[data-conversation-tabs] [role="tab"]').nth(1).getAttribute('aria-selected'), 'true')
   assert.equal(await page.locator('.concerto-dock').count(), 0)
@@ -547,8 +557,8 @@ try {
   await home.locator('[data-concerto-key-task="task-1"]').waitFor()
   assert.equal(await home.locator('[data-concerto-renderer="markmap"]').count(), 0)
   await home.locator('[data-concerto-tab="tasks"]').click()
-  assert.equal(await home.locator('[data-concerto-task-view="list"]').getAttribute('aria-pressed'), 'true')
-  assert.equal(await home.locator('[data-concerto-section="kanban"]').count(), 0)
+  assert.equal(await home.getByRole('group', { name: '任务展示模式' }).count(), 0)
+  assert.equal(await home.locator('[data-concerto-section="kanban"]').count(), 1)
 
   // Switch to multi-member team-1
   await page.evaluate(() => window.__SET_SESSION__('team-1', 'chat'))
@@ -562,11 +572,31 @@ try {
   await page.locator('[data-conversation-tabs] [role="tab"]').nth(1).click()
   await home.waitFor()
 
-  // Scenario 2 & 3: Overview shows Attention queue (unified count = 1, advisory optional-notes demoted), title-resolved Briefing, Key Tasks (<= 4), and live_execution sync
-  assert.equal(await home.locator('[data-concerto-section="attention"]').count(), 1)
-  assert.match(await home.locator('[data-concerto-pending-badge="true"]').textContent(), /待处理 1 项/)
-  assert.equal((await home.locator('[data-concerto-section="attention"] .concerto-section-title .concerto-tag').textContent()).trim(), '1')
+  await home.locator('[data-concerto-tab="tasks"]').click()
+  assert.equal(await home.locator('[data-concerto-tab="tasks"] .concerto-tab-attention').textContent(), '1')
+  assert.equal(await home.locator('.concerto-kcard h4 > button').count(), 4)
+  assert.match(await home.locator('[data-concerto-kanban-task="task-1"] .concerto-kcard-context').textContent(), /c1/)
+  await home.screenshot({ path: root + '/tasks-host-tokens.png' })
+  await home.locator('[data-concerto-pending-badge="true"]').click()
+  const attentionPopover = home.locator('[data-concerto-section="attention"]')
+  await attentionPopover.waitFor()
+  assert.equal(await attentionPopover.getAttribute('popover'), 'auto')
+  assert.equal(await attentionPopover.evaluate((element) => element.matches(':popover-open')), true)
+  assert.equal(await home.locator('[data-concerto-tab="tasks"]').getAttribute('aria-selected'), 'true')
+  await page.keyboard.press('Escape')
+  await attentionPopover.waitFor({ state: 'detached' })
+  await home.locator('[data-concerto-tab="overview"]').click()
+
+  // Scenario 2 & 3: Hero Attention popover keeps the active tab and reuses the unified attention count
+  assert.equal(await attentionPopover.count(), 0)
+  assert.match(await home.locator('[data-concerto-pending-badge="true"]').textContent(), /待处理 1\s*项/)
+  await home.locator('[data-concerto-pending-badge="true"]').click()
+  await attentionPopover.waitFor()
+  assert.equal(await home.locator('[data-concerto-tab="overview"]').getAttribute('aria-selected'), 'true')
+  assert.match(await attentionPopover.locator('.concerto-attention-popover-head').textContent(), /待处理 1\s*项/)
   assert.equal(await home.locator('[data-concerto-missing-required="true"]').count(), 0)
+  await page.keyboard.press('Escape')
+  await attentionPopover.waitFor({ state: 'detached' })
   await home.locator('[data-concerto-section="briefing"]').getByText('当前进展').waitFor()
   await home.locator('[data-concerto-section="briefing"]').getByText('关键问题').waitFor()
   await home.locator('[data-concerto-section="briefing"]').getByText('下一步').waitFor()
@@ -577,10 +607,37 @@ try {
   const stage = home.locator('[data-concerto-section="stage"]')
   const planCard = stage.locator('[data-concerto-object-id="plan"]').first()
   assert.equal(await planCard.getAttribute('data-concerto-renderer'), 'markmap')
-  assert.equal(await planCard.getAttribute('data-size'), 'l')
+  assert.ok(['m', 'l'].includes(await planCard.getAttribute('data-size')))
   const dagCard = stage.locator('[data-concerto-object-id="dep-dag"]').first()
   assert.equal(await dagCard.getAttribute('data-concerto-renderer'), 'svg')
   assert.equal(await dagCard.getAttribute('data-concerto-semantic'), 'live_execution')
+  // Intrinsic SVG sizing keeps text at the host size; overflow belongs to the canvas.
+  for (const card of [planCard, dagCard]) {
+    const scale = await card.locator('.concerto-graph-content > svg').evaluate((svg) => {
+      const matrix = svg.getScreenCTM()
+      return Math.hypot(matrix.a, matrix.b)
+    })
+    assert.ok(Math.abs(scale - 1) < 0.01, `preview unexpectedly rescaled host typography: ${scale}`)
+  }
+  await planCard.screenshot({ path: root + '/plan-preview.png' })
+  await dagCard.screenshot({ path: root + '/dependency-preview.png' })
+  await dagCard.hover()
+  await dagCard.getByRole('button', { name: '放大' }).click()
+  await dagCard.getByRole('button', { name: '放大' }).click()
+  const dagViewport = dagCard.locator('.concerto-canvas-stage--readable')
+  await dagViewport.evaluate((el) => { el.scrollLeft = 90 })
+  await page.waitForFunction(() => document.querySelector('[data-concerto-object-id="dep-dag"] .concerto-canvas-stage--readable').scrollLeft >= 89)
+  await Promise.all([
+    page.waitForResponse((res) => res.url().includes('/concerto/session') && res.status() === 200),
+    refreshTeam({ dispatch: true }),
+  ])
+  assert.ok(Math.abs(await dagViewport.evaluate((el) => el.scrollLeft) - 90) < 2, 'polling must preserve graph scroll')
+  await dagCard.hover()
+  await dagCard.getByRole('button', { name: '适应窗口' }).click()
+  assert.ok(await dagViewport.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'explicit fit must show the whole graph')
+  await dagCard.getByRole('button', { name: '原始字号' }).click()
+  const actualScale = await dagCard.locator('.concerto-graph-content > svg').evaluate((svg) => Math.hypot(svg.getScreenCTM().a, svg.getScreenCTM().b))
+  assert.ok(Math.abs(actualScale - 1) < 0.01, '100% must restore host typography')
   const boardCard = stage.locator('[data-concerto-object-id="board"]').first()
   assert.equal(await boardCard.getAttribute('data-concerto-renderer'), 'excalidraw')
   assert.equal(await stage.locator('[data-concerto-object-id="data"]').count(), 1)
@@ -593,63 +650,87 @@ try {
   await dagCard.locator('svg text', { hasText: '已完成' }).first().waitFor()
   await dagCard.locator('svg text', { hasText: '等待审批' }).first().waitFor()
   assert.ok((await dagCard.locator('[data-concerto-edge-semantic="critical"]').count()) >= 1)
-  assert.ok((await dagCard.locator('[data-concerto-edge-semantic="blocked"]').count()) >= 1)
+  assert.ok((await dagCard.locator('[data-concerto-edge-semantic="waiting"]').count()) >= 1)
+  assert.equal(await dagCard.locator('[data-concerto-edge-semantic="blocked"]').count(), 0)
   assert.ok((await dagCard.locator('[data-concerto-edge-semantic="unknown"]').count()) >= 1)
+  await dagCard.locator('[data-concerto-diag-node="s1"]').click()
+  assert.equal(await home.locator('[data-concerto-tab="tasks"]').getAttribute('aria-selected'), 'true')
+  await page.locator('[data-concerto-task-id="task-1"]').waitFor()
+  await home.locator('[data-concerto-tab="overview"]').click()
+  await dagCard.waitFor()
 
   // Metadata ⓘ popover holds engine & compatibility details cleanly
   await planCard.getByRole('button', { name: /查看 .* 元数据/ }).click()
   await planCard.getByText('mindmap:plan').waitFor()
-  await planCard.getByText(/Markmap 0\.18/).waitFor()
-  await planCard.getByRole('button', { name: /查看 .* 元数据/ }).click()
+  await planCard.getByText(/自绘 SVG 导图/).waitFor()
+  const infoPopover = planCard.locator('.concerto-info-pop')
+  assert.equal(await infoPopover.getAttribute('popover'), 'auto')
+  assert.equal(await infoPopover.evaluate((element) => element.matches(':popover-open')), true)
+  await page.keyboard.press('Escape')
+  await infoPopover.waitFor({ state: 'detached' })
 
   await boardCard.getByRole('button', { name: /查看 .* 元数据/ }).click()
   await boardCard.getByText(/Excalidraw v2/).waitFor()
   await boardCard.getByRole('button', { name: /查看 .* 元数据/ }).click()
 
   // Markmap > 8 nodes preview fold + expand parity + fullscreen CanvasModal + SVG export check
+  if (await planCard.locator('[data-concerto-mm-expand-all="true"]').count() === 0) {
+    await planCard.getByRole('button', { name: '收起深层', exact: true }).click()
+  }
   const mmFoldedBefore = await planCard.locator('[data-concerto-mm-node]').count()
   await planCard.locator('[data-concerto-mm-expand-all="true"]').waitFor()
   await planCard.locator('[data-concerto-mm-toggle]').nth(1).click()
   const mmAfterToggle = await planCard.locator('[data-concerto-mm-node]').count()
   assert.notEqual(mmAfterToggle, mmFoldedBefore)
 
+  const previewNodeIds = await planCard.locator('[data-concerto-mm-node]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-concerto-mm-node')))
   await planCard.getByRole('button', { name: '展开画布' }).click()
   const canvasDialog = page.getByRole('dialog', { name: '协作思维导图' })
   await canvasDialog.waitFor()
-  await canvasDialog.locator('svg g.markmap-node').first().waitFor()
-  await page.waitForTimeout(250)
-  // Zoom in twice and pan on Markmap canvas, then verify >= 3 poll refreshes + close/reopen keep viewport
+  await canvasDialog.locator('[data-concerto-mm-node]').first().waitFor()
+  const modalNodeIds = await canvasDialog.locator('[data-concerto-mm-node]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-concerto-mm-node')))
+  assert.deepEqual(modalNodeIds, previewNodeIds)
   await canvasDialog.getByRole('button', { name: '放大' }).click()
   await canvasDialog.getByRole('button', { name: '放大' }).click()
-  const mmSvgBox = await canvasDialog.locator('svg').first().boundingBox()
-  assert.ok(mmSvgBox)
-  await page.mouse.move(mmSvgBox.x + mmSvgBox.width / 2, mmSvgBox.y + mmSvgBox.height / 2)
+  const mmStage = canvasDialog.locator('.concerto-canvas-stage')
+  const mmStageBox = await mmStage.boundingBox()
+  assert.ok(mmStageBox)
+  await page.mouse.move(mmStageBox.x + mmStageBox.width / 2, mmStageBox.y + mmStageBox.height / 2)
   await page.mouse.down()
-  await page.mouse.move(mmSvgBox.x + mmSvgBox.width / 2 + 48, mmSvgBox.y + mmSvgBox.height / 2 + 32, { steps: 5 })
+  await page.mouse.move(mmStageBox.x + mmStageBox.width / 2 + 48, mmStageBox.y + mmStageBox.height / 2 + 32, { steps: 5 })
   await page.mouse.up()
   await page.waitForTimeout(120)
-  const mmTransformBeforePolls = await canvasDialog.locator('svg > g').first().getAttribute('transform')
-  assert.ok(mmTransformBeforePolls)
+  const readModalViewport = () => mmStage.evaluate((stage) => ({
+    scrollLeft: Math.round(stage.scrollLeft),
+    scrollTop: Math.round(stage.scrollTop),
+    svgWidth: stage.querySelector('svg')?.getAttribute('width') || '',
+  }))
+  const mmViewportBeforePolls = await readModalViewport()
+  assert.ok(mmViewportBeforePolls.svgWidth)
   for (let p = 0; p < 3; p += 1) {
     rt.recordExecutionEvent('run-team-1', 'task-2', { type: 'output.message', text: `markmap-poll-tick-${p + 1}` })
     await Promise.all([
       page.waitForResponse((res) => res.url().includes('/concerto/session') && res.status() === 200),
-      home.getByRole('button', { name: '刷新' }).dispatchEvent('click'),
+      refreshTeam({ dispatch: true }),
     ])
     await page.waitForTimeout(80)
   }
-  assert.equal(await canvasDialog.locator('svg > g').first().getAttribute('transform'), mmTransformBeforePolls)
+  assert.deepEqual(await readModalViewport(), mmViewportBeforePolls)
   await page.screenshot({ path: root + '/canvas-modal.png', fullPage: false })
   await canvasDialog.getByRole('button', { name: '关闭画布' }).click()
   await canvasDialog.waitFor({ state: 'detached' })
 
   await planCard.getByRole('button', { name: '展开画布' }).click()
   await canvasDialog.waitFor()
-  await canvasDialog.locator('svg g.markmap-node').first().waitFor()
-  await page.waitForTimeout(200)
-  assert.equal(await canvasDialog.locator('svg > g').first().getAttribute('transform'), mmTransformBeforePolls)
+  await canvasDialog.locator('[data-concerto-mm-node]').first().waitFor()
+  await page.waitForTimeout(120)
+  assert.deepEqual(await readModalViewport(), mmViewportBeforePolls)
+  await canvasDialog.locator('[data-concerto-mm-toggle]').first().click()
+  const collapsedModalIds = await canvasDialog.locator('[data-concerto-mm-node]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-concerto-mm-node')))
   await canvasDialog.getByRole('button', { name: '关闭画布' }).click()
   await canvasDialog.waitFor({ state: 'detached' })
+  const collapsedPreviewIds = await planCard.locator('[data-concerto-mm-node]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-concerto-mm-node')))
+  assert.deepEqual(collapsedPreviewIds, collapsedModalIds)
 
   // Verify SVG export resolves CSS variables (no raw var(--...) leaked into exported SVG blob)
   await page.evaluate(() => {
@@ -703,7 +784,7 @@ try {
     },
   }, { kind: 'member', id: 'w1', role: 'worker' })
   assert.equal(boardV2.ok, true)
-  await home.getByRole('button', { name: '刷新' }).click()
+  await refreshTeam()
   await boardCard.locator('svg text', { hasText: '架构草图（已更新）' }).waitFor()
   assert.equal(await boardCard.getAttribute('data-concerto-object-version'), '2')
   assert.equal(Number(await b1Node.getAttribute('data-x')), x0 + 45)
@@ -718,7 +799,7 @@ try {
   const boardModal = page.getByRole('dialog', { name: '自由协作白板' })
   await boardModal.waitFor()
   await boardModal.getByRole('button', { name: '添加批注' }).click()
-  await boardModal.getByPlaceholder('输入白板批注').fill('边界确认')
+  await boardModal.getByLabel('白板批注', { exact: true }).fill('边界确认')
   await boardModal.getByRole('button', { name: '添加', exact: true }).click()
   await boardModal.locator('svg text', { hasText: '批注：边界确认' }).waitFor()
   await page.evaluate(() => { window.confirm = () => true })
@@ -735,8 +816,13 @@ try {
   const mmSvgCard = home.locator('[data-concerto-object-id="mm-svg-layers"]')
   assert.equal(await mmSvgCard.locator('[data-concerto-diag-node]').count(), 4)
   assert.ok((await mmSvgCard.locator('[data-concerto-edge-semantic]').count()) >= 3)
-  assert.ok((await home.locator('[data-concerto-object-id="snap-check"]').textContent()).includes('☐'))
-  assert.ok((await home.locator('[data-concerto-object-id="acceptance"]').textContent()).includes('☑'))
+  const snapCheckCard = home.locator('[data-concerto-object-id="snap-check"]')
+  assert.equal(await snapCheckCard.locator('.concerto-checklist .concerto-state-idle').count(), 1)
+  assert.equal(await snapCheckCard.locator('.concerto-checklist .concerto-state-done').count(), 0)
+  assert.ok((await snapCheckCard.textContent()).includes('未完成'))
+  const acceptanceCard = home.locator('[data-concerto-object-id="acceptance"]')
+  assert.equal(await acceptanceCard.locator('.concerto-checklist .concerto-state-done').count(), 1)
+  assert.ok((await acceptanceCard.textContent()).includes('已完成'))
 
   // Scenario 4: Artifacts tab filtering (w2 + html) -> briefing inline ref & task artifact jump relax filters with restore -> w1 + table pin
   await home.locator('select[data-filter="memberId"]').selectOption('w2')
@@ -766,7 +852,7 @@ try {
     sections: [{ title: '精选对象', refs: [{ type: 'mindmap', id: 'plan', size: 'l' }] }],
   }, { kind: 'member', id: 'c1', role: 'commander' })
   await home.locator('[data-concerto-tab="overview"]').click()
-  await home.getByRole('button', { name: '刷新' }).click()
+  await refreshTeam()
   await home.locator('[data-concerto-stage-group="user-pinned"] [data-concerto-object-id="data"]').waitFor()
 
   // Tasks tab: Key Task click jumps to Tasks tab (kanban default because 4 tasks) & expands task-1; task artifact pill also relaxes filters
@@ -776,14 +862,50 @@ try {
   await home.locator('[data-concerto-tab="overview"]').click()
   await home.locator('[data-concerto-key-task="task-1"]').click()
   assert.equal(await home.locator('[data-concerto-tab="tasks"]').getAttribute('aria-selected'), 'true')
-  assert.equal(await home.locator('[data-concerto-task-view="kanban"]').getAttribute('aria-pressed'), 'true')
+  assert.equal(await home.locator('[data-concerto-section="kanban"]').count(), 1)
   await home.locator('[data-concerto-nav-banner="true"]').waitFor()
-  // P1-6: Kanban mode renders only expanded task detail modules (1 expanded, not all 4)
+  // P0-1: one selected task Inspector, card toggle, focus restoration and narrow dialog
   assert.equal(await home.locator('[data-concerto-section="tasks"] [data-concerto-task-id]').count(), 1)
   const taskModule = page.locator('[data-concerto-task-id="task-1"]')
-  const taskToggle = taskModule.locator('button[aria-expanded]')
-  assert.equal(await taskToggle.getAttribute('aria-expanded'), 'true')
+  const taskCardToggle = home.locator('[data-concerto-kanban-task="task-1"] .concerto-kcard-title')
+  assert.equal(await taskCardToggle.getAttribute('aria-pressed'), 'true')
+  await taskCardToggle.focus()
+  await page.keyboard.press('Enter')
+  await taskModule.waitFor({ state: 'detached' })
+  assert.equal(await taskCardToggle.getAttribute('aria-pressed'), 'false')
+  await taskCardToggle.focus()
+  await page.keyboard.press('Enter')
+  await taskModule.waitFor()
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-concerto-task-id') === 'task-1')
   assert.equal(await taskModule.locator('table.concerto-table').count(), 0)
+  await page.setViewportSize({ width: 760, height: 960 })
+  const taskDialog = page.locator('[data-concerto-task-inspector-dialog]')
+  await taskDialog.waitFor()
+  await page.keyboard.press('Escape')
+  await taskDialog.waitFor({ state: 'detached' })
+  assert.equal(await taskCardToggle.getAttribute('aria-pressed'), 'false')
+  await page.setViewportSize({ width: 1280, height: 960 })
+  await taskCardToggle.focus()
+  await page.keyboard.press('Enter')
+  await home.locator('.concerto-task-inspector--inline [data-concerto-task-id="task-1"]').waitFor()
+  await taskModule.locator('.concerto-task-summary .concerto-chip').click()
+  const returnDrawer = page.locator('[data-concerto-member-drawer]')
+  await returnDrawer.waitFor()
+  await page.keyboard.press('Escape')
+  await returnDrawer.waitFor({ state: 'detached' })
+  await taskModule.waitFor()
+  assert.equal(await home.locator('[data-concerto-tab="tasks"]').getAttribute('aria-selected'), 'true')
+  assert.equal(await taskCardToggle.getAttribute('aria-pressed'), 'true')
+  await taskModule.locator('.concerto-task-summary .concerto-chip').click()
+  await returnDrawer.waitFor()
+  await returnDrawer.locator('[data-concerto-tab="tasks"]').click()
+  await returnDrawer.getByRole('button', { name: '跳转查看任务 ›' }).click()
+  await taskModule.waitFor()
+  await taskModule.getByRole('button', { name: '返回 w1' }).click()
+  await returnDrawer.waitFor()
+  await returnDrawer.getByRole('button', { name: '返回 task-1' }).click()
+  await taskModule.waitFor()
+  assert.equal(await taskModule.getByRole('button', { name: /^返回 / }).count(), 0)
   await taskModule.locator('button[data-concerto-object-id="data"]').click()
   assert.equal(await home.locator('[data-concerto-tab="artifacts"]').getAttribute('aria-selected'), 'true')
   await home.locator('[data-concerto-jump-banner="true"]').waitFor()
@@ -796,7 +918,7 @@ try {
 
   // MemberDrawer: messages pagination + live tail merge + Tasks + Artifacts + Executions tabs + r1 empty states
   await home.locator('[data-concerto-section="roster"]').getByRole('button', { name: /w1/ }).click()
-  const drawer = page.getByRole('dialog', { name: 'Concerto 成员详情' })
+  const drawer = page.locator('dialog.concerto-drawer')
   await drawer.waitFor()
   await drawer.getByText('w1 正在等待 npm test 审批确认。').waitFor()
   const drawerBody = drawer.locator('.concerto-drawer-body')
@@ -806,7 +928,7 @@ try {
   const afterScroll = await drawerBody.evaluate((el) => ({ top: el.scrollTop, height: el.scrollHeight }))
   assert.ok(afterScroll.height > beforeScroll.height && afterScroll.top > beforeScroll.top)
   rt.recordExecutionEvent('run-team-1', 'task-1', { type: 'output.message', text: 'w1 轮询追加新消息 tail-after-page' }, executionId)
-  await home.getByRole('button', { name: '刷新' }).dispatchEvent('click')
+  await refreshTeam({ dispatch: true })
   await drawer.getByText('w1 轮询追加新消息 tail-after-page').waitFor()
 
   await drawer.getByRole('tab', { name: /任务/ }).click()
@@ -825,7 +947,7 @@ try {
   await execTab.focus()
   await execTab.click()
   await drawer.getByText(/task-1 · 第 1 次尝试/).waitFor()
-  await home.getByRole('button', { name: '刷新' }).dispatchEvent('click')
+  await refreshTeam({ dispatch: true })
   await page.waitForTimeout(80)
   const focusedTabRole = await page.evaluate(() => document.activeElement?.getAttribute?.('role'))
   assert.equal(focusedTabRole, 'tab')
@@ -846,7 +968,7 @@ try {
   await page.waitForTimeout(150)
   await page.screenshot({ path: root + '/team-home.png', fullPage: true })
 
-  // Excalidraw subset notice check when unsupported freedraw present
+  // Replay an imported scene through the trusted Runtime path to exercise the subset notice.
   const boardV3 = rt.publishViewObject('run-team-1', {
     id: 'board',
     type: 'board',
@@ -865,12 +987,12 @@ try {
         ],
       },
     },
-  }, { kind: 'member', id: 'w1', role: 'worker' })
+  }, { kind: 'runtime', id: 'w1', role: 'worker' })
   assert.equal(boardV3.ok, true)
   await home.locator('[data-concerto-tab="artifacts"]').click()
   await home.locator('select[data-filter="memberId"]').selectOption('all')
   await home.locator('select[data-filter="type"]').selectOption('board')
-  await home.getByRole('button', { name: '刷新' }).click()
+  await refreshTeam()
   await home.locator('[data-concerto-excalidraw-omitted="1"]').waitFor()
   await home.locator('svg text', { hasText: '独立注释文本' }).waitFor()
 
@@ -901,6 +1023,14 @@ try {
   await page.waitForTimeout(80)
   const smallOverflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   assert.ok(smallOverflow <= 4, `unexpected horizontal overflow at 390px: ${smallOverflow}`)
+  await home.locator('[data-concerto-tab="tasks"]').click()
+  await taskDialog.waitFor()
+  await page.keyboard.press('Escape')
+  await taskDialog.waitFor({ state: 'detached' })
+  assert.equal(await home.locator('.concerto-board-jump').isVisible(), true)
+  await home.screenshot({ path: root + '/tasks-narrow-host-tokens.png' })
+  const boardOverflow = await home.evaluate((el) => el.scrollWidth - el.clientWidth)
+  assert.ok(boardOverflow <= 4, `board overflow escaped its scroll region: ${boardOverflow}`)
   await page.setViewportSize({ width: 1280, height: 960 })
   await page.evaluate(() => {
     document.body.removeAttribute('data-host-light')
@@ -908,17 +1038,18 @@ try {
     document.body.style.setProperty('--dsh-content-font-size', '14px')
   })
 
-  // Scenario 6: Active tab & expanded task survive offline disconnect + recovery + ordinary session isolation
+  // Scenario 6: Active tab & selected task survive offline disconnect + recovery + ordinary session isolation
   await home.locator('[data-concerto-tab="tasks"]').click()
-  assert.equal(await taskToggle.getAttribute('aria-expanded'), 'true')
+  await taskCardToggle.click()
+  assert.equal(await taskCardToggle.getAttribute('aria-pressed'), 'true')
   offline = true
-  await home.getByRole('button', { name: '刷新' }).click()
+  await refreshTeam()
   await home.getByText(/连接中断/).waitFor()
   assert.equal(await home.locator('[data-concerto-tab="tasks"]').getAttribute('aria-selected'), 'true')
-  assert.equal(await taskToggle.getAttribute('aria-expanded'), 'true')
+  assert.equal(await taskCardToggle.getAttribute('aria-pressed'), 'true')
 
   offline = false
-  await home.getByRole('button', { name: '刷新' }).click()
+  await refreshTeam()
   await home.getByText(/实时同步/).waitFor()
 
   await page.evaluate(() => window.__SET_SESSION__('ordinary-1', 'chat'))
@@ -931,7 +1062,7 @@ try {
   console.log(JSON.stringify({
     status: 'PASS',
     checks: [
-      'Scenario 1: Simple task uses compact list by default & avoids forced 6 charts',
+      'Scenario 1: Simple task uses the fixed board & avoids forced 6 charts',
       'Scenario 2 & 3: Multi-member parallel, live_execution status/edges sync, persistent pending badge, missing requiredViews',
       'Scenario 4 & 6-Renderers: Task/Member/Type filters, userPinnedRefs preserved across update_team_view, metadata in ⓘ, Markmap/SVG/Excalidraw/HTML + SVG export CSS resolution',
       'Scenario 5: Host Light/Dark theme + 17px font/serif sync + 390px responsive check',

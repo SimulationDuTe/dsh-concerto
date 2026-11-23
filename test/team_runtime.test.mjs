@@ -1,9 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTeamRuntime } from '../packages/dsh-concerto/lib/team_runtime.mjs'
+import { executeMemberToolCall } from '../packages/dsh-concerto/lib/tools.mjs'
 
 const S = 'session-a'
 const createTask = {
@@ -62,9 +63,100 @@ test('runtime: wait action accepted', () => {
 
 test('runtime: unsupported action rejected', () => {
   const rt = createTeamRuntime()
-  const r = rt.submit({ decisionId: 'x1', expectedPlanRevision: 1, action: 'finish_goal', payload: {} }, S)
+  const r = rt.submit({ decisionId: 'x1', expectedPlanRevision: 1, action: 'unknown_action', payload: {} }, S)
   assert.equal(r.ok, false)
   assert.equal(r.code, 'unsupported')
+})
+
+test('runtime: finish_goal checks all project runs and persists one replayable completion', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'concerto-goal-'))
+  t.after(() => rm(dir, { recursive: true, force: true }))
+  const statePath = join(dir, 'runtime.json')
+  const rt = createTeamRuntime({ statePath })
+  const commander = { teamSessionId: S, memberId: 'c1', roleKind: 'commander' }
+  for (const [scope, projectId] of [[S, 'project-a'], ['sibling', 'project-a'], ['unrelated', 'project-b']]) {
+    rt.bindSession(`cmd-${scope}`, scope, { projectId, teamId: 'team', commanderId: 'c1' })
+  }
+  const status = await executeMemberToolCall(rt, commander, 'get_team_status')
+  assert.equal(status.goalId, 'project-a')
+  assert.equal(status.goalCompletion, null)
+  const close = {
+    decisionId: 'close', expectedPlanRevision: 3, action: 'finish_goal',
+    payload: { goalId: status.goalId, summary: 'All work settled', artifactRefs: ['proof.txt'] },
+  }
+  assert.equal(rt.submit({ ...close, expectedPlanRevision: 1 }, S).code, 'precondition_failed')
+  for (const scope of [S, 'sibling', 'unrelated']) {
+    const payload = { ...createTask, requiresReview: scope === S }
+    const decisionId = scope === 'sibling' ? 'create-sibling' : 'create'
+    const expectedPlanRevision = scope === 'sibling' ? 2 : 1
+    assert.equal(rt.submit({ decisionId, expectedPlanRevision, action: 'create_task', payload }, scope).ok, true)
+  }
+  assert.equal(rt.submit({ ...close, expectedPlanRevision: 1 }, S).code, 'stale')
+  assert.equal(rt.submit({ ...close, payload: { ...close.payload, goalId: 'project-b' } }, S).code, 'not_found')
+  assert.equal((await executeMemberToolCall(rt, { ...commander, roleKind: 'worker' }, 'submit_decision', close)).code, 'unauthorized')
+
+  const submitResult = (scope) => rt.submitResult({ taskId: 'task-1', summary: 'done', checksPassed: true }, scope)
+  assert.equal(submitResult(S).state, 'review')
+  const needsReview = rt.submit(close, S)
+  assert.equal(needsReview.code, 'precondition_failed')
+  assert.match(needsReview.detail, /review/)
+  assert.equal(rt.submitReview({ taskId: 'task-1', verdict: 'pass', evidenceRefs: ['proof.txt'] }, S).ok, true)
+  const siblingPending = rt.submit(close, S)
+  assert.equal(siblingPending.code, 'precondition_failed')
+  assert.match(siblingPending.detail, /sibling\/task-1/)
+  assert.equal(submitResult('sibling').state, 'completed')
+
+  const finished = await executeMemberToolCall(rt, commander, 'submit_decision', close)
+  assert.equal(finished.ok, true)
+  assert.equal(finished.result.state, 'completed')
+  assert.equal(finished.result.actor.id, 'c1')
+  assert.deepEqual(finished.result.artifactRefs, ['proof.txt'])
+  assert.equal(finished.planRevision, 3)
+  assert.equal(rt.getStatus('sibling').goalCompletion, null)
+  assert.equal(rt.getStatus('unrelated').tasks[0].state, 'pending')
+  assert.equal(rt.submit({ ...close, decisionId: 'close-again' }, S).code, 'precondition_failed')
+  assert.equal(rt.submit({ decisionId: 'extra', expectedPlanRevision: 3, action: 'create_task', payload: createTask }, S).code, 'precondition_failed')
+
+  const reloaded = createTeamRuntime({ statePath })
+  assert.deepEqual(reloaded.getStatus(S).goalCompletion, finished.result)
+  assert.equal(reloaded.submit(close, S).replayed, true)
+  assert.equal(reloaded.submit({ ...close, payload: { ...close.payload, summary: 'Changed' } }, S).code, 'idempotency_conflict')
+  assert.equal(reloaded.getStatus(S).events.filter(({ type }) => type === 'goal.finished').length, 1)
+})
+
+test('runtime: finish_goal waits for both the current execution and a quarantined older attempt', () => {
+  const rt = createTeamRuntime()
+  rt.submit({ decisionId: 'create', expectedPlanRevision: 1, action: 'create_task', payload: createTask }, S)
+  const binding = { memberId: 'w1', connectorId: 'hosted:w1', sandbox: 'host-controlled', writeScope: join(tmpdir(), 'concerto-original') }
+  const first = rt.startExecution(S, 'task-1', binding)
+  assert.equal(first.ok, true)
+  assert.equal(rt.settleExecution(S, 'task-1', first.executionId, { status: 'unknown' }).ok, true)
+  const isolated = join(tmpdir(), 'concerto-isolated')
+  const original = { taskId: 'task-1', executionId: first.executionId, reason: 'Recover old attempt' }
+  assert.equal(rt.adjudicate(S, { ...original, action: 'retry_isolated', externalEffectsReviewed: true },
+    { kind: 'user', id: 'local-owner' }, { kind: 'fresh_directory', cwd: isolated }).ok, true)
+  const retry = rt.startExecution(S, 'task-1', { ...binding, writeScope: isolated })
+  assert.equal(retry.ok, true)
+  assert.equal(rt.submitResult({ taskId: 'task-1', executionId: retry.executionId, summary: 'retry passed', checksPassed: true }, S).state, 'completed')
+  const close = {
+    decisionId: 'close', expectedPlanRevision: 2, action: 'finish_goal',
+    payload: { goalId: rt.getStatus(S).goalId, summary: 'Recovered' },
+  }
+  const confirm = { ...original, action: 'confirm_failed' }
+  const actor = { kind: 'user', id: 'local-owner' }
+  const unknown = rt.submit(close, S)
+  assert.equal(unknown.code, 'precondition_failed')
+  assert.ok(unknown.detail.includes(first.executionId))
+  assert.equal(rt.adjudicate(S, confirm, actor).code, 'precondition_failed')
+  assert.equal(rt.adjudicate(S, confirm, actor, { kind: 'hosted_idle', verified: true }).executionState, 'stopped')
+  const stillRunning = rt.submit(close, S)
+  assert.equal(stillRunning.code, 'precondition_failed')
+  assert.ok(stillRunning.detail.includes(retry.executionId))
+  assert.equal(rt.settleExecution(S, 'task-1', retry.executionId, { status: 'completed' }).ok, true)
+  assert.equal(rt.submit(close, S).ok, true)
+  const task = rt.getTask({ taskId: 'task-1' }, S).task
+  assert.equal(task.executionId, retry.executionId)
+  assert.equal(task.result.summary, 'retry passed')
 })
 
 test('runtime: invalid payload rejected', () => {

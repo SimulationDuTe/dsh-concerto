@@ -1,15 +1,14 @@
 /** JSON 应答；一律 no-store，读模型不要被浏览器缓存。 */
 export function sendJson(res, status, body) {
-  // res.writeHead 用于一次性写入 HTTP 状态码和响应头
+  return sendJsonText(res, status, JSON.stringify(body))
+}
+
+export function sendJsonText(res, status, json) {
   res.writeHead(status, {
-    // 告诉浏览器或客户端：我返回的是 UTF-8 编码的 JSON 格式数据
     'content-type': 'application/json; charset=utf-8',
-    // 核心安全/一致性配置：禁止任何形式的缓存（浏览器、代理服务器都不要存）
-    // 因为这是“读模型”，如果缓存了旧数据，用户看到的团队列表就不是实时的
     'cache-control': 'no-store',
   })
-  // 将 JS 对象序列化为 JSON 字符串，并结束这次 HTTP 响应
-  res.end(JSON.stringify(body))
+  res.end(json)
 }
 
 /** 请求体上限 1 MiB，与已装插件一致。 */
@@ -117,6 +116,7 @@ export const STATUS_OF = Object.freeze({
   [ERROR.unauthorized]: 401,
   [ERROR.notFound]: 404,
   [ERROR.conflict]: 409,
+  worktree_dirty: 409,
   [ERROR.invalid]: 400,
   [ERROR.preconditionFailed]: 412,
 })

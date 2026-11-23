@@ -2,7 +2,10 @@
  * 受管 RPC（§7.7 MVP 子集）+ 两段式的两个动作。
  * 路由只做：信任判定 → 方法判定 → 解析 → 调依赖 → 统一应答。
  */
-import { sendJson, readJsonBody, sameOrigin, STATUS_OF } from './http.mjs'
+import { sendJson, sendJsonText, readJsonBody, sameOrigin, STATUS_OF } from './http.mjs'
+import { EXCALIDRAW_IMPORT_MAX_BYTES } from './domain/excalidraw_import.mjs'
+
+const TEAM_SNAPSHOT_MAX_BYTES = 256 * 1024
 
 export function registerConcertoRoutes(webServer, base, deps) {
   const { store, probe, generate, reload } = deps
@@ -10,18 +13,34 @@ export function registerConcertoRoutes(webServer, base, deps) {
   const disposers = []
   const add = (path, handler) => disposers.push(webServer.register({ kind: 'exact', path, handler }))
   const replyError = (res, status, code, detail) => sendJson(res, status, { code, ...(detail === undefined ? {} : { detail }) })
-  const statusForError = (code) => STATUS_OF[code] ?? (code === 'capability_mismatch' ? 412 : (code === 'stale' ? 409 : (code === 'host_unavailable' ? 503 : 400)))
+  const statusForError = (code) => STATUS_OF[code] ?? (code === 'forbidden' ? 403 : (code === 'capability_mismatch' ? 412 : (code === 'stale' ? 409 : (code === 'host_unavailable' ? 503 : 400))))
 
-  // 接口 1：团队列表 / 保存（保存后生成文件，但不安装）
+  function sendTeamSnapshot(res, body) {
+    const json = JSON.stringify(body)
+    if (Buffer.byteLength(json, 'utf8') > TEAM_SNAPSHOT_MAX_BYTES) {
+      return replyError(res, STATUS_OF.precondition_failed, 'precondition_failed', 'Team snapshot exceeds the 256 KiB response limit')
+    }
+    return sendJsonText(res, 200, json)
+  }
+
+  // 配置变更先落盘，再生成供显式重载使用的 Preset。
   add(`${base}/teams`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     const method = (req.method || 'GET').toUpperCase()
 
     if (method === 'GET') {
+      const params = new URL(req.url || '/', 'http://localhost').searchParams
+      if (params.has('teamId')) {
+        const teamId = params.get('teamId').trim()
+        if (!teamId) return replyError(res, 400, 'invalid', 'teamId required')
+        const record = store.getTeam(teamId)
+        if (!record) return replyError(res, 404, 'not_found', 'team not found')
+        return sendJson(res, 200, { team: { ...record.team, id: record.id }, configVersion: record.version })
+      }
       const teams = typeof deps.listTeamsWithCapabilities === 'function' ? deps.listTeamsWithCapabilities() : store.listTeams()
       return sendJson(res, 200, { teams })
     }
-    if (method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (method !== 'POST' && method !== 'DELETE') return replyError(res, 405, 'invalid', 'method not allowed')
 
     let body
     try {
@@ -30,26 +49,23 @@ export function registerConcertoRoutes(webServer, base, deps) {
       return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err))
     }
 
-    const result = store.saveTeam(body)
+    const result = method === 'DELETE' ? store.deleteTeam(body) : store.saveTeam(body)
     if (!result.ok) return sendJson(res, result.status, result.body)
 
-    // 保存成功即生成文件（无副作用）；安装仍然要等重载
-    let generatedHash
-    let generationError
-    if (typeof generate === 'function') {
+    if (typeof generate !== 'function') return sendJson(res, result.status, result.body)
+    try {
       const gen = await generate()
-      if (gen.ok) generatedHash = gen.hash
-      else generationError = gen.errors
+      const generation = gen.ok ? { generatedHash: gen.hash }
+        : { generationError: gen.errors, expectedHash: gen.expectedHash }
+      return sendJson(res, result.status, { ...result.body, ...generation })
+    } catch (error) {
+      return sendJson(res, result.status, {
+        ...result.body, generationError: [{ code: 'precondition_failed', detail: error.message }],
+      })
     }
-
-    return sendJson(res, result.status, {
-      ...result.body,
-      ...(generatedHash === undefined ? {} : { generatedHash }),
-      ...(generationError === undefined ? {} : { generationError }),
-    })
   })
 
-  // 接口 2：连通性探活（仅配置层）
+  // 接口 2：探测草稿配置及外部连接器握手。
   add(`${base}/connection/check`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if ((req.method || 'GET').toUpperCase() !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
@@ -61,18 +77,38 @@ export function registerConcertoRoutes(webServer, base, deps) {
       return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err))
     }
 
-    const member = body && body.member
+    const member = body?.member
     if (!member || typeof member !== 'object') return replyError(res, 400, 'invalid', 'member required')
-    if (typeof member.source !== 'string') return replyError(res, 400, 'invalid', 'member.source required')
-
-    const needsConnector = member.source === 'external' || member.source === 'web'
-    if (needsConnector && (typeof member.connector !== 'string' || member.connector === '')) {
+    if (member.source === 'hosted') {
+      const provider = typeof member.provider === 'string' ? member.provider.trim() : ''
+      const model = typeof member.model === 'string' ? member.model.trim() : ''
+      if (!provider || !model) return sendJson(res, 200, { state: 'unreachable', reason: 'model_config_missing', checked: ['config'] })
+      return sendJson(res, 200, await deps.checkHostedConnection({ provider, model }))
+    }
+    if (member.source === 'api') {
+      const baseUrl = typeof member.baseUrl === 'string' ? member.baseUrl.trim() : ''
+      const apiKey = typeof member.apiKey === 'string' ? member.apiKey.trim() : ''
+      const model = typeof member.model === 'string' ? member.model.trim() : ''
+      if (!baseUrl || !model) return sendJson(res, 200, { state: 'unreachable', reason: 'api_config_missing', checked: ['config'] })
+      if (typeof deps.checkApiConnection !== 'function') {
+        return sendJson(res, 200, { state: 'unknown', reason: 'api_check_unavailable', checked: ['config'] })
+      }
+      return sendJson(res, 200, await deps.checkApiConnection({ baseUrl, apiKey, model }))
+    }
+    if (!['external', 'web'].includes(member.source)) return replyError(res, 400, 'invalid', 'unknown member.source')
+    const connector = typeof member.connector === 'string' ? member.connector.trim() : ''
+    const adapter = deps.connectors.registry.get(connector)
+    if (!adapter) {
       return sendJson(res, 200, { state: 'unreachable', reason: 'connector_missing', checked: ['config'] })
     }
-    return sendJson(res, 200, { state: 'reachable', checked: ['config'], handshake: 'not_implemented' })
+    const probe = await adapter.probe({ cwd: deps.connectors.defaultCwd })
+    const checked = ['config', 'handshake']
+    if (probe.ok) return sendJson(res, 200, { state: 'reachable', checked, version: probe.userAgent })
+    const state = probe.code === 'version_mismatch' ? 'versionMismatch' : 'unreachable'
+    return sendJson(res, 200, { state, checked, reason: probe.code, detail: probe.detail })
   })
 
-  // 接口 3：快照（会话未实现）
+  // 接口 3：按 teamSessionId 获取真实运行快照（替代旧占位实现）
   add(`${base}/snapshot`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if ((req.method || 'GET').toUpperCase() !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
@@ -81,7 +117,9 @@ export function registerConcertoRoutes(webServer, base, deps) {
     const teamSessionId = url.searchParams.get('teamSessionId')
     if (!teamSessionId) return replyError(res, 400, 'invalid', 'teamSessionId required')
 
-    const result = store.getSnapshot(teamSessionId)
+    const result = typeof deps.getSnapshot === 'function'
+      ? deps.getSnapshot(teamSessionId)
+      : store.getSnapshot(teamSessionId)
     if (!result.ok) return sendJson(res, STATUS_OF[result.code] ?? 400, { code: result.code, detail: result.detail })
     return sendJson(res, 200, result)
   })
@@ -108,10 +146,33 @@ export function registerConcertoRoutes(webServer, base, deps) {
     return sendJson(res, out.status, out.body)
   })
 
+  // 非 Hosted 指挥者（自定义 API / 外部 Agent）指令入口
+  add(`${base}/commander/prompt`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if ((req.method || 'GET').toUpperCase() !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.commanderPrompt !== 'function') return replyError(res, 503, 'host_unavailable', 'commander prompt unavailable')
+    let body
+    try { body = await readJsonBody(req) } catch (err) { return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err)) }
+    const out = await deps.commanderPrompt(body)
+    return out?.ok ? sendJson(res, 200, out) : replyError(res, statusForError(out?.code), out?.code || 'invalid', out?.detail)
+  })
+
+  // DSH LLM 提供商与模型目录（供团队配置页下拉选择，免手动输入）
+  add(`${base}/llm/catalog`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if ((req.method || 'GET').toUpperCase() !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.listLlmCatalog !== 'function') return sendJson(res, 200, { ok: true, available: false, providers: [] })
+    return sendJson(res, 200, await deps.listLlmCatalog())
+  })
+
   // Connector：列表 / 探针 / 执行（后端由适配器决定，路由不认具体品牌）
   add(`${base}/connectors`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if ((req.method || 'GET').toUpperCase() !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
+    const url = new URL(req.url || '/', 'http://localhost')
+    if (url.searchParams.get('probe') === '1' && typeof deps.connectors.listWithProbe === 'function') {
+      return sendJson(res, 200, { connectors: await deps.connectors.listWithProbe() })
+    }
     return sendJson(res, 200, { connectors: deps.connectors.registry.list() })
   })
 
@@ -121,10 +182,41 @@ export function registerConcertoRoutes(webServer, base, deps) {
     let body
     try { body = await readJsonBody(req) } catch (err) { return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err)) }
 
+    if (typeof body?.command === 'string' && body.command.trim() && typeof deps.connectors.probeDraft === 'function') {
+      const out = await deps.connectors.probeDraft(body)
+      return sendJson(res, out.ok ? 200 : (out.code === 'invalid' ? 400 : 503), out)
+    }
+
     const adapter = deps.connectors.registry.get(body?.connector)
     if (!adapter) return replyError(res, 404, 'unsupported_connector', String(body?.connector ?? ''))
     const out = await adapter.probe({ cwd: body?.cwd || deps.connectors.defaultCwd })
     return sendJson(res, out.ok ? 200 : 503, out)
+  })
+
+  add(`${base}/connectors/custom`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    const method = (req.method || 'GET').toUpperCase()
+    if (method === 'POST') {
+      if (typeof deps.connectors.saveCustom !== 'function') return replyError(res, 503, 'host_unavailable', 'custom connectors unavailable')
+      let body
+      try { body = await readJsonBody(req) } catch (err) { return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err)) }
+      const out = deps.connectors.saveCustom(body)
+      return out.ok ? sendJson(res, 200, out) : replyError(res, statusForError(out.code), out.code, out.detail)
+    }
+    if (method === 'DELETE') {
+      if (typeof deps.connectors.deleteCustom !== 'function') return replyError(res, 503, 'host_unavailable', 'custom connectors unavailable')
+      const url = new URL(req.url || '/', 'http://localhost')
+      let id = url.searchParams.get('id') || ''
+      if (!id) {
+        try {
+          const body = await readJsonBody(req)
+          id = typeof body?.id === 'string' ? body.id : ''
+        } catch { /* ignore empty delete body */ }
+      }
+      const out = deps.connectors.deleteCustom(id)
+      return out.ok ? sendJson(res, 200, out) : replyError(res, statusForError(out.code), out.code, out.detail)
+    }
+    return replyError(res, 405, 'invalid', 'method not allowed')
   })
 
   add(`${base}/connectors/execute`, async (_req, res) => replyError(res, 410, 'precondition_failed', 'Use a managed task dispatch; direct execution is disabled'))
@@ -140,13 +232,33 @@ export function registerConcertoRoutes(webServer, base, deps) {
     return sendJson(res, out.ok ? 202 : statusForError(out.code), out)
   })
 
+  add(`${base}/tasks/dispatch-review`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if ((req.method || 'GET').toUpperCase() !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.tasks?.dispatchReview !== 'function') return replyError(res, 500, 'invalid', 'dispatchReview unavailable')
+    let body
+    try { body = await readJsonBody(req) } catch (err) { return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err)) }
+    const caller = { kind: body?.callerKind === 'ui' ? 'ui' : 'http_api', actorId: 'local-owner' }
+    const out = await deps.tasks.dispatchReview(body, caller)
+    return sendJson(res, out.ok ? 202 : statusForError(out.code), out)
+  })
+
   add(`${base}/tasks/cancel`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if ((req.method || 'GET').toUpperCase() !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
     let body
     try { body = await readJsonBody(req) } catch (err) { return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err)) }
     const out = await deps.tasks.cancel(body)
-    return sendJson(res, out.ok ? 200 : 400, out)
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
+  })
+
+  add(`${base}/tasks/unblock`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid')
+    let body
+    try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    const out = deps.tasks.unblock(body)
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
   })
 
   add(`${base}/tasks/review`, async (req, res) => {
@@ -156,6 +268,15 @@ export function registerConcertoRoutes(webServer, base, deps) {
     try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
     const out = deps.tasks.review(body)
     return sendJson(res, out.ok ? 200 : (STATUS_OF[out.code] ?? 400), out)
+  })
+
+  add(`${base}/tasks/review-feedback`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid')
+    let body
+    try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    const out = deps.tasks.reviewFeedback(body)
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
   })
 
   // 开发用：外部 Agent 作为 Commander / 程序化创建 Hosted Agent 的 spike
@@ -197,11 +318,49 @@ export function registerConcertoRoutes(webServer, base, deps) {
   })
 
   // 团队运行实例与桌面工作区会话启动/定位（§5.1：不让团队会话消失于侧栏外）
+  add(`${base}/runs/halt`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    let body
+    try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    const out = deps.haltRun(body)
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
+  })
+
+  // 团队自主运行时，用户在团队页实时“插话 / 提建议”给指挥者
+  add(`${base}/runs/suggest`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.suggestRun !== 'function') return replyError(res, 503, 'host_unavailable', 'run suggestion unavailable')
+    let body
+    try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    const out = await deps.suggestRun(body)
+    return sendJson(res, out?.ok ? 200 : statusForError(out?.code), out)
+  })
+
+  add(`${base}/runs/approve-plan`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    let body
+    try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    const out = await deps.approveRunPlan(body)
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
+  })
+
+  add(`${base}/runs/dispatch-limits`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    let body
+    try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    const out = deps.setRunDispatchLimits(body)
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
+  })
+
   add(`${base}/runs`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if ((req.method || 'GET').toUpperCase() !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
     const runs = typeof deps.listRuns === 'function' ? deps.listRuns() : (deps.runtime?.listRuns?.() ?? [])
-    return sendJson(res, 200, { runs })
+    return sendJson(res, 200, { runs, projects: deps.listProjects?.(runs) ?? [] })
   })
 
   add(`${base}/teams/launch`, async (req, res) => {
@@ -243,7 +402,56 @@ export function registerConcertoRoutes(webServer, base, deps) {
     if (sessionId === '') return replyError(res, 400, 'invalid', 'sessionId required')
     if (typeof deps.sessionInfo !== 'function') return replyError(res, 500, 'invalid', 'sessionInfo unavailable')
     const out = deps.sessionInfo(sessionId)
-    return sendJson(res, out.ok ? 200 : 404, out)
+    return out.ok ? sendTeamSnapshot(res, out) : sendJson(res, 404, out)
+  })
+
+  // Git Worktree 成果一键查看 Diff / 合并回主分支 / 清理临时工作树
+  for (const [sub, fnName] of [['diff', 'diff'], ['merge', 'merge'], ['cleanup', 'cleanup']]) {
+    add(`${base}/worktree/${sub}`, async (req, res) => {
+      if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+      if ((req.method || 'GET').toUpperCase() !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+      if (typeof deps.worktree?.[fnName] !== 'function') return replyError(res, 503, 'host_unavailable', 'worktree service unavailable')
+      let body
+      try { body = await readJsonBody(req) } catch (err) { return replyError(res, 400, 'invalid', String(err && err.message ? err.message : err)) }
+      const out = deps.worktree[fnName](body)
+      return out?.ok ? sendJson(res, 200, out) : replyError(res, statusForError(out?.code), out?.code || 'invalid', out?.detail)
+    })
+  }
+
+  // 团队页轻量 SSE 实时事件流（Runtime 写事件毫秒级推送，替代高频轮询）
+  add(`${base}/events`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if ((req.method || 'GET').toUpperCase() !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.subscribeSessionEvents !== 'function') return replyError(res, 503, 'host_unavailable', 'event stream unavailable')
+    const sessionId = new URL(req.url || '/', 'http://localhost').searchParams.get('sessionId') ?? ''
+    if (!sessionId) return replyError(res, 400, 'invalid', 'sessionId required')
+    res.writeHead(200, {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-cache, no-transform',
+      connection: 'keep-alive',
+    })
+    res.write(`event: ready\ndata: ${JSON.stringify({ ok: true, sessionId })}\n\n`)
+    const unsubscribe = deps.subscribeSessionEvents(sessionId, (ev) => {
+      try {
+        res.write(`event: update\ndata: ${JSON.stringify({
+          type: ev.type,
+          seq: ev.seq,
+          taskId: ev.taskId ?? null,
+          teamSessionId: ev.teamSessionId ?? null,
+          recordedAt: ev.recordedAt ?? null,
+        })}\n\n`)
+      } catch { /* ignore closed stream */ }
+    })
+    const heartbeat = setInterval(() => {
+      try { res.write(': keepalive\n\n') } catch { /* ignore */ }
+    }, 25000)
+    heartbeat.unref?.()
+    const cleanup = () => {
+      clearInterval(heartbeat)
+      try { unsubscribe() } catch { /* ignore */ }
+    }
+    req.on('close', cleanup)
+    res.on?.('close', cleanup)
   })
 
   // Run data is resolved through a real Host session binding, never a supplied team id.
@@ -254,7 +462,7 @@ export function registerConcertoRoutes(webServer, base, deps) {
     if (!sessionId) return replyError(res, 400, 'invalid', 'sessionId required')
     const info = deps.sessionInfo(sessionId)
     if (!info.ok) return replyError(res, 404, 'not_found')
-    return sendJson(res, 200, { ok: true, ...info.snapshot })
+    return sendTeamSnapshot(res, { ok: true, ...info.snapshot })
   })
 
   // Tool cards read the durable Host result; the obsolete global cache is not a data API.
@@ -292,7 +500,49 @@ export function registerConcertoRoutes(webServer, base, deps) {
     return sendJson(res, out.ok ? 200 : (STATUS_OF[out.code] ?? 400), out)
   })
 
-  // 用户白板布局层持久化（§4.3：与语义 data 分开保存、分开版本）
+  add(`${base}/members/duties`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    const method = req.method || 'GET'
+    if (method !== 'GET' && method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    let input
+    if (method === 'GET') {
+      const { searchParams } = new URL(req.url, 'http://localhost')
+      input = { sessionId: searchParams.get('sessionId'), memberId: searchParams.get('memberId') }
+    } else {
+      try { input = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+    }
+    const out = deps.memberDutiesRequest(input ?? {}, method === 'POST')
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
+  })
+
+  add(`${base}/view-objects/import-excalidraw`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
+    const { searchParams } = new URL(req.url, 'http://localhost')
+    const sessionId = searchParams.get('sessionId')
+    if (!sessionId) return replyError(res, 400, 'invalid', 'sessionId required')
+    let scene
+    try {
+      scene = await readJsonBody(req, EXCALIDRAW_IMPORT_MAX_BYTES)
+    } catch {
+      return replyError(res, 400, 'invalid', '请选择有效的 .excalidraw 文件（最大 1 MiB）。')
+    }
+    const out = deps.importExcalidrawBoard(sessionId, searchParams.get('filename'), scene)
+    return sendJson(res, out.ok ? 201 : statusForError(out.code), out)
+  })
+
+  // 用户共编任务声明的结构化成果（验收清单 / 交付表格 / 图节点与关系）
+  for (const sharedPath of [`${base}/view-objects/acceptance-checklist`, `${base}/view-objects/shared-artifact`]) {
+    add(sharedPath, async (req, res) => {
+      if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+      if (req.method !== 'POST') return replyError(res, 405, 'invalid')
+      let body
+      try { body = await readJsonBody(req) } catch (error) { return replyError(res, 400, 'invalid', error.message) }
+      const out = deps.editAcceptanceChecklist(body)
+      return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
+    })
+  }
+
   add(`${base}/view-objects/user-layout`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if ((req.method || 'GET').toUpperCase() !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')
@@ -324,10 +574,45 @@ export function registerConcertoRoutes(webServer, base, deps) {
     return sendJson(res, out.ok ? 200 : (STATUS_OF[out.code] ?? 400), out)
   })
 
-  // 白名单只读懒加载静态资源分块（P2/P4：Markmap / RoughJS；path traversal impossible via exact allowlist）
+  // 按需读取结构化产物（含固定版本回溯，供 Review / 验收证据弹窗查看）
+  add(`${base}/view-objects/read`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if ((req.method || 'GET').toUpperCase() !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
+    const url = new URL(req.url, 'http://localhost')
+    const sessionId = url.searchParams.get('sessionId') ?? ''
+    const id = url.searchParams.get('id') ?? ''
+    if (!sessionId || !id) return replyError(res, 400, 'invalid', 'sessionId and id required')
+    if (typeof deps.sessionInfo !== 'function') return replyError(res, 500, 'invalid', 'sessionInfo unavailable')
+    const info = deps.sessionInfo(sessionId)
+    if (!info.ok) return replyError(res, 404, 'not_found')
+    if (typeof deps.readViewObject !== 'function') return replyError(res, 500, 'invalid', 'readViewObject unavailable')
+    const versionRaw = url.searchParams.get('version')
+    const version = versionRaw !== null && versionRaw !== '' ? Number.parseInt(versionRaw, 10) : undefined
+    const out = deps.readViewObject(sessionId, { id, ...(version !== undefined ? { version } : {}) })
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
+  })
+
+  // 只读查看当前受管会话的可用流程/项目 Skill 索引与四阶段交付/反馈/验收台账
+  add(`${base}/skills`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if ((req.method || 'GET').toUpperCase() !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
+    const url = new URL(req.url, 'http://localhost')
+    const sessionId = url.searchParams.get('sessionId') ?? ''
+    if (!sessionId) return replyError(res, 400, 'invalid', 'sessionId required')
+    if (typeof deps.sessionInfo !== 'function') return replyError(res, 500, 'invalid', 'sessionInfo unavailable')
+    const info = deps.sessionInfo(sessionId)
+    if (!info.ok) return replyError(res, 404, 'not_found')
+    if (typeof deps.getSkillsInfo !== 'function') return replyError(res, 500, 'invalid', 'getSkillsInfo unavailable')
+    const kind = url.searchParams.get('kind') ?? 'all'
+    const includeIneligible = url.searchParams.get('includeIneligible') === 'true'
+    const out = await deps.getSkillsInfo(sessionId, { kind, includeIneligible })
+    return sendJson(res, out.ok ? 200 : statusForError(out.code), out)
+  })
+
+  // 白名单只读懒加载静态资源分块（P2/P4：RoughJS；path traversal impossible via exact allowlist）
   const STATIC_ASSETS = new Map([
-    ['markmap.js', new URL('./vendor/markmap.js', import.meta.url)],
     ['rough.js', new URL('./vendor/rough.js', import.meta.url)],
+    ['focusgroup.js', new URL('./vendor/focusgroup.js', import.meta.url)],
   ])
   for (const [assetName, assetUrl] of STATIC_ASSETS.entries()) {
     add(`${base}/assets/${assetName}`, async (req, res) => {

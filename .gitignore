@@ -1,4 +1,7 @@
 node_modules/
 .test-data/
+.test/
 generated/
 docs/
+.codeartsdoer/
+.claude/

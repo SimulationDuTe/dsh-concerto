@@ -31,7 +31,7 @@ function buildSrcDoc(data, hostTheme) {
     code, pre { font-family: var(--font-mono); font-size: var(--code-font-size); }
   `
   return [
-    '<!doctype html><html><head><meta charset="utf-8">',
+    '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Concerto 结构化 HTML 视图</title>',
     `<meta http-equiv="Content-Security-Policy" content="${CONCERTO_HTML_CSP}">`,
     `<style>${baseCss}\n${data?.css || ''}</style></head>`,
     `<body>${data?.html || ''}</body></html>`,
@@ -77,7 +77,6 @@ export function HtmlSandboxRenderer({ object, inModal = false }) {
   },
   h('iframe', {
     sandbox: '',
-    scrolling: inModal ? 'auto' : 'no',
     title: object.title || 'Concerto 沙箱 HTML 视图',
     srcDoc,
     style: {
@@ -91,5 +90,5 @@ export function HtmlSandboxRenderer({ object, inModal = false }) {
   }),
   clipped && h('div', { className: 'concerto-html-fade', 'aria-hidden': true })),
   !inModal && h('div', { className: 'concerto-canvas-foot' },
-    h('span', null, clipped ? '沙箱内容已截断 · 点击右上角全屏查看' : '沙箱内容预览')))
+    h('span', null, clipped ? '可滚动查看预览 · 展开画布阅读完整内容' : '沙箱内容预览 · 可滚动查看')))
 }

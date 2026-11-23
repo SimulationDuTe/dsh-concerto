@@ -2,6 +2,8 @@ import React from 'react'
 import { h, styles, useHostTheme, readCanvasViewport, writeCanvasViewport } from '../../api.js'
 import { approxLineWidth, layoutDiagram, STATUS_TOKENS } from '../../../../lib/domain/view_layout.mjs'
 import { exportSvgElement, exportPngFromSvgElement } from './exportUtils.js'
+import { SvgViewport } from './SvgViewport.js'
+import { StatusIcon, UiIcon } from '../UiIcon.js'
 
 const LAYOUT_LABELS = { dag: '依赖 DAG', timeline: '时间线', radial: '中心辐射', swimlane: '成员泳道' }
 
@@ -23,6 +25,16 @@ function statusCssVar(status) {
   }
 }
 
+function statusGroup(status) {
+  if (status === 'done' || status === 'completed') return ['completed', '完成']
+  if (['waiting_approval', 'waiting_input', 'attention'].includes(status)) return ['waiting_approval', '等待']
+  if (status === 'running' || status === 'in_progress') return ['running', '进行中']
+  if (status === 'review') return ['review', '待验收']
+  if (status === 'blocked' || status === 'failed') return ['blocked', '阻塞']
+  if (status === 'unknown') return ['unknown', '未知']
+  return ['pending', '待办']
+}
+
 function edgeAppearance(semantic, highlightCritical) {
   if (semantic === 'blocked') {
     return { stroke: 'var(--cc-state-blocked)', width: 1.8, dash: '6 4', markerSuffix: '-blocked' }
@@ -30,19 +42,21 @@ function edgeAppearance(semantic, highlightCritical) {
   if (semantic === 'unknown') {
     return { stroke: 'var(--cc-state-unknown)', width: 1.8, dash: '6 4', markerSuffix: '-unknown' }
   }
+  if (semantic === 'waiting') {
+    return { stroke: 'var(--cc-state-attention)', width: 1.8, dash: '6 4', markerSuffix: '-waiting' }
+  }
   if (semantic === 'critical' && highlightCritical) {
     return { stroke: 'var(--cc-accent)', width: 2.2, dash: undefined, markerSuffix: '-crit' }
   }
   return { stroke: 'var(--cc-border-strong)', width: 1.5, dash: undefined, markerSuffix: '' }
 }
 
-export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) {
+export function SvgDiagramRenderer({ object, sessionId = '', inModal = false, onJumpTask = null }) {
   const hostTheme = useHostTheme()
   const initialVp = React.useMemo(() => readCanvasViewport(sessionId, object?.id), [sessionId, object?.id])
   const [zoom, setZoom] = React.useState(() => initialVp.scale || 1)
   const [pan, setPan] = React.useState(() => ({ x: initialVp.panX || 0, y: initialVp.panY || 0 }))
   const [highlightCritical, setHighlightCritical] = React.useState(true)
-  const dragging = React.useRef(null)
   const svgRef = React.useRef(null)
 
   React.useEffect(() => {
@@ -63,22 +77,32 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) 
     direction: object?.layoutHints?.direction,
     criticalPath: highlightCritical ? object?.layoutHints?.criticalPath : [],
     userOffsets: object?.userLayout?.offsets,
-    fontSize: Math.max(12, hostTheme.fontSize - 1),
-  }), [rawData, object?.layoutHints, object?.userLayout?.offsets, highlightCritical, hostTheme.fontSize])
+    fontSize: hostTheme.fontSize,
+    semanticKind: object?.semanticKind,
+  }), [rawData, object?.layoutHints, object?.userLayout?.offsets, object?.semanticKind, highlightCritical, hostTheme.fontSize])
 
+  const markerId = 'concerto-arrow-' + React.useId().replace(/[^a-zA-Z0-9_-]/g, '')
   if (!layout.nodes.length) return h('p', { style: styles.muted }, '图谱暂无节点。')
-  const markerId = 'concerto-arrow-' + String(object.id || 'diag').replace(/[^a-zA-Z0-9_-]/g, '') + (inModal ? '-modal' : '')
   const hasCritical = layout.nodes.some((n) => n.critical) || layout.edges.some((e) => e.critical || e.semantic === 'critical')
   const fs = Math.max(12, layout.fontSize || 12.5)
   const lh = layout.lineHeight || Math.round(fs * 1.38)
   const summaryText = (LAYOUT_LABELS[layoutMode] || layoutMode) + ' · ' + layout.nodes.length + ' 节点 / ' + layout.edges.length + ' 连线'
+  const statusCounts = new Map()
+  for (const node of layout.nodes) {
+    const [status, text] = statusGroup(node.status)
+    const current = statusCounts.get(status) || { status, text, count: 0 }
+    current.count += 1
+    statusCounts.set(status, current)
+  }
+  const edgeLegend = [...new Set(layout.edges.map((edge) => edge.semantic).filter((semantic) => semantic && semantic !== 'default'))]
+  const edgeLegendLabels = { critical: '关键路径', waiting: '等待', blocked: '阻塞', unknown: '未知' }
 
   const zoomOutBtn = (iconOnly) => h('button', {
     type: 'button',
     className: iconOnly ? 'concerto-btn concerto-btn--ghost concerto-btn--icon' : 'concerto-btn',
     'aria-label': '缩小',
     title: '缩小',
-    onClick: () => updateViewport(Math.max(0.5, Number((zoom - 0.15).toFixed(2))), pan),
+    onClick: () => updateViewport(Math.max(0.1, Number((zoom - 0.15).toFixed(2))), pan),
   }, iconOnly ? '−' : '缩小')
 
   const zoomInBtn = (iconOnly) => h('button', {
@@ -94,8 +118,18 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) 
     className: iconOnly ? 'concerto-btn concerto-btn--ghost concerto-btn--icon' : 'concerto-btn',
     'aria-label': '适应窗口',
     title: '适应窗口',
+    onClick: () => {
+      const stage = svgRef.current.closest('.concerto-canvas-stage')
+      updateViewport(Math.min(1, stage.clientWidth / layout.width, stage.clientHeight / layout.height), { x: 0, y: 0 })
+    },
+  }, iconOnly ? h(UiIcon, { name: 'expand' }) : '适应窗口')
+
+  const actualSizeBtn = (iconOnly) => h('button', {
+    type: 'button',
+    className: iconOnly ? 'concerto-btn concerto-btn--ghost' : 'concerto-btn',
+    'aria-label': '原始字号', title: '按宿主原始字号显示',
     onClick: () => updateViewport(1, { x: 0, y: 0 }),
-  }, iconOnly ? '⊡' : '适应窗口')
+  }, iconOnly ? '100%' : '原始字号')
 
   return h('div', {
     'data-concerto-renderer-root': 'svg',
@@ -107,31 +141,30 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) 
       hasCritical && h('button', { type: 'button', className: 'concerto-btn', onClick: () => setHighlightCritical((v) => !v) }, highlightCritical ? '隐藏强调路径' : '强调路径'),
       zoomOutBtn(false),
       zoomInBtn(false),
-      fitBtn(false),
+      actualSizeBtn(false),
+      fitBtn(false)),
+    h('div', { className: 'concerto-canvas-export' },
       h('button', { type: 'button', className: 'concerto-btn', onClick: () => exportSvgElement(svgRef.current, `${object.id}.svg`, layout.width, layout.height) }, '导出 SVG'),
       h('button', { type: 'button', className: 'concerto-btn', onClick: () => exportPngFromSvgElement(svgRef.current, `${object.id}.png`, layout.width, layout.height) }, '导出 PNG'))),
 
-  h('div', {
-    className: 'concerto-canvas-stage',
-    style: { height: inModal ? '100%' : Math.min(280, Math.max(185, layout.height + 24)) },
-    onMouseDown: (e) => { dragging.current = { x: e.clientX - pan.x, y: e.clientY - pan.y } },
-    onMouseMove: (e) => {
-      if (dragging.current) updateViewport(zoom, { x: e.clientX - dragging.current.x, y: e.clientY - dragging.current.y })
-    },
-    onMouseUp: () => { dragging.current = null },
-    onMouseLeave: () => { dragging.current = null },
+  h(SvgViewport, {
+    width: layout.width, height: layout.height, zoom, pan, onViewportChange: updateViewport,
+    inModal, label: object.title || '任务依赖图',
+    tools: !inModal && h(React.Fragment, null, zoomOutBtn(true), zoomInBtn(true), actualSizeBtn(true), fitBtn(true)),
   },
-  !inModal && h('div', { className: 'concerto-stage-tools', onMouseDown: (e) => e.stopPropagation() },
-    zoomOutBtn(true),
-    zoomInBtn(true),
-    fitBtn(true)),
   h('svg', {
     ref: svgRef,
     viewBox: `0 0 ${layout.width} ${layout.height}`,
-    width: '100%',
-    height: '100%',
-    style: { display: 'block', minHeight: 180, fontFamily: 'var(--cc-font-sans)' },
+    width: Math.ceil(layout.width * zoom),
+    height: Math.ceil(layout.height * zoom),
+    role: 'img',
+    'aria-label': object.title || '任务依赖图',
+    'aria-describedby': markerId + '-description',
+    style: { fontFamily: 'var(--cc-font-sans)' },
   },
+  h('desc', { id: markerId + '-description' },
+    layout.nodes.map((node) => `${node.fullLabel}：${(STATUS_TOKENS[node.status] || STATUS_TOKENS.pending).label}`).join('；')
+    + '。关系：' + layout.edges.map((edge) => `${layout.nodes.find((node) => node.id === edge.from).fullLabel} → ${layout.nodes.find((node) => node.id === edge.to).fullLabel}`).join('；')),
   h('defs', null,
     h('marker', { id: markerId, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' },
       h('path', { d: 'M 0 1 L 10 5 L 0 9 z', fill: 'var(--cc-border-strong)' })),
@@ -140,8 +173,10 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) 
     h('marker', { id: markerId + '-blocked', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6.5, markerHeight: 6.5, orient: 'auto-start-reverse' },
       h('path', { d: 'M 0 1 L 10 5 L 0 9 z', fill: 'var(--cc-state-blocked)' })),
     h('marker', { id: markerId + '-unknown', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6.5, markerHeight: 6.5, orient: 'auto-start-reverse' },
-      h('path', { d: 'M 0 1 L 10 5 L 0 9 z', fill: 'var(--cc-state-unknown)' }))),
-  h('g', { transform: `translate(${pan.x}, ${pan.y}) scale(${zoom})` },
+      h('path', { d: 'M 0 1 L 10 5 L 0 9 z', fill: 'var(--cc-state-unknown)' })),
+    h('marker', { id: markerId + '-waiting', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6.5, markerHeight: 6.5, orient: 'auto-start-reverse' },
+      h('path', { d: 'M 0 1 L 10 5 L 0 9 z', fill: 'var(--cc-state-attention)' }))),
+  h('g', null,
     (layout.lanes || []).map((lane) => {
       const laneText = lane.memberId ? `@${lane.memberId}` : lane.label
       const laneBoxW = Math.max(96, Math.round(approxLineWidth(laneText, fs) + 24))
@@ -176,7 +211,7 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) 
 
     layout.edges.map((e, idx) => {
       const app = edgeAppearance(e.semantic, highlightCritical)
-      const labelW = Math.max(44, Math.round(approxLineWidth(e.label || '', 12) + 16))
+      const labelW = e.labelWidth
       return h('g', { key: idx, 'data-concerto-edge-semantic': e.semantic || 'default' },
         h('path', {
           d: e.path || `M ${e.x1} ${e.y1} L ${e.x2} ${e.y2}`,
@@ -185,33 +220,24 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) 
           strokeWidth: app.width,
           strokeDasharray: app.dash,
           strokeOpacity: e.semantic === 'default' ? 0.85 : 0.95,
-        }),
-        h('line', {
-          x1: e.x1,
-          y1: e.y1,
-          x2: e.x2,
-          y2: e.y2,
-          stroke: app.stroke,
-          strokeWidth: app.width,
-          strokeOpacity: 0.01,
           markerEnd: `url(#${markerId + app.markerSuffix})`,
         }),
         e.label && h('g', null,
           h('rect', {
             x: e.midX - Math.round(labelW / 2),
-            y: e.midY - 12,
+            y: e.midY - e.labelHeight / 2,
             width: labelW,
-            height: 18,
+            height: e.labelHeight,
             rx: 6,
             fill: 'var(--cc-canvas-bg)',
             stroke: 'var(--cc-border-subtle)',
           }),
           h('text', {
             x: e.midX,
-            y: e.midY + 1,
+            y: e.midY + e.labelFontSize * 0.35,
             textAnchor: 'middle',
             fill: e.semantic === 'default' ? 'var(--cc-text-secondary)' : app.stroke,
-            fontSize: Math.max(11, Math.round(fs - 0.5)),
+            fontSize: e.labelFontSize,
             fontWeight: 500,
           }, e.label)))
     }),
@@ -219,8 +245,31 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) 
     layout.nodes.map((n) => {
       const st = STATUS_TOKENS[n.status] || STATUS_TOKENS.pending
       const stColor = statusCssVar(n.status)
-      const isCrit = Boolean(n.critical) && highlightCritical
-      return h('g', { key: n.id, 'data-concerto-diag-node': n.id, 'data-status': n.status || 'pending', transform: `translate(${n.x}, ${n.y})` },
+      const completed = n.status === 'done' || n.status === 'completed'
+      const interactive = object.semanticKind === 'live_execution' && n.taskId && typeof onJumpTask === 'function'
+      const activate = (event) => {
+        if (!interactive) return
+        event.stopPropagation()
+        onJumpTask(n.taskId)
+      }
+      return h('g', {
+        key: n.id,
+        className: 'concerto-diagram-node',
+        'data-concerto-diag-node': n.id,
+        'data-status': n.status || 'pending',
+        'data-task-id': interactive ? n.taskId : undefined,
+        transform: `translate(${n.x}, ${n.y})`,
+        role: interactive ? 'button' : undefined,
+        tabIndex: interactive ? 0 : undefined,
+        'aria-label': interactive ? `打开任务 ${n.taskId}：${n.fullLabel || n.label}` : undefined,
+        onClick: interactive ? activate : undefined,
+        onKeyDown: interactive ? (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            activate(event)
+          }
+        } : undefined,
+      },
         h('title', null, (n.fullLabel || n.label) + (n.status ? ' · ' + st.label : '')),
         h('rect', {
           x: 0,
@@ -228,30 +277,34 @@ export function SvgDiagramRenderer({ object, sessionId = '', inModal = false }) 
           width: n.width,
           height: n.height,
           rx: 8,
-          fill: 'var(--cc-card-nested-bg)',
-          stroke: isCrit ? 'var(--cc-accent)' : stColor,
-          strokeWidth: isCrit ? 2 : 1.5,
+          fill: completed ? 'var(--cc-card-nested-bg)' : 'var(--cc-card-bg)',
+          stroke: n.status === 'blocked' || n.status === 'failed' ? 'var(--cc-state-blocked)' : (n.status === 'unknown' ? 'var(--cc-state-unknown)' : 'var(--cc-border-subtle)'),
+          strokeDasharray: n.status === 'unknown' ? '5 3' : undefined,
+          strokeWidth: 1.2,
         }),
         h('rect', { x: 0, y: 0, width: 4, height: n.height, rx: 2, fill: stColor }),
         n.lines.map((line, li) => h('text', {
           key: li,
-          x: 14,
-          y: Math.round(fs + 6 + li * lh),
-          fill: 'var(--cc-text-primary)',
+          x: 18,
+          y: Math.round(fs + 12 + li * lh),
+          fill: completed ? 'var(--cc-text-secondary)' : 'var(--cc-text-primary)',
           fontSize: fs,
           fontWeight: 600,
         }, line)),
         n.status && h('text', {
-          x: n.width - 10,
-          y: n.height - 6,
-          textAnchor: 'end',
+          x: 18,
+          y: n.height - 12,
           fill: stColor,
           fontSize: Math.max(11, Math.round(fs - 0.5)),
           fontWeight: 600,
         }, `${st.icon} ${st.label}`))
     })))),
 
-  !inModal && h('div', { className: 'concerto-canvas-foot' },
-    h('span', { className: 'concerto-num' }, summaryText),
-    hasCritical && h('button', { type: 'button', className: 'concerto-link', onClick: () => setHighlightCritical((v) => !v) }, highlightCritical ? '隐藏强调路径' : '强调路径')))
+  !inModal && h('div', { className: 'concerto-canvas-foot concerto-diagram-foot' },
+    h('div', { className: 'concerto-diagram-status-summary', 'aria-label': '节点状态统计' },
+      [...statusCounts.values()].map((item) => h('span', { key: item.status },
+        h(StatusIcon, { status: item.status, size: 12 }),
+        `${item.count} ${item.text}`))),
+    edgeLegend.length > 0 && h('div', { className: 'concerto-diagram-edge-legend', 'aria-label': '连线图例' },
+      edgeLegend.map((semantic) => h('span', { key: semantic, 'data-semantic': semantic }, edgeLegendLabels[semantic] || semantic)))))
 }

@@ -13,9 +13,12 @@
  * 设计：docs/Concerto-Design-v0.3.2.md §10.2 / §17.3
  */
 
+import { validateDispatchLimits } from '../domain/dispatch_limits.mjs'
+
 /** 成员来源枚举：决定成员怎么运行 */
 export const MEMBER_SOURCE = Object.freeze({
   hosted: 'hosted',     // 平台托管：真实挂载，需要 provider/model/config
+  api: 'api',           // 自定义 OpenAI 兼容 API（baseUrl + apiKey + model）
   external: 'external', // 外部 agent：描述行，由 Connector 执行
   web: 'web',           // 网页 agent：描述行，由 Connector 执行
 })
@@ -48,6 +51,7 @@ const DEFAULT_OPTIONS = Object.freeze({
   presetModule: '@deepseek-ai/dsh-agent-preset', // preset 行挂载的模块名
   memberModules: Object.freeze({
     hosted: 'dsh-concerto/member',   // 成员行统一由本 bundle 的子路径提供
+    api: 'dsh-concerto/member',      // 自定义 API 描述行（不把 apiKey 写入 YAML）
     external: 'dsh-concerto/member', // 外部成员只作描述行，不注入人设
     web: 'dsh-concerto/member',      // 同上
   }),
@@ -109,6 +113,22 @@ function memberRow(member, role, options, errors) {
     // 该来源没有配置对应模块：无法生成行，记录错误并返回 null
     errors.push({ code: ERR.missingModule, detail: `no module configured for source ${member.source}` })
     return null
+  }
+
+  if (member.source === MEMBER_SOURCE.api) {
+    // 自定义 API：描述行（仅保留非敏感 baseUrl/model，apiKey 不落入 YAML）
+    return {
+      id: `member-${member.id}`,
+      name: moduleName,
+      config: {
+        memberId: member.id,
+        roleId: role.roleId,
+        roleKind: role.roleKind,
+        source: member.source,
+        baseUrl: member.baseUrl,
+        model: member.model,
+      },
+    }
   }
 
   if (member.source !== MEMBER_SOURCE.hosted) {
@@ -336,6 +356,13 @@ export function presetRowFromTeam(team, rawOptions = {}) {
     errors.push({ code: ERR.invalidTeam, detail: 'team.objective must be a non-empty string when provided' })
   }
   validateTeamRequiredViews(team?.requiredViews, errors)
+  if (team?.policyRequiresReview !== undefined && typeof team.policyRequiresReview !== 'boolean') {
+    errors.push({ code: ERR.invalidTeam, detail: 'policyRequiresReview must be a boolean' })
+  }
+  if (team?.dispatchLimits !== undefined) {
+    const checked = validateDispatchLimits(team.dispatchLimits)
+    if (!checked.ok) errors.push({ code: ERR.invalidTeam, detail: checked.detail })
+  }
   if (!team?.commander || !team.commander.id) {
     errors.push({ code: ERR.invalidTeam, detail: 'commander is required' })
   }
@@ -361,12 +388,19 @@ export function presetRowFromTeam(team, rawOptions = {}) {
     if (seen.has(m.id)) errors.push({ code: ERR.duplicateMember, detail: m.id })
     seen.add(m.id)
 
-    const knownSources = [MEMBER_SOURCE.hosted, MEMBER_SOURCE.external, MEMBER_SOURCE.web]
+    const knownSources = [MEMBER_SOURCE.hosted, MEMBER_SOURCE.api, MEMBER_SOURCE.external, MEMBER_SOURCE.web]
     if (!knownSources.includes(m.source)) {
       // source 不在白名单
       errors.push({ code: ERR.invalidMember, detail: `${m.id}: unknown source ${m.source}` })
+    } else if (m.source === MEMBER_SOURCE.api) {
+      if (typeof m.baseUrl !== 'string' || !/^https?:\/\/\S+/.test(m.baseUrl.trim())) {
+        errors.push({ code: ERR.invalidMember, detail: `${m.id}: valid http(s) baseUrl is required for api` })
+      }
+      if (typeof m.model !== 'string' || m.model.trim() === '') {
+        errors.push({ code: ERR.invalidMember, detail: `${m.id}: model is required for api` })
+      }
     } else if (m.source !== MEMBER_SOURCE.hosted && (typeof m.connector !== 'string' || m.connector.trim() === '')) {
-      // 非 hosted 必须有非空 connector，否则描述行无法定位执行体
+      // 非 hosted/api 必须有非空 connector，否则描述行无法定位执行体
       errors.push({ code: ERR.invalidMember, detail: `${m.id}: connector is required for ${m.source}` })
     }
   }
@@ -523,7 +557,7 @@ function emitPresetRow(row) {
  * @returns {string} cordis.patch.yml 的完整内容
  */
 export function emitPatch(rows) {
-  const body = rows.map(emitPresetRow).join('\n')
+  const body = rows.length === 0 ? '[]' : rows.map(emitPresetRow).join('\n')
   return `# 由 Concerto 生成，请勿手工编辑。团队数据变更后重新生成并重装。\n${body}\n`
 }
 
@@ -531,7 +565,7 @@ export function emitPatch(rows) {
  * 多支团队 -> 一个 bundle 的全部文件（一次安装装完所有团队）。
  *
  * 流程：
- * 1. 校验 teams 是非空数组。
+ * 1. 校验 teams 是数组，允许最后一支团队删除后的空配置。
  * 2. 逐团队调用 presetRowFromTeam；单个团队失败不阻断其他团队收集错误。
  * 3. 跨团队 id 查重（member 级查重在 presetRowFromTeam 内完成）。
  * 4. 生成 package.json 与 cordis.patch.yml 两个文件内容。
@@ -550,9 +584,8 @@ export function buildPresetBundle(teams, rawOptions = {}) {
     memberModules: { ...DEFAULT_OPTIONS.memberModules, ...(rawOptions.memberModules ?? {}) },
   }
 
-  // 空数组没有部署意义，直接拒绝
-  if (!Array.isArray(teams) || teams.length === 0) {
-    return { ok: false, errors: [{ code: ERR.invalidTeam, detail: 'teams must be a non-empty array' }] }
+  if (!Array.isArray(teams)) {
+    return { ok: false, errors: [{ code: ERR.invalidTeam, detail: 'teams must be an array' }] }
   }
 
   const rows = []

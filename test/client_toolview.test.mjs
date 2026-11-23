@@ -39,8 +39,8 @@ test('toolview uses wire keys and durable block content without a structured-cac
   assert.equal(registeredLocales.length, 1)
   assert.equal(registeredLocales[0].ns, 'concerto')
   const cards = registrations.filter((r) => r.options.name === 'tool.call.toolview')
-  assert.equal(cards.length, 12)
-  for (const name of ['dispatch_task', 'patch_view_object', 'list_view_objects', 'read_view_object']) {
+  assert.equal(cards.length, 18)
+  for (const name of ['dispatch_task', 'dispatch_review', 'list_skills', 'read_skill', 'publish_project_skill', 'manage_member_duties', 'read_project_skill', 'patch_view_object', 'list_view_objects', 'read_view_object']) {
     assert.ok(cards.some((c) => c.options.key === name), 'missing toolview registration: ' + name)
   }
   assert.equal(registrations.filter((r) => r.options.name === 'conversation.view' && r.options.id === 'concerto.team').length, 1)

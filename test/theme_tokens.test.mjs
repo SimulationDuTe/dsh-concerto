@@ -91,6 +91,11 @@ test('built client bundle mounts 100% host-tokenized CSS covering glass, accent,
     '--dsw-alias-bg-layer-1',
     '--dsw-alias-bg-layer-2',
     '--dsw-alias-bg-overlay',
+    '--dsw-specific-menu',
+    '--dsw-menu-backdrop-filter',
+    '--dsw-corner-shape',
+    '--ds-transition-duration',
+    '--ds-ease-in-out',
     '--dsw-alias-bg-module-platform',
     '--dsw-alias-border-l1',
     '--dsw-alias-border-l2',
@@ -134,7 +139,6 @@ test('built client bundle mounts 100% host-tokenized CSS covering glass, accent,
     '.concerto-attn-card',
     '.concerto-task-module',
     '.concerto-kcard',
-    '.concerto-briefing-cell',
     '.concerto-filter-bar',
     '.concerto-sprite',
   ]
@@ -154,6 +158,14 @@ test('built client bundle mounts 100% host-tokenized CSS covering glass, accent,
     )
   }
 
+  for (const sel of ['.concerto-briefing-cell', '.concerto-key-task-row']) {
+    const block = findRuleBlock(sel)
+    assert.ok(block !== null, `missing nested surface rule ${sel}`)
+    assert.doesNotMatch(block, /backdrop-filter:/, `${sel} must not nest backdrop blur`)
+    // Rows inside the key-task list card stay transparent; they must not introduce a new opaque surface.
+    assert.match(block, /background:\s*(?:var\(--cc-card-nested-bg\)|transparent)/, `${sel} must use nested surface token or stay transparent`)
+  }
+
   const apiText = readFileSync(resolve('packages/dsh-concerto/src/client/api.js'), 'utf8')
   assert.doesNotMatch(
     apiText,
@@ -163,8 +175,7 @@ test('built client bundle mounts 100% host-tokenized CSS covering glass, accent,
 
   for (const sel of [
     '.concerto-tab-btn[aria-selected="true"]',
-    '.concerto-seg-btn[aria-pressed="true"]',
-    '.concerto-btn--primary',
+    '.concerto-btn--pin[aria-pressed="true"]',
     '.concerto-chip',
     '.concerto-badge',
     '.concerto-link',
@@ -174,6 +185,16 @@ test('built client bundle mounts 100% host-tokenized CSS covering glass, accent,
     assert.ok(block !== null, `missing standalone accent rule ${sel}`)
     assert.match(block, /--cc-accent/, `${sel} must consume --cc-accent`)
   }
+
+  // DSH primary buttons use the host button tokens (neutral brand ink), with the accent only as fallback.
+  const primary = findRuleBlock('.concerto-btn--primary')
+  assert.ok(primary !== null, 'missing standalone rule .concerto-btn--primary')
+  assert.match(primary, /background:\s*var\(--cc-primary-fill\)/)
+  assert.match(primary, /color:\s*var\(--cc-on-primary\)/)
+  for (const t of ['--dsw-alias-button-primary-fill', '--dsw-alias-button-primary-hover', '--dsw-alias-label-primary-foreground']) {
+    assert.ok(css.includes(t), `primary button must consume ${t}`)
+  }
+  assert.match(css, /--cc-primary-fill:\s*var\(--dsw-alias-button-primary-fill,\s*var\(--cc-accent-fill\)\)/)
 })
 
 test('extreme theme+wallpaper contrast solver guarantees >=4.5:1 text & light export coherence', () => {

@@ -6,7 +6,7 @@
 
 /** Task 状态（§7.1） */
 export const TASK_STATE = Object.freeze({
-  pending: 'pending',// 待派发  
+  pending: 'pending',// 待派发
   running: 'running',// 运行中
   review: 'review',// 待评审
   completed: 'completed',
@@ -243,6 +243,11 @@ export function transitionExecution(exec, event) {
 
     case 'reconcile_stopped':
       if (s !== EXEC_STATE.unknown) return no(REJECT.invalidTransition)
+      return ok(EXEC_STATE.stopped)
+
+    case 'force_released_unverified':
+      if (s !== EXEC_STATE.unknown) return no(REJECT.invalidTransition)
+      if (event.userRiskAccepted !== true) return no(REJECT.missingEvidence, 'user_risk_acceptance_required')
       return ok(EXEC_STATE.stopped)
 
     case 'reconcile_unresolved':

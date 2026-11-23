@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import assert from 'node:assert/strict'
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright')
 import { createTeamRuntime } from '../../packages/dsh-concerto/lib/team_runtime.mjs'
+import { registerConcertoRoutes } from '../../packages/dsh-concerto/lib/routes.mjs'
 import { compositeOver, contrastRatio, parseCssColor, relativeLuminance } from '../../packages/dsh-concerto/lib/domain/theme_contrast.mjs'
 
 const rt = createTeamRuntime()
@@ -57,6 +58,7 @@ rt.publishViewObject('run-theme', {
     },
   },
 }, { kind: 'member', id: 'w1', role: 'worker' })
+// Seed a legacy HTML artifact through the trusted Runtime path.
 rt.publishViewObject('run-theme', {
   id: 'preview-html',
   type: 'html',
@@ -67,7 +69,7 @@ rt.publishViewObject('run-theme', {
     html: '<div id="box"><h4>沙箱预览卡片</h4><p>正文与 <a href="#ok" id="link">强调色链接</a> <code>codeToken()</code></p></div>',
     css: '#box{border:1px solid var(--border-color);background:var(--bg-layer-2);padding:10px;border-radius:8px}',
   },
-}, { kind: 'member', id: 'w1', role: 'worker' })
+}, { kind: 'runtime', id: 'w1', role: 'worker' })
 rt.publishViewObject('run-theme', {
   id: 'flow-svg',
   type: 'diagram',
@@ -79,7 +81,7 @@ rt.publishViewObject('run-theme', {
       { id: 'n1', label: '读取令牌', status: 'done' },
       { id: 'n2', label: '对比度检验', status: 'running', critical: true },
     ],
-    edges: [{ from: 'n1', to: 'n2', label: '传递', semantic: 'critical' }],
+    edges: [{ from: 'n1', to: 'n2', label: '传递', kind: 'critical' }],
   },
 }, { kind: 'member', id: 'w1', role: 'worker' })
 rt.updateTeamView('run-theme', {
@@ -170,17 +172,24 @@ ReactDOMClient.createRoot(document.getElementById('turn-anchor')).render(React.c
 </script>`
 
 let latestStandaloneSvg = ''
+const importRoutes = new Map()
+registerConcertoRoutes({ register({ path, handler }) { importRoutes.set(path, handler) } }, '/concerto', {
+  importExcalidrawBoard: (sessionId, filename, scene) => {
+    assert.equal(sessionId, 'team-theme')
+    return rt.importExcalidrawBoard('run-theme', filename, scene)
+  },
+})
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost')
   if (url.pathname === '/') { res.setHeader('content-type', 'text/html; charset=utf-8'); return res.end(html) }
-  if (url.pathname === '/__save-markmap-svg' && req.method === 'POST') {
+  if (url.pathname === '/__save-mindmap-svg' && req.method === 'POST') {
     const chunks = []
     for await (const ch of req) chunks.push(ch)
     latestStandaloneSvg = Buffer.concat(chunks).toString('utf8')
     res.writeHead(204)
     return res.end()
   }
-  if (url.pathname === '/standalone-markmap.svg') {
+  if (url.pathname === '/standalone-mindmap.svg') {
     res.setHeader('content-type', 'image/svg+xml; charset=utf-8')
     return res.end(latestStandaloneSvg)
   }
@@ -192,11 +201,11 @@ const server = createServer(async (req, res) => {
     res.setHeader('content-type', 'application/json')
     return res.end(JSON.stringify({ items: [], hasMore: false, nextBefore: null, backendHistoryMode: 'codex_normalized' }))
   }
+  if (url.pathname === '/concerto/view-objects/import-excalidraw') return importRoutes.get(url.pathname)(req, res)
   const paths = {
     '/host-runtime.js': reactRoot + '/host-runtime.js',
     '/vendor-BUMdD3V7.js': reactRoot + '/vendor-BUMdD3V7.js',
     '/client.js': resolve('packages/dsh-concerto/lib/client.js'),
-    '/concerto/assets/markmap.js': resolve('packages/dsh-concerto/lib/vendor/markmap.js'),
     '/concerto/assets/rough.js': resolve('packages/dsh-concerto/lib/vendor/rough.js'),
   }
   if (!paths[url.pathname]) { res.writeHead(404); return res.end() }
@@ -236,7 +245,10 @@ try {
     document.body.style.setProperty('--dsw-alias-label-secondary', '#fafafa')
     document.body.style.setProperty('--dsw-alias-label-tertiary', '#75e6f5')
   })
-  await page.waitForTimeout(100)
+  await page.waitForFunction(() => {
+    const tab = document.querySelector('.concerto-tab-btn[aria-selected="true"]')
+    return tab && getComputedStyle(tab).color === 'rgb(103, 220, 231)'
+  })
   const glassMetrics = await page.evaluate(() => {
     const hero = document.querySelector('.concerto-hero')
     const card = document.querySelector('.concerto-card')
@@ -250,12 +262,15 @@ try {
       cardBg: getComputedStyle(card).backgroundColor,
       tabColor: getComputedStyle(tab).color,
       badgeColor: getComputedStyle(badge).color,
+      hostAccent: getComputedStyle(document.body).getPropertyValue('--dsw-alias-state-business-primary').trim(),
+      contrastAccent: getComputedStyle(hero).getPropertyValue('--cc-contrast-accent-text').trim(),
+      theme: hero.closest('[data-concerto-theme]')?.getAttribute('data-concerto-theme'),
     }
   })
   assert.match(glassMetrics.heroBlur, /blur\(9px\)/, 'hero must receive glass blur when glass ON')
   assert.match(glassMetrics.cardBlur, /blur\(9px\)/, 'cards must receive glass blur when glass ON')
   assert.match(glassMetrics.toolBlur, /blur\(9px\)/, 'tool card must receive glass blur when glass ON')
-  assert.match(glassMetrics.tabColor, /103,\s*220,\s*231/, 'active tab uses cyan accent #67DCE7')
+  assert.match(glassMetrics.tabColor, /103,\s*220,\s*231/, 'active tab uses cyan accent #67DCE7: ' + JSON.stringify(glassMetrics))
   assert.match(glassMetrics.badgeColor, /103,\s*220,\s*231/, 'badge uses cyan accent #67DCE7')
 
   // 2. Toggle Accent dynamically (#9333ea) + Font sizes (14 -> 18 -> 20px) + Font families
@@ -341,7 +356,7 @@ try {
   const darkDrawerCr = checkCompositeCr(darkBaseMetrics.drawer, '.concerto-drawer')
   const darkCanvasModalCr = checkCompositeCr(darkModalMetrics, '.concerto-canvas-modal')
 
-  // 5. Extreme Pairing: Light Theme (system switch) + Dark Wallpaper (forced white-on-light collision test) + SVG & Markmap standalone exports
+  // 5. Extreme Pairing: Light Theme (system switch) + Dark Wallpaper (forced white-on-light collision test) + SVG & mindmap standalone exports
   await page.emulateMedia({ colorScheme: 'light' })
   await page.evaluate(() => {
     document.body.removeAttribute('data-we-glass-page')
@@ -386,7 +401,7 @@ try {
   const lightToolCr = checkOpaqueCr(lightCollisionDom.toolCard, '.concerto-tool-card')
   const lightDrawerCr = checkOpaqueCr(lightCollisionDom.drawer, '.concerto-drawer')
 
-  // Capture exported SVGs (regular SVG diagram + Markmap standalone SVG) in Light mode
+  // Capture exported SVGs (regular SVG diagram + self-drawn mindmap standalone SVG) in Light mode
   await page.evaluate(() => {
     window.__SVG_OUT__ = ''
     const orig = URL.createObjectURL
@@ -411,57 +426,53 @@ try {
   await page.getByRole('button', { name: '关闭画布' }).click()
   await flowLightModal.waitFor({ state: 'detached' })
 
-  // 5b. Markmap standalone SVG export check: font-size/font-family must NOT be parsed as color!
+  // 5b. Self-drawn mindmap standalone SVG export check
   await page.evaluate(() => { window.__SVG_OUT__ = '' })
   await page.locator('[data-concerto-object-id="arch"]').getByRole('button', { name: '展开画布' }).click()
   const mmModal = page.getByRole('dialog', { name: '外观架构导图' })
   await mmModal.waitFor()
-  await mmModal.locator('svg g.markmap-node').first().waitFor()
-  await page.waitForFunction(() => {
-    const fo = document.querySelector('[role="dialog"][aria-label="外观架构导图"] foreignObject')
-    return fo && Number.parseFloat(getComputedStyle(fo).opacity) > 0.95
-  })
+  await mmModal.locator('[data-concerto-mm-node]').first().waitFor()
   await mmModal.getByRole('button', { name: '导出 SVG' }).click()
   await page.waitForFunction(() => window.__SVG_OUT__.length > 80)
-  const exportedMarkmapSvg = await page.evaluate(() => window.__SVG_OUT__)
-  assert.doesNotMatch(exportedMarkmapSvg, /var\(--/, 'exported Markmap SVG must resolve all CSS vars')
-  assert.doesNotMatch(exportedMarkmapSvg, /font:\s*rgb\(/, 'Markmap font size var must NOT be misparsed as rgb(...) color')
-  assert.match(exportedMarkmapSvg, /font:\s*20px\/1\.45\s*[^;]*Georgia/, 'Markmap <style> must preserve 20px and Georgia font-family')
+  const exportedMindmapSvg = await page.evaluate(() => window.__SVG_OUT__)
+  assert.doesNotMatch(exportedMindmapSvg, /var\(--/, 'exported mindmap SVG must resolve all CSS vars')
+  assert.match(exportedMindmapSvg, /data-concerto-mm-node/, 'exported SVG preserves self-drawn mindmap nodes')
   await page.evaluate(async (svgText) => {
-    await fetch('/__save-markmap-svg', { method: 'POST', body: svgText })
-  }, exportedMarkmapSvg)
+    await fetch('/__save-mindmap-svg', { method: 'POST', body: svgText })
+  }, exportedMindmapSvg)
 
   const standalonePage = await browser.newPage({ viewport: { width: 960, height: 640 } })
   const standaloneErrors = []
   standalonePage.on('pageerror', (e) => standaloneErrors.push(e.message))
-  await standalonePage.goto(`http://127.0.0.1:${server.address().port}/standalone-markmap.svg`)
-  await standalonePage.waitForSelector('.markmap-foreign')
+  await standalonePage.goto(`http://127.0.0.1:${server.address().port}/standalone-mindmap.svg`)
+  await standalonePage.waitForSelector('[data-concerto-mm-node]')
   const standaloneCheck = await standalonePage.evaluate(() => {
     const svg = document.documentElement
     const box = svg.getBoundingClientRect()
-    const labels = [...document.querySelectorAll('.markmap-foreign')]
-    const sample = labels.find((el) => (el.textContent || '').includes('宿主外观集成')) || labels[0]
-    const cs = sample ? getComputedStyle(sample) : null
+    const nodes = [...document.querySelectorAll('[data-concerto-mm-node]')]
+    const sampleNode = nodes.find((el) => (el.textContent || '').includes('宿主外观集成')) || nodes[0]
+    const sampleText = sampleNode?.querySelector('text')
+    const cs = sampleText ? getComputedStyle(sampleText) : null
     return {
       rootTag: svg.tagName.toLowerCase(),
       width: box.width,
       height: box.height,
       exportBg: svg.getAttribute('data-concerto-export-bg'),
-      textSample: sample?.textContent?.trim() || '',
+      textSample: sampleNode?.textContent?.trim() || '',
       fontSize: cs?.fontSize || '',
       fontFamily: cs?.fontFamily || '',
-      color: cs?.color || '',
+      color: cs?.fill || cs?.color || '',
     }
   })
   await standalonePage.close()
-  assert.deepEqual(standaloneErrors, [], 'standalone Markmap SVG must have zero errors')
+  assert.deepEqual(standaloneErrors, [], 'standalone mindmap SVG must have zero errors')
   assert.equal(standaloneCheck.rootTag, 'svg')
-  assert.ok(standaloneCheck.width > 100 && standaloneCheck.height > 50, 'standalone Markmap SVG renders non-empty canvas')
-  assert.match(standaloneCheck.textSample, /宿主外观集成/, 'Chinese Markmap labels preserved in standalone SVG')
-  assert.equal(standaloneCheck.fontSize, '20px', 'standalone Markmap preserves 20px font-size')
-  assert.match(standaloneCheck.fontFamily, /Georgia/, 'standalone Markmap preserves Georgia font-family')
-  const mmStandaloneCr = contrastRatio(parseCssColor(standaloneCheck.color), parseCssColor(standaloneCheck.exportBg))
-  assert.ok(mmStandaloneCr >= 4.5, `standalone Markmap text contrast ${mmStandaloneCr.toFixed(2)} < 4.5`)
+  assert.ok(standaloneCheck.width > 100 && standaloneCheck.height > 50, 'standalone mindmap SVG renders non-empty canvas')
+  assert.match(standaloneCheck.textSample, /宿主外观集成/, 'Chinese mindmap labels preserved in standalone SVG')
+  assert.equal(standaloneCheck.fontSize, '20px', 'standalone mindmap preserves 20px font-size')
+  assert.match(standaloneCheck.fontFamily, /Georgia/, 'standalone mindmap preserves Georgia font-family')
+  const mindmapStandaloneCr = contrastRatio(parseCssColor(standaloneCheck.color), parseCssColor(standaloneCheck.exportBg))
+  assert.ok(mindmapStandaloneCr >= 4.5, `standalone mindmap text contrast ${mindmapStandaloneCr.toFixed(2)} < 4.5`)
 
   // 6. Narrow 390px zero overflow with 20px font
   await page.getByRole('button', { name: '关闭画布' }).click()
@@ -469,6 +480,25 @@ try {
   await page.waitForTimeout(100)
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   assert.ok(overflow <= 1, `390px viewport overflowed by ${overflow}px`)
+
+  await page.locator('[data-concerto-tab="artifacts"]').click()
+  const importButton = page.getByRole('button', { name: '导入 .excalidraw' })
+  const selectBoard = async (name, text) => {
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), importButton.press('Enter')])
+    await chooser.setFiles({ name, mimeType: 'application/json', buffer: Buffer.from(text) })
+  }
+  await selectBoard('invalid.excalidraw', 'not JSON')
+  await page.getByText(/导入失败/).waitFor()
+  await selectBoard('验收白板.excalidraw', JSON.stringify({ type: 'excalidraw', version: 2, elements: [
+    { id: 'shape', type: 'rectangle', x: -40, y: -20, width: 160, height: 60, customData: { label: '导入图形' } },
+    { id: 'image', type: 'image' },
+  ] }))
+  await page.getByText('已导入「验收白板」，已跳过 1 个不支持的元素。').waitFor()
+  await page.getByRole('button', { name: '查看白板' }).click()
+  const importedBoard = page.locator('[data-concerto-object-id^="board-"]').filter({ hasText: '验收白板' })
+  await importedBoard.getByRole('button', { name: '编辑节点：导入图形', exact: true }).waitFor()
+  assert.equal(await importedBoard.locator('[data-concerto-excalidraw-node="shape"]').getAttribute('data-x'), '0')
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
 
   assert.deepEqual(errors, [])
   console.log(JSON.stringify({
@@ -488,13 +518,14 @@ try {
       canvasModal: Number(lightModalCr.toFixed(2)),
     },
     lightExportBg: bgMatch[1],
-    markmapStandalone: {
+    mindmapStandalone: {
       fontSize: standaloneCheck.fontSize,
       fontFamily: standaloneCheck.fontFamily,
-      cr: Number(mmStandaloneCr.toFixed(2)),
+      cr: Number(mindmapStandaloneCr.toFixed(2)),
       textSample: standaloneCheck.textSample,
     },
     narrow390Overflow: overflow,
+    excalidrawImport: 'PASS',
     errors,
   }, null, 2))
 } finally {
