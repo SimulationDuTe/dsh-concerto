@@ -285,6 +285,7 @@ export function ConcertoPanel() {
   const [commanderApiKey, setCommanderApiKey] = React.useState('')
   const [commanderConnector, setCommanderConnector] = React.useState('antigravity')
   const [requiredViewsInput, setRequiredViewsInput] = React.useState('')
+  const [verificationCommand, setVerificationCommand] = React.useState('')
   const [launchCwd, setLaunchCwd] = React.useState('')
   const [membersDraft, setMembersDraft] = React.useState([])
   const [selectedStageNode, setSelectedStageNode] = React.useState(null)
@@ -350,6 +351,7 @@ export function ConcertoPanel() {
     setMembersDraft(team?.members ?? [])
     setSelectedStageNode(null)
     setRequiredViewsInput((team?.requiredViews ?? []).map(requiredViewRef).join(', '))
+    setVerificationCommand(team?.verificationCommand ?? '')
     setDraftRevision((version) => version + 1)
     unnamedTeamId.current = null
     pendingWrite.current = null
@@ -529,6 +531,7 @@ export function ConcertoPanel() {
         members: normalizedMembers,
         requiredViews: parsedRequiredViews.length > 0 ? parsedRequiredViews : undefined,
         dispatchLimits: dispatchLimits.maxAttempts !== null || dispatchLimits.maxReworks !== null ? dispatchLimits : undefined,
+        verificationCommand: verificationCommand.trim() || undefined,
       }
       const body = await writeTeam('POST', { team, expectedConfigVersion: editing?.configVersion ?? 0 })
       loadDraft({ team, configVersion: body.configVersion })
@@ -978,10 +981,14 @@ export function ConcertoPanel() {
 
         // 折叠的高级团队选项，让舞台成为视觉主角
         h('details', { className: 'concerto-set-fold' },
-          h('summary', null, '更多团队选项（简介、固定视图、派发上限）'),
+          h('summary', null, '更多团队选项（简介、固定视图、自动验证门禁、派发上限）'),
           h('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--cc-space-3)', marginTop: 6 } },
             h(SettingsField, { label: '团队简介' },
               h('input', { disabled: busy, className: 'concerto-input', value: description, onChange: (e) => setDescription(e.target.value) })),
+            h(SettingsField, {
+              label: '自动验证门禁（Verification Gate）',
+              hint: '可选。Worker 交付后 Runtime 自动在其 Worktree 里跑一遍，通过才自动验收，失败则把真实报错打回返工。',
+            }, h('input', { disabled: busy, className: 'concerto-input concerto-id', value: verificationCommand, onChange: (e) => setVerificationCommand(e.target.value), placeholder: '例如：npm test / pytest / tsc --noEmit' })),
             h(SettingsField, {
               label: '固定视图要求',
               hint: '可选。写法为「类型:ID」，多个用逗号分隔，例如 mindmap:plan, checklist:accept',

@@ -613,7 +613,9 @@ var EVENT_LABEL = {
   "user.suggestion": "\u7528\u6237\u4E2D\u9014\u5EFA\u8BAE",
   "task.auto_cascaded": "\u26A1 \u81EA\u52A8\u7011\u5E03\u63A5\u529B",
   "race.started": "\u{1F3C1} \u542F\u52A8\u53CC\u89E3\u8D5B\u9A6C",
-  "race.winner_selected": "\u{1F3C6} \u91C7\u7EB3\u8D5B\u9A6C\u80DC\u8005"
+  "race.winner_selected": "\u{1F3C6} \u91C7\u7EB3\u8D5B\u9A6C\u80DC\u8005",
+  "verification.passed": "\u2705 \u9A8C\u8BC1\u95E8\u7981\u901A\u8FC7",
+  "verification.failed": "\u274C \u9A8C\u8BC1\u95E8\u7981\u672A\u901A\u8FC7"
 };
 var STATE_META = {
   running: { cls: "concerto-state-running", icon: "\u27F3", label: "\u6267\u884C\u4E2D" },
@@ -3209,6 +3211,7 @@ function ConcertoPanel() {
   const [commanderApiKey, setCommanderApiKey] = import_react5.default.useState("");
   const [commanderConnector, setCommanderConnector] = import_react5.default.useState("antigravity");
   const [requiredViewsInput, setRequiredViewsInput] = import_react5.default.useState("");
+  const [verificationCommand, setVerificationCommand] = import_react5.default.useState("");
   const [launchCwd, setLaunchCwd] = import_react5.default.useState("");
   const [membersDraft, setMembersDraft] = import_react5.default.useState([]);
   const [selectedStageNode, setSelectedStageNode] = import_react5.default.useState(null);
@@ -3273,6 +3276,7 @@ function ConcertoPanel() {
     setMembersDraft(team?.members ?? []);
     setSelectedStageNode(null);
     setRequiredViewsInput((team?.requiredViews ?? []).map(requiredViewRef).join(", "));
+    setVerificationCommand(team?.verificationCommand ?? "");
     setDraftRevision((version) => version + 1);
     unnamedTeamId.current = null;
     pendingWrite.current = null;
@@ -3435,7 +3439,8 @@ function ConcertoPanel() {
         commander: commanderConfig,
         members: normalizedMembers,
         requiredViews: parsedRequiredViews.length > 0 ? parsedRequiredViews : void 0,
-        dispatchLimits: dispatchLimits.maxAttempts !== null || dispatchLimits.maxReworks !== null ? dispatchLimits : void 0
+        dispatchLimits: dispatchLimits.maxAttempts !== null || dispatchLimits.maxReworks !== null ? dispatchLimits : void 0,
+        verificationCommand: verificationCommand.trim() || void 0
       };
       const body = await writeTeam("POST", { team, expectedConfigVersion: editing?.configVersion ?? 0 });
       loadDraft({ team, configVersion: body.configVersion });
@@ -4003,7 +4008,7 @@ function ConcertoPanel() {
           h(
             "details",
             { className: "concerto-set-fold" },
-            h("summary", null, "\u66F4\u591A\u56E2\u961F\u9009\u9879\uFF08\u7B80\u4ECB\u3001\u56FA\u5B9A\u89C6\u56FE\u3001\u6D3E\u53D1\u4E0A\u9650\uFF09"),
+            h("summary", null, "\u66F4\u591A\u56E2\u961F\u9009\u9879\uFF08\u7B80\u4ECB\u3001\u56FA\u5B9A\u89C6\u56FE\u3001\u81EA\u52A8\u9A8C\u8BC1\u95E8\u7981\u3001\u6D3E\u53D1\u4E0A\u9650\uFF09"),
             h(
               "div",
               { style: { display: "flex", flexDirection: "column", gap: "var(--cc-space-3)", marginTop: 6 } },
@@ -4012,6 +4017,10 @@ function ConcertoPanel() {
                 { label: "\u56E2\u961F\u7B80\u4ECB" },
                 h("input", { disabled: busy, className: "concerto-input", value: description, onChange: (e) => setDescription(e.target.value) })
               ),
+              h(SettingsField, {
+                label: "\u81EA\u52A8\u9A8C\u8BC1\u95E8\u7981\uFF08Verification Gate\uFF09",
+                hint: "\u53EF\u9009\u3002Worker \u4EA4\u4ED8\u540E Runtime \u81EA\u52A8\u5728\u5176 Worktree \u91CC\u8DD1\u4E00\u904D\uFF0C\u901A\u8FC7\u624D\u81EA\u52A8\u9A8C\u6536\uFF0C\u5931\u8D25\u5219\u628A\u771F\u5B9E\u62A5\u9519\u6253\u56DE\u8FD4\u5DE5\u3002"
+              }, h("input", { disabled: busy, className: "concerto-input concerto-id", value: verificationCommand, onChange: (e) => setVerificationCommand(e.target.value), placeholder: "\u4F8B\u5982\uFF1Anpm test / pytest / tsc --noEmit" })),
               h(SettingsField, {
                 label: "\u56FA\u5B9A\u89C6\u56FE\u8981\u6C42",
                 hint: "\u53EF\u9009\u3002\u5199\u6CD5\u4E3A\u300C\u7C7B\u578B:ID\u300D\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u9694\uFF0C\u4F8B\u5982 mindmap:plan, checklist:accept"
@@ -12730,6 +12739,23 @@ function ConcertoTeamView({ sessionId, openView }) {
   const [highlightObjectId, setHighlightObjectId] = import_react20.default.useState("");
   const [pinnedPreview, setPinnedPreview] = import_react20.default.useState(null);
   const [filePreview, setFilePreview] = import_react20.default.useState(null);
+  const [reportModal, setReportModal] = import_react20.default.useState(null);
+  const openCloseoutReport = import_react20.default.useCallback(async () => {
+    setReportModal({ loading: true, error: "", markdown: "", filename: "concerto-report.md", copied: false });
+    try {
+      const res = await request(`/runs/report?sessionId=${encodeURIComponent(sessionId)}`);
+      setReportModal({
+        loading: false,
+        error: "",
+        markdown: res.markdown || "",
+        filename: res.filename || "concerto-report.md",
+        summary: res.summary || null,
+        copied: false
+      });
+    } catch (error2) {
+      setReportModal({ loading: false, error: error2?.message || "\u751F\u6210\u7ED3\u9879\u4EA4\u4ED8\u5355\u5931\u8D25", markdown: "", filename: "concerto-report.md", copied: false });
+    }
+  }, [sessionId]);
   const [busy, setBusy] = import_react20.default.useState(false);
   const [actionError, setActionError] = import_react20.default.useState("");
   const [runLimitsOpen, setRunLimitsOpen] = import_react20.default.useState(false);
@@ -13456,6 +13482,40 @@ function ConcertoTeamView({ sessionId, openView }) {
               worktree: task.worktree,
               disabled: !canAct
             }),
+            task.lastVerification && h(
+              "div",
+              {
+                className: "concerto-acc-box",
+                "data-concerto-verification-gate": task.lastVerification.ok ? "passed" : "failed",
+                style: {
+                  marginBottom: 6,
+                  padding: "6px 8px",
+                  fontSize: "var(--cc-fs-caption)",
+                  borderColor: task.lastVerification.ok ? "var(--cc-state-done)" : "var(--cc-state-blocked)"
+                }
+              },
+              h(
+                "div",
+                { style: { fontWeight: "var(--cc-fw-strong)", color: task.lastVerification.ok ? "var(--cc-state-done)" : "var(--cc-state-blocked)" } },
+                task.lastVerification.ok ? `\u2705 \u81EA\u52A8\u9A8C\u8BC1\u95E8\u7981\u901A\u8FC7\uFF08exit 0 \xB7 ${task.lastVerification.durationMs ?? 0}ms\uFF09` : `\u274C \u81EA\u52A8\u9A8C\u8BC1\u95E8\u7981\u672A\u901A\u8FC7\uFF08exit ${task.lastVerification.exitCode ?? "?"} \xB7 ${task.lastVerification.durationMs ?? 0}ms\uFF09`
+              ),
+              h(
+                "div",
+                { style: { color: "var(--cc-text-secondary)", marginTop: 2 } },
+                "\u547D\u4EE4\uFF1A",
+                h("code", null, task.lastVerification.command)
+              ),
+              task.lastVerification.output && h(
+                "details",
+                { style: { marginTop: 4 } },
+                h("summary", { style: { cursor: "pointer", color: "var(--cc-text-muted)" } }, "\u67E5\u770B\u9A8C\u8BC1\u65E5\u5FD7\u8F93\u51FA"),
+                h(
+                  "pre",
+                  { style: { margin: "4px 0 0", padding: 6, maxHeight: 180, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word", background: "var(--cc-card-nested-bg)", borderRadius: "var(--cc-radius-ctrl)" } },
+                  task.lastVerification.output
+                )
+              )
+            ),
             !task.worktree && task.worktreeFallback && h(
               "div",
               { style: { fontSize: "var(--cc-fs-caption)", marginBottom: 6, overflowWrap: "anywhere", color: "var(--cc-text-muted)" } },
@@ -13709,6 +13769,14 @@ function ConcertoTeamView({ sessionId, openView }) {
             openRunLimits();
           }
         }, "\u6D3E\u53D1\u6B21\u6570\u9650\u5236"),
+        h("button", {
+          type: "button",
+          className: "concerto-btn concerto-btn--ghost",
+          onClick: (event) => {
+            event.currentTarget.closest("details")?.removeAttribute("open");
+            openCloseoutReport();
+          }
+        }, "\u{1F4CB} \u5BFC\u51FA\u4EA4\u4ED8\u590D\u76D8\u5355"),
         h("button", {
           type: "button",
           className: "concerto-btn concerto-btn--ghost",
@@ -13970,6 +14038,11 @@ function ConcertoTeamView({ sessionId, openView }) {
       ),
       actionError && h("p", { role: "alert", className: "concerto-field-error" }, actionError),
       renderPlanConfirmation(),
+      snapshot?.goalCompletion && h(CloseoutReportBar, {
+        sessionId,
+        goalCompletion: snapshot.goalCompletion,
+        onPreview: openCloseoutReport
+      }),
       ["api", "external"].includes(snapshot?.metadata?.commander?.source) ? h(NonHostedCommanderBar, {
         sessionId,
         commander: snapshot.metadata.commander,
@@ -14628,6 +14701,56 @@ function ConcertoTeamView({ sessionId, openView }) {
         )
       )
     ),
+    reportModal && h(
+      InspectorDialog,
+      { title: "\u7ED3\u9879\u4EA4\u4ED8\u590D\u76D8\u5355", onClose: () => setReportModal(null) },
+      h(
+        "div",
+        { className: "concerto-drawer-body", style: { display: "flex", flexDirection: "column", gap: 10 } },
+        h(
+          "div",
+          { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+          h("span", { className: "concerto-quiet" }, reportModal.filename),
+          h(
+            "div",
+            { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+            !reportModal.loading && !reportModal.error && h("button", {
+              type: "button",
+              className: "concerto-btn concerto-btn--primary",
+              onClick: async () => {
+                try {
+                  await navigator.clipboard?.writeText?.(reportModal.markdown);
+                  setReportModal((prev) => prev ? { ...prev, copied: true } : prev);
+                } catch {
+                }
+              }
+            }, reportModal.copied ? "\u2713 \u5DF2\u590D\u5236 Markdown" : "\u{1F4CB} \u590D\u5236 Markdown"),
+            !reportModal.loading && !reportModal.error && h("button", {
+              type: "button",
+              className: "concerto-btn",
+              onClick: () => downloadTextFile(reportModal.filename, reportModal.markdown, "text/markdown;charset=utf-8")
+            }, "\u2B07 \u5BFC\u51FA .md"),
+            h("button", { type: "button", className: "concerto-btn concerto-btn--ghost", onClick: () => setReportModal(null) }, "\u5173\u95ED")
+          )
+        ),
+        reportModal.loading && h("p", { className: "concerto-quiet" }, "\u6B63\u5728\u6C47\u603B\u6539\u52A8\u6587\u4EF6\u3001\u8017\u65F6\u3001\u8FD4\u5DE5\u4E0E\u9A8C\u8BC1\u8BB0\u5F55\u2026"),
+        reportModal.error && h("p", { role: "alert", className: "concerto-field-error" }, reportModal.error),
+        !reportModal.loading && !reportModal.error && h("pre", {
+          style: {
+            margin: 0,
+            maxHeight: "62vh",
+            overflow: "auto",
+            padding: 12,
+            borderRadius: "var(--cc-radius-ctrl)",
+            background: "var(--cc-card-nested-bg)",
+            fontFamily: "var(--cc-font-mono)",
+            fontSize: "var(--cc-fs-code)",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word"
+          }
+        }, reportModal.markdown)
+      )
+    ),
     runLimitsOpen && h(
       InspectorDialog,
       { title: "\u672C\u6B21\u8FD0\u884C\u7684\u6D3E\u53D1\u6B21\u6570\u9650\u5236", onClose: () => setRunLimitsOpen(false) },
@@ -14996,6 +15119,74 @@ function RaceCompareBoard({ sessionId, parentTask, tasks = [], members = [], dis
       })
     ),
     err && h("div", { role: "alert", className: "concerto-field-error" }, err)
+  );
+}
+function CloseoutReportBar({ sessionId, goalCompletion, onPreview }) {
+  const [busy, setBusy] = import_react20.default.useState("");
+  const [notice, setNotice] = import_react20.default.useState("");
+  async function quickAction(kind) {
+    setBusy(kind);
+    setNotice("");
+    try {
+      const res = await request(`/runs/report?sessionId=${encodeURIComponent(sessionId)}`);
+      if (kind === "copy") {
+        await navigator.clipboard?.writeText?.(res.markdown || "");
+        setNotice("\u5DF2\u590D\u5236 Markdown \u7ED3\u9879\u4EA4\u4ED8\u5355\u5230\u526A\u8D34\u677F");
+      } else {
+        downloadTextFile(res.filename || "concerto-report.md", res.markdown || "", "text/markdown;charset=utf-8");
+        setNotice(`\u5DF2\u5BFC\u51FA ${res.filename || "concerto-report.md"}`);
+      }
+    } catch (error) {
+      setNotice(error?.message || "\u5BFC\u51FA\u5931\u8D25");
+    } finally {
+      setBusy("");
+    }
+  }
+  return h(
+    "div",
+    {
+      "data-concerto-closeout-report-bar": "true",
+      style: {
+        marginTop: 8,
+        padding: "8px 12px",
+        borderRadius: "var(--cc-radius-ctrl)",
+        border: "1px solid var(--cc-state-done)",
+        background: "var(--cc-card-nested-bg)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        flexWrap: "wrap"
+      }
+    },
+    h(
+      "div",
+      { style: { fontSize: "var(--cc-fs-meta)", display: "flex", flexDirection: "column", gap: 2 } },
+      h("strong", null, "\u{1F389} \u76EE\u6807\u5DF2\u7ED3\u9879 \xB7 \u4E00\u952E\u751F\u6210\u4EA4\u4ED8\u590D\u76D8\u5355"),
+      notice && h("span", { role: "status", className: "concerto-quiet" }, notice)
+    ),
+    h(
+      "div",
+      { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
+      h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--primary",
+        disabled: Boolean(busy),
+        onClick: () => quickAction("copy")
+      }, busy === "copy" ? "\u6C47\u603B\u4E2D\u2026" : "\u{1F4CB} \u590D\u5236\u590D\u76D8\u5355"),
+      h("button", {
+        type: "button",
+        className: "concerto-btn",
+        disabled: Boolean(busy),
+        onClick: () => quickAction("download")
+      }, busy === "download" ? "\u5BFC\u51FA\u4E2D\u2026" : "\u2B07 \u5BFC\u51FA .md"),
+      h("button", {
+        type: "button",
+        className: "concerto-btn concerto-btn--ghost",
+        disabled: Boolean(busy),
+        onClick: () => onPreview?.()
+      }, "\u9884\u89C8")
+    )
   );
 }
 

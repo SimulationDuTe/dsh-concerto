@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs'
 import os from 'node:os'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
@@ -324,4 +324,97 @@ export function mergeGitWorktree(worktree) {
 
 export function ensureDirIfMissing(dir) {
   mkdirSync(dir, { recursive: true })
+}
+
+/**
+ * 在指定工作目录（优先任务独立 Worktree）执行团队配置的自动验证门禁命令（Verification Gate）。
+ * 捕获截断后的 stdout/stderr，超时自动终止，绝不抛出未捕获异常。
+ */
+export function runVerificationCommand({ command, cwd, timeoutMs = 60000, maxOutputBytes = 8192 } = {}) {
+  const cmd = typeof command === 'string' ? command.trim() : ''
+  const targetDir = typeof cwd === 'string' && cwd.trim() ? realDirPath(cwd.trim()) : ''
+  const limitMs = Number.isInteger(timeoutMs) && timeoutMs >= 1000 ? Math.min(timeoutMs, 600000) : 60000
+  const startedAt = Date.now()
+  if (!cmd) {
+    return Promise.resolve({ ok: true, skipped: true, reason: 'no_command', command: '', cwd: targetDir, exitCode: 0, timedOut: false, durationMs: 0, stdout: '', stderr: '', output: '', ranAt: new Date().toISOString() })
+  }
+  if (!targetDir || !existsSync(targetDir)) {
+    return Promise.resolve({
+      ok: false,
+      skipped: false,
+      command: cmd,
+      cwd: targetDir,
+      exitCode: -1,
+      timedOut: false,
+      durationMs: 0,
+      stdout: '',
+      stderr: '验证目录不存在或不可访问',
+      output: '验证目录不存在或不可访问',
+      ranAt: new Date().toISOString(),
+    })
+  }
+
+  return new Promise((resolveDone) => {
+    let child
+    try {
+      child = spawn(cmd, [], {
+        cwd: targetDir,
+        shell: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+    } catch (error) {
+      const msg = String(error?.message || error)
+      resolveDone({
+        ok: false, skipped: false, command: cmd, cwd: targetDir, exitCode: -1, timedOut: false,
+        durationMs: Date.now() - startedAt, stdout: '', stderr: msg, output: msg, ranAt: new Date().toISOString(),
+      })
+      return
+    }
+
+    let stdout = ''
+    let stderr = ''
+    let timedOut = false
+    let settled = false
+
+    const appendTail = (prev, chunk) => {
+      const next = prev + chunk
+      return next.length > maxOutputBytes ? next.slice(next.length - maxOutputBytes) : next
+    }
+
+    child.stdout?.setEncoding('utf8')
+    child.stderr?.setEncoding('utf8')
+    child.stdout?.on('data', (chunk) => { stdout = appendTail(stdout, chunk) })
+    child.stderr?.on('data', (chunk) => { stderr = appendTail(stderr, chunk) })
+
+    const finish = (exitCode, extraError = '') => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      const combinedErr = extraError ? (stderr ? `${stderr}\n${extraError}` : extraError) : stderr
+      const combined = [stdout.trim(), combinedErr.trim()].filter(Boolean).join('\n')
+      resolveDone({
+        ok: !timedOut && exitCode === 0,
+        skipped: false,
+        command: cmd,
+        cwd: targetDir,
+        exitCode: Number.isInteger(exitCode) ? exitCode : -1,
+        timedOut,
+        durationMs: Date.now() - startedAt,
+        stdout: stdout.trim(),
+        stderr: combinedErr.trim(),
+        output: combined.slice(-maxOutputBytes),
+        ranAt: new Date().toISOString(),
+      })
+    }
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      try { child.kill() } catch { /* ignore */ }
+      finish(-1, `验证命令执行超时（>${Math.round(limitMs / 1000)}s）`)
+    }, limitMs)
+
+    child.once('error', (err) => finish(-1, String(err?.message || err)))
+    child.once('close', (code) => finish(code))
+  })
 }

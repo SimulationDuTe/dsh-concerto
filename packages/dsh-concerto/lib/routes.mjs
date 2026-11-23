@@ -370,6 +370,18 @@ export function registerConcertoRoutes(webServer, base, deps) {
     return sendJson(res, out?.ok ? 200 : statusForError(out?.code), out)
   })
 
+  // 结项交付复盘单（一键复制 / 导出 Markdown 报告）
+  add(`${base}/runs/report`, async (req, res) => {
+    if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
+    if (req.method !== 'GET') return replyError(res, 405, 'invalid', 'method not allowed')
+    if (typeof deps.exportRunReport !== 'function') return replyError(res, 503, 'host_unavailable', 'run report unavailable')
+    const url = new URL(req.url || '/', 'http://127.0.0.1')
+    const sessionId = url.searchParams.get('sessionId') || ''
+    const runId = url.searchParams.get('runId') || ''
+    const out = await deps.exportRunReport({ sessionId, runId })
+    return sendJson(res, out?.ok ? 200 : statusForError(out?.code), out)
+  })
+
   add(`${base}/runs/approve-plan`, async (req, res) => {
     if (!sameOrigin(req)) return replyError(res, 401, 'unauthorized')
     if (req.method !== 'POST') return replyError(res, 405, 'invalid', 'method not allowed')

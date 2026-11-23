@@ -32,6 +32,7 @@ import { InspectorDialog, TaskInspectorDialog } from './TaskInspectorDialog.js'
 import { TaskReviewFeedback } from './TaskReviewFeedback.js'
 import { SharedAcceptanceChecklist } from './SharedAcceptanceChecklist.js'
 import { preferredRendererSize } from './renderers/layoutSize.js'
+import { downloadTextFile } from './renderers/exportUtils.js'
 import { TabList, tabPanelProps, focusAndReveal } from './Tabs.js'
 
 const KANBAN_COLUMNS = [
@@ -351,6 +352,23 @@ export function ConcertoTeamView({ sessionId, openView }) {
   const [highlightObjectId, setHighlightObjectId] = React.useState('')
   const [pinnedPreview, setPinnedPreview] = React.useState(null)
   const [filePreview, setFilePreview] = React.useState(null)
+  const [reportModal, setReportModal] = React.useState(null)
+  const openCloseoutReport = React.useCallback(async () => {
+    setReportModal({ loading: true, error: '', markdown: '', filename: 'concerto-report.md', copied: false })
+    try {
+      const res = await request(`/runs/report?sessionId=${encodeURIComponent(sessionId)}`)
+      setReportModal({
+        loading: false,
+        error: '',
+        markdown: res.markdown || '',
+        filename: res.filename || 'concerto-report.md',
+        summary: res.summary || null,
+        copied: false,
+      })
+    } catch (error) {
+      setReportModal({ loading: false, error: error?.message || '生成结项交付单失败', markdown: '', filename: 'concerto-report.md', copied: false })
+    }
+  }, [sessionId])
   const [busy, setBusy] = React.useState(false)
   const [actionError, setActionError] = React.useState('')
   const [runLimitsOpen, setRunLimitsOpen] = React.useState(false)
@@ -1073,6 +1091,26 @@ export function ConcertoTeamView({ sessionId, openView }) {
             worktree: task.worktree,
             disabled: !canAct,
           }),
+          task.lastVerification && h('div', {
+            className: 'concerto-acc-box',
+            'data-concerto-verification-gate': task.lastVerification.ok ? 'passed' : 'failed',
+            style: {
+              marginBottom: 6,
+              padding: '6px 8px',
+              fontSize: 'var(--cc-fs-caption)',
+              borderColor: task.lastVerification.ok ? 'var(--cc-state-done)' : 'var(--cc-state-blocked)',
+            },
+          },
+          h('div', { style: { fontWeight: 'var(--cc-fw-strong)', color: task.lastVerification.ok ? 'var(--cc-state-done)' : 'var(--cc-state-blocked)' } },
+            task.lastVerification.ok
+              ? `✅ 自动验证门禁通过（exit 0 · ${task.lastVerification.durationMs ?? 0}ms）`
+              : `❌ 自动验证门禁未通过（exit ${task.lastVerification.exitCode ?? '?'} · ${task.lastVerification.durationMs ?? 0}ms）`),
+          h('div', { style: { color: 'var(--cc-text-secondary)', marginTop: 2 } },
+            '命令：', h('code', null, task.lastVerification.command)),
+          task.lastVerification.output && h('details', { style: { marginTop: 4 } },
+            h('summary', { style: { cursor: 'pointer', color: 'var(--cc-text-muted)' } }, '查看验证日志输出'),
+            h('pre', { style: { margin: '4px 0 0', padding: 6, maxHeight: 180, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--cc-card-nested-bg)', borderRadius: 'var(--cc-radius-ctrl)' } },
+              task.lastVerification.output))),
           !task.worktree && task.worktreeFallback && h('div', { style: { fontSize: 'var(--cc-fs-caption)', marginBottom: 6, overflowWrap: 'anywhere', color: 'var(--cc-text-muted)' } },
             h('strong', null, '工作区模式：'),
             `共享目录顺序执行（未启用 Git Worktree 基线 · ${task.worktreeFallback.reason}）`),
@@ -1266,6 +1304,14 @@ export function ConcertoTeamView({ sessionId, openView }) {
             openRunLimits()
           },
         }, '派发次数限制'),
+        h('button', {
+          type: 'button',
+          className: 'concerto-btn concerto-btn--ghost',
+          onClick: (event) => {
+            event.currentTarget.closest('details')?.removeAttribute('open')
+            openCloseoutReport()
+          },
+        }, '📋 导出交付复盘单'),
         h('button', {
           type: 'button',
           className: 'concerto-btn concerto-btn--ghost',
@@ -1471,6 +1517,11 @@ export function ConcertoTeamView({ sessionId, openView }) {
           }, h(MemberGlyph, { member, state: memberState(snapshot, member), size: 24 })))))),
     actionError && h('p', { role: 'alert', className: 'concerto-field-error' }, actionError),
     renderPlanConfirmation(),
+    snapshot?.goalCompletion && h(CloseoutReportBar, {
+      sessionId,
+      goalCompletion: snapshot.goalCompletion,
+      onPreview: openCloseoutReport,
+    }),
     ['api', 'external'].includes(snapshot?.metadata?.commander?.source)
       ? h(NonHostedCommanderBar, {
           sessionId,
@@ -1942,6 +1993,44 @@ export function ConcertoTeamView({ sessionId, openView }) {
         h('div', { className: 'concerto-quiet' }, `${filePreview.sizeBytes} 字节${filePreview.truncated ? '（仅显示前 48 KiB）' : ''}`),
         h('pre', { style: { margin: 0, maxHeight: '60vh', overflow: 'auto', padding: 12, borderRadius: 'var(--cc-radius-ctrl)', background: 'var(--cc-card-nested-bg)', fontFamily: 'var(--cc-font-mono)', fontSize: 'var(--cc-fs-code)', whiteSpace: 'pre-wrap' } }, filePreview.content)))),
 
+  reportModal && h(InspectorDialog, { title: '结项交付复盘单', onClose: () => setReportModal(null) },
+    h('div', { className: 'concerto-drawer-body', style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+        h('span', { className: 'concerto-quiet' }, reportModal.filename),
+        h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+          !reportModal.loading && !reportModal.error && h('button', {
+            type: 'button',
+            className: 'concerto-btn concerto-btn--primary',
+            onClick: async () => {
+              try {
+                await navigator.clipboard?.writeText?.(reportModal.markdown)
+                setReportModal((prev) => (prev ? { ...prev, copied: true } : prev))
+              } catch { /* ignore */ }
+            },
+          }, reportModal.copied ? '✓ 已复制 Markdown' : '📋 复制 Markdown'),
+          !reportModal.loading && !reportModal.error && h('button', {
+            type: 'button',
+            className: 'concerto-btn',
+            onClick: () => downloadTextFile(reportModal.filename, reportModal.markdown, 'text/markdown;charset=utf-8'),
+          }, '⬇ 导出 .md'),
+          h('button', { type: 'button', className: 'concerto-btn concerto-btn--ghost', onClick: () => setReportModal(null) }, '关闭'))),
+      reportModal.loading && h('p', { className: 'concerto-quiet' }, '正在汇总改动文件、耗时、返工与验证记录…'),
+      reportModal.error && h('p', { role: 'alert', className: 'concerto-field-error' }, reportModal.error),
+      !reportModal.loading && !reportModal.error && h('pre', {
+        style: {
+          margin: 0,
+          maxHeight: '62vh',
+          overflow: 'auto',
+          padding: 12,
+          borderRadius: 'var(--cc-radius-ctrl)',
+          background: 'var(--cc-card-nested-bg)',
+          fontFamily: 'var(--cc-font-mono)',
+          fontSize: 'var(--cc-fs-code)',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        },
+      }, reportModal.markdown))),
+
   runLimitsOpen && h(InspectorDialog, { title: '本次运行的派发次数限制', onClose: () => setRunLimitsOpen(false) },
     h('form', { className: 'concerto-drawer-body', method: 'post', action: '/concerto/runs/dispatch-limits', onSubmit: saveRunLimits },
       h('h2', { className: 'concerto-dialog-title' }, '本次运行的派发次数限制'),
@@ -2242,4 +2331,66 @@ function RaceCompareBoard({ sessionId, parentTask, tasks = [], members = [], dis
           }, busyId === ct.taskId ? '采纳中…' : `🏆 采纳方案 ${lbl}`))
       })),
     err && h('div', { role: 'alert', className: 'concerto-field-error' }, err))
+}
+
+function CloseoutReportBar({ sessionId, goalCompletion, onPreview }) {
+  const [busy, setBusy] = React.useState('')
+  const [notice, setNotice] = React.useState('')
+
+  async function quickAction(kind) {
+    setBusy(kind)
+    setNotice('')
+    try {
+      const res = await request(`/runs/report?sessionId=${encodeURIComponent(sessionId)}`)
+      if (kind === 'copy') {
+        await navigator.clipboard?.writeText?.(res.markdown || '')
+        setNotice('已复制 Markdown 结项交付单到剪贴板')
+      } else {
+        downloadTextFile(res.filename || 'concerto-report.md', res.markdown || '', 'text/markdown;charset=utf-8')
+        setNotice(`已导出 ${res.filename || 'concerto-report.md'}`)
+      }
+    } catch (error) {
+      setNotice(error?.message || '导出失败')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return h('div', {
+    'data-concerto-closeout-report-bar': 'true',
+    style: {
+      marginTop: 8,
+      padding: '8px 12px',
+      borderRadius: 'var(--cc-radius-ctrl)',
+      border: '1px solid var(--cc-state-done)',
+      background: 'var(--cc-card-nested-bg)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+  },
+  h('div', { style: { fontSize: 'var(--cc-fs-meta)', display: 'flex', flexDirection: 'column', gap: 2 } },
+    h('strong', null, '🎉 目标已结项 · 一键生成交付复盘单'),
+    notice && h('span', { role: 'status', className: 'concerto-quiet' }, notice)),
+  h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+    h('button', {
+      type: 'button',
+      className: 'concerto-btn concerto-btn--primary',
+      disabled: Boolean(busy),
+      onClick: () => quickAction('copy'),
+    }, busy === 'copy' ? '汇总中…' : '📋 复制复盘单'),
+    h('button', {
+      type: 'button',
+      className: 'concerto-btn',
+      disabled: Boolean(busy),
+      onClick: () => quickAction('download'),
+    }, busy === 'download' ? '导出中…' : '⬇ 导出 .md'),
+    h('button', {
+      type: 'button',
+      className: 'concerto-btn concerto-btn--ghost',
+      disabled: Boolean(busy),
+      onClick: () => onPreview?.(),
+    }, '预览')))
 }

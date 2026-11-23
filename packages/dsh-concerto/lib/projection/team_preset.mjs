@@ -363,6 +363,16 @@ export function presetRowFromTeam(team, rawOptions = {}) {
     const checked = validateDispatchLimits(team.dispatchLimits)
     if (!checked.ok) errors.push({ code: ERR.invalidTeam, detail: checked.detail })
   }
+  if (team?.verificationCommand !== undefined) {
+    if (typeof team.verificationCommand !== 'string' || team.verificationCommand.length > 400) {
+      errors.push({ code: ERR.invalidTeam, detail: 'verificationCommand must be a string up to 400 chars' })
+    }
+  }
+  if (team?.verificationTimeoutMs !== undefined) {
+    if (!Number.isSafeInteger(team.verificationTimeoutMs) || team.verificationTimeoutMs < 1000 || team.verificationTimeoutMs > 600000) {
+      errors.push({ code: ERR.invalidTeam, detail: 'verificationTimeoutMs must be an integer between 1000 and 600000' })
+    }
+  }
   if (!team?.commander || !team.commander.id) {
     errors.push({ code: ERR.invalidTeam, detail: 'commander is required' })
   }

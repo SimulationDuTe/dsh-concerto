@@ -591,6 +591,7 @@ export function createTeamRuntime({ policyRequiresReview = false, statePath = ''
         ...(t.worktree ? { worktree: t.worktree } : {}),
         ...(t.worktreeFallback ? { worktreeFallback: t.worktreeFallback } : {}),
         ...(t.worktreeWarning ? { worktreeWarning: t.worktreeWarning } : {}),
+        ...(t.lastVerification ? { lastVerification: structuredClone(t.lastVerification) } : {}),
         updatedAt: t.updatedAt,
       })),
       viewObjects,
@@ -3750,6 +3751,38 @@ export function createTeamRuntime({ policyRequiresReview = false, statePath = ''
       task.blockedReason = detail
       appendEvent(scope, 'review.assignment_needed', task.reviewDispatch, undefined, task.taskId, task.executionId)
       return { ok: true }
+    }),
+    recordVerificationGate: transaction((scope, { taskId, executionId, result }) => {
+      const state = stateOf(scope)
+      const task = state.tasks.get(taskId)
+      if (!task) return fail('not_found', `task ${taskId} not found`)
+      const exec = executionId ? state.executions.get(executionId) : null
+      const summary = {
+        ok: Boolean(result?.ok),
+        command: String(result?.command || ''),
+        cwd: String(result?.cwd || ''),
+        exitCode: Number.isInteger(result?.exitCode) ? result.exitCode : -1,
+        timedOut: Boolean(result?.timedOut),
+        durationMs: Number.isFinite(result?.durationMs) ? result.durationMs : 0,
+        output: String(result?.output || '').slice(-4096),
+        ranAt: result?.ranAt || new Date().toISOString(),
+        executionId: executionId || null,
+      }
+      task.lastVerification = summary
+      if (exec) exec.verification = summary
+      const eventType = summary.ok ? 'verification.passed' : 'verification.failed'
+      appendEvent(scope, eventType, summary, { kind: 'runtime', id: 'verification-gate' }, taskId, executionId ?? null)
+      recordActivity(scope, {
+        memberId: exec?.memberId || state.metadata?.commanderId || 'concerto',
+        kind: 'result',
+        taskId,
+        executionId: executionId ?? null,
+        summary: summary.ok
+          ? `自动验证门禁通过：${summary.command}（exit 0，${summary.durationMs}ms）`
+          : `自动验证门禁失败：${summary.command}（exit ${summary.exitCode}）`,
+        detail: summary,
+      })
+      return { ok: true, verification: summary }
     }),
     haltTeam: transaction(haltTeam),
     recordUserSuggestion: transaction(recordUserSuggestion),

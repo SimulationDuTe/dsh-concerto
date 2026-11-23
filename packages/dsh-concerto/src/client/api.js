@@ -149,6 +149,8 @@ export const EVENT_LABEL = {
   'task.auto_cascaded': '⚡ 自动瀑布接力',
   'race.started': '🏁 启动双解赛马',
   'race.winner_selected': '🏆 采纳赛马胜者',
+  'verification.passed': '✅ 验证门禁通过',
+  'verification.failed': '❌ 验证门禁未通过',
 }
 
 export const STATE_META = {

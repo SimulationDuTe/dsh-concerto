@@ -13,6 +13,7 @@ import { createTeamStore } from './team_store.mjs'
 import { createTeamRuntime } from './team_runtime.mjs'
 import { registerConcertoTools, COMMANDER_TOOL_SCHEMAS, executeMemberToolCall } from './tools.mjs'
 import { buildMemberSystemPrompt } from './domain/runtime_skills.mjs'
+import { buildCloseoutReport } from './domain/closeout_report.mjs'
 import { checkApiEndpoint, listApiModels, runApiCommanderTurn, runExternalCommanderTurn } from './connector/commander-runner.mjs'
 import { DEFAULT_RUNTIME_PATH } from './runtime_storage.mjs'
 import { buildTeamBundleFiles, hashFiles, readTeamBundleFiles, writeTeamBundle } from './team_bundle.mjs'
@@ -31,6 +32,7 @@ import {
   inspectGitWorktreeDiff,
   mergeGitWorktree,
   removeGitWorktree,
+  runVerificationCommand,
   scopesOverlap,
 } from './workspace_scope.mjs'
 import { expectedCapabilitiesForMember } from './projection/team_preset.mjs'
@@ -454,7 +456,9 @@ export function apply(ctx, config) {
         executionId: settled.executionId,
         resultId: task.result.resultId,
         verdict: 'pass',
-        reason: '普通任务（requiresReview=false）交付物已通过受管确定性校验且原生执行正常结束，自动完成验收',
+        reason: task.lastVerification?.ok
+          ? `普通任务（requiresReview=false）交付物已通过受管确定性校验与自动验证门禁（${task.lastVerification.command}，exit 0，${task.lastVerification.durationMs}ms），自动完成验收`
+          : '普通任务（requiresReview=false）交付物已通过受管确定性校验且原生执行正常结束，自动完成验收',
         evidenceRefs: task.result.artifactRefs ?? [],
         autoAccepted: true,
       }, teamSessionId, { kind: 'member', role: 'commander', id: snapshot.metadata?.commanderId || 'commander' })
@@ -498,7 +502,17 @@ export function apply(ctx, config) {
       const planInfo = snapshot.planGate?.planRef ? `planRef=${JSON.stringify(snapshot.planGate.planRef)}，` : ''
       directive = `该任务已自动完成确定性交付验收（无需独立审查或用户手动验收，当前 planRevision=${snapshot.planRevision}，goalId="${snapshot.goalId}"，${planInfo}artifactRefs=${refsJson}，summary=${JSON.stringify(task.result?.summary ?? '')}）。无需再调用 get_task 或 submit_review（除非发现问题需记录），请直接在本轮一步调用：1) patch_view_object（op: "upsert_items"）勾选计划清单对应完成项并刷新 update_team_view；2) 如有后续任务继续派发，若全部完成则直接调用 submit_decision（action: "finish_goal", expectedPlanRevision: ${snapshot.planRevision}, payload: { goalId: "${snapshot.goalId}", summary: "...", artifactRefs: ${refsJson} }）结项。`
     } else if (task.state === 'pending') {
-      directive = '该任务已退回 pending（例如审查未通过待返工）。请调用 get_team_status 与 get_task 查看审查意见和返工预算，重新派发或向用户说明情况。'
+      if (task.lastVerification && task.lastVerification.ok === false) {
+        const v = task.lastVerification
+        const logSnippet = String(v.output || '').slice(-1200)
+        directive = [
+          `自动验证门禁未通过（命令：\`${v.command}\`，exit ${v.exitCode}，目录：${v.cwd}），Runtime 已自动将任务打回 pending 等待返工。`,
+          logSnippet ? `真实错误日志片段：\n\`\`\`\n${logSnippet}\n\`\`\`` : '',
+          '请将上述真实报错附带在 dispatch_task.taskContext 中重新派发给执行者修复，直到验证通过。',
+        ].filter(Boolean).join('\n')
+      } else {
+        directive = '该任务已退回 pending（例如审查未通过待返工）。请调用 get_team_status 与 get_task 查看审查意见和返工预算，重新派发或向用户说明情况。'
+      }
     } else {
       const reason = task.blockedReason || exec?.unknownReason || '未确认完成'
       directive = `任务当前处于 ${task.state}（${reason}）。请调用 get_team_status 核查原因、刷新 update_team_view，并按情况解除/调整或向用户汇报处理。`
@@ -531,6 +545,50 @@ export function apply(ctx, config) {
     }
   }
 
+  const verificationRan = new Set()
+
+  async function runVerificationGateIfConfigured(teamSessionId, settled) {
+    if (!settled?.executionId || settled.roleKind === 'reviewer') return
+    const key = `${teamSessionId}:${settled.executionId}`
+    if (verificationRan.has(key)) return
+    const snapshot = runtime.getStatus(teamSessionId)
+    if (!snapshot || snapshot.goalCompletion) return
+    const teamId = snapshot.metadata?.teamId
+    const team = teamId ? store.getTeam(teamId)?.team : null
+    const verificationCommand = typeof team?.verificationCommand === 'string' ? team.verificationCommand.trim() : ''
+    if (!verificationCommand) return
+    const task = snapshot.tasks.find((t) => t.taskId === settled.taskId)
+    const exec = snapshot.executions.find((e) => e.executionId === settled.executionId)
+    if (!task || task.state !== 'review' || exec?.state !== 'finished' || task.needsAdjudication) return
+    if (!task.result?.resultId) return
+    const targetCwd = exec.worktree?.path || exec.cwd || snapshot.metadata?.cwd || defaultCwd
+    if (!targetCwd) return
+    verificationRan.add(key)
+
+    const vRes = await runVerificationCommand({
+      command: verificationCommand,
+      cwd: targetCwd,
+      timeoutMs: team?.verificationTimeoutMs ?? 60000,
+    })
+    runtime.recordVerificationGate(teamSessionId, {
+      taskId: task.taskId,
+      executionId: settled.executionId,
+      result: vRes,
+    })
+    if (!vRes.ok) {
+      const logTail = String(vRes.output || '').slice(-800)
+      const reason = `自动验证门禁失败（\`${vRes.command}\` exit ${vRes.exitCode}）${logTail ? `：\n${logTail}` : ''}`
+      runtime.submitReview({
+        taskId: task.taskId,
+        executionId: settled.executionId,
+        resultId: task.result.resultId,
+        verdict: 'fail',
+        reason,
+        evidenceRefs: task.result.artifactRefs ?? [],
+      }, teamSessionId, { kind: 'member', role: 'commander', id: snapshot.metadata?.commanderId || 'commander' })
+    }
+  }
+
   function wakeAutomaticReview(teamSessionId, settled = null) {
     if (disposing) return
     if (settled?.executionId) {
@@ -543,6 +601,11 @@ export function apply(ctx, config) {
     queueMicrotask(async () => {
       try {
         if (disposing) return
+        const drained = queuedSettlements.get(teamSessionId) ?? []
+        queuedSettlements.delete(teamSessionId)
+        for (const item of drained) {
+          await runVerificationGateIfConfigured(teamSessionId, item)
+        }
         const pending = runtime.nextAutomaticReview(teamSessionId)
         let autoDispatchedTaskId = null
         if (pending) {
@@ -554,8 +617,6 @@ export function apply(ctx, config) {
           if (out.ok) autoDispatchedTaskId = pending.taskId
           else runtime.recordReviewDispatchBlock(teamSessionId, pending, out)
         }
-        const drained = queuedSettlements.get(teamSessionId) ?? []
-        queuedSettlements.delete(teamSessionId)
         for (const item of drained) {
           if (autoDispatchedTaskId && item.taskId === autoDispatchedTaskId && item.roleKind !== 'reviewer') {
             continue
@@ -2524,6 +2585,20 @@ export function apply(ctx, config) {
     return { ok: true, teamSessionId: key, snapshot: runtime.getStatus(key) }
   }
 
+  const exportRunReport = ({ sessionId, runId } = {}) => {
+    let teamSessionId = typeof runId === 'string' && runId.trim() ? runId.trim() : ''
+    if (!teamSessionId && typeof sessionId === 'string' && sessionId.trim()) {
+      const owned = ownedRun({ sessionId: sessionId.trim(), commandId: `report-${sessionId.trim()}` })
+      if (!owned.ok) return owned
+      teamSessionId = owned.scope.teamSessionId
+    }
+    if (!teamSessionId) return { ok: false, code: 'invalid', detail: 'sessionId or runId is required' }
+    const snapshot = runtime.getStatus(teamSessionId)
+    if (!snapshot) return { ok: false, code: 'not_found', detail: `run "${teamSessionId}" not found` }
+    const team = snapshot.metadata?.teamId ? store.getTeam(snapshot.metadata.teamId)?.team ?? null : null
+    return buildCloseoutReport({ snapshot, team })
+  }
+
   const suggestRun = async (input) => {
     const owned = ownedRun(input)
     if (!owned.ok) return owned
@@ -2672,6 +2747,7 @@ export function apply(ctx, config) {
       listLlmCatalog,
       commanderPrompt: commanderPromptRequest,
       getSnapshot: getRunSnapshot,
+      exportRunReport,
       suggestRun,
       probe,
       generate,

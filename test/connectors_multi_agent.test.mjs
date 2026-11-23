@@ -16,7 +16,8 @@ import { createTeamRuntime } from '../packages/dsh-concerto/lib/team_runtime.mjs
 import { createTaskRunner } from '../packages/dsh-concerto/lib/runner.mjs'
 import { createConnectorRegistry } from '../packages/dsh-concerto/lib/connector/registry.mjs'
 import { presetRowFromTeam } from '../packages/dsh-concerto/lib/projection/team_preset.mjs'
-import { createGitWorktree, inspectGitWorktreeDiff, mergeGitWorktree, removeGitWorktree } from '../packages/dsh-concerto/lib/workspace_scope.mjs'
+import { createGitWorktree, inspectGitWorktreeDiff, mergeGitWorktree, removeGitWorktree, runVerificationCommand } from '../packages/dsh-concerto/lib/workspace_scope.mjs'
+import { buildCloseoutReport } from '../packages/dsh-concerto/lib/domain/closeout_report.mjs'
 import { execFileSync } from 'node:child_process'
 import http from 'node:http'
 import { apply } from '../packages/dsh-concerto/lib/index.js'
@@ -918,6 +919,67 @@ test('Auto-Cascade DAG finds ready downstream tasks and A/B Compare Race creates
   assert.equal(parentAfter.result.summary, 'Claude solution B')
   assert.equal(parentAfter.raceGroup.status, 'resolved')
   assert.equal(rt.getTask({ taskId: race.taskA.taskId }, 'run-dag').task.raceGroup.status, 'discarded')
+})
+
+test('Verification Gate executes real command, records pass/fail events, and Closeout Report builds Markdown summary', async (t) => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'concerto-vgate-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+
+  // 1. Real command execution: pass and fail
+  const passRes = await runVerificationCommand({ command: 'node -e "console.log(\'all tests ok\')"', cwd: dir })
+  assert.equal(passRes.ok, true)
+  assert.equal(passRes.exitCode, 0)
+  assert.match(passRes.output, /all tests ok/)
+
+  const failRes = await runVerificationCommand({ command: 'node -e "console.error(\'TS2322 type mismatch\'); process.exit(2)"', cwd: dir })
+  assert.equal(failRes.ok, false)
+  assert.equal(failRes.exitCode, 2)
+  assert.match(failRes.output, /TS2322 type mismatch/)
+
+  // 2. Team preset validation for verificationCommand
+  const validTeam = presetRowFromTeam({
+    id: 'gate-team',
+    name: 'Gate Team',
+    verificationCommand: 'npm test',
+    commander: { id: 'commander', source: 'hosted', provider: 'deepseek', model: 'deepseek-chat' },
+    members: [{ id: 'w1', roleKind: 'worker', source: 'external', connector: 'antigravity' }],
+  })
+  assert.equal(validTeam.ok, true)
+
+  const invalidTeam = presetRowFromTeam({
+    id: 'gate-team',
+    name: 'Gate Team',
+    verificationCommand: 'x'.repeat(401),
+    commander: { id: 'commander', source: 'hosted', provider: 'deepseek', model: 'deepseek-chat' },
+    members: [{ id: 'w1', roleKind: 'worker', source: 'external', connector: 'antigravity' }],
+  })
+  assert.equal(invalidTeam.ok, false)
+
+  // 3. Durable verification recording + Closeout Markdown report generation
+  const rt = createTeamRuntime({ policyRequiresReview: false })
+  rt.bindSession('cmd-vgate', 'run-vgate', { teamId: 'gate-team', teamName: 'Gate Team', commanderId: 'commander', cwd: dir, requirePlanApproval: false })
+  const t1 = rt.submit({
+    decisionId: 'd-vg-1',
+    action: 'create_task',
+    expectedPlanRevision: 1,
+    payload: { title: 'Implement login', objective: 'Add login API', acceptance: ['login works'], constraints: [], dependsOn: [], assigneeRole: 'worker' },
+  }, 'run-vgate')
+  assert.equal(t1.ok, true, JSON.stringify(t1))
+  assert.equal(rt.recordVerificationGate('run-vgate', { taskId: 'task-1', executionId: null, result: failRes }).ok, true)
+  assert.equal(rt.recordVerificationGate('run-vgate', { taskId: 'task-1', executionId: null, result: passRes }).ok, true)
+  rt.submitResult({ taskId: 'task-1', summary: 'Implemented login API and fixed types', artifactRefs: ['src/auth.js', 'test/auth.test.js'], checksPassed: true }, 'run-vgate')
+
+  const snap = rt.getStatus('run-vgate')
+  const report = buildCloseoutReport({ snapshot: snap, team: { name: 'Gate Team', verificationCommand: 'npm test' } })
+  assert.equal(report.ok, true)
+  assert.match(report.filename, /^concerto-report-run-vgate\.md$/)
+  assert.equal(report.summary.verificationPassed, 1)
+  assert.equal(report.summary.verificationFailed, 1)
+  assert.equal(report.summary.modifiedFileCount, 2)
+  assert.match(report.markdown, /# Concerto 结项交付复盘单/)
+  assert.match(report.markdown, /`src\/auth\.js`/)
+  assert.match(report.markdown, /✅ 通过/)
+  assert.match(report.markdown, /自动验证门禁记录/)
 })
 
 
